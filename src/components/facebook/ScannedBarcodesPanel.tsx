@@ -3,43 +3,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Barcode, Trash2, X, Package, Plus } from "lucide-react";
+import { Barcode, Trash2, X, Package } from "lucide-react";
 import { useBarcodeScanner } from "@/contexts/BarcodeScannerContext";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { SelectProductDialog } from "@/components/products/SelectProductDialog";
-import { useToast } from "@/hooks/use-toast";
 
 export function ScannedBarcodesPanel() {
-  const { scannedBarcodes, clearScannedBarcodes, removeScannedBarcode, addScannedBarcode } = useBarcodeScanner();
+  const { scannedBarcodes, clearScannedBarcodes, removeScannedBarcode } = useBarcodeScanner();
   const isMobile = useIsMobile();
-  const { toast } = useToast();
   const [isExpanded, setIsExpanded] = useState(true);
-  const [isSelectProductOpen, setIsSelectProductOpen] = useState(false);
-
-  const handleProductSelect = (product: any) => {
-    // Get the first available image
-    const imageUrl = product.product_images?.[0] || product.tpos_image_url || undefined;
-    
-    // Add to scanned barcodes using existing context
-    addScannedBarcode({
-      code: product.product_code,
-      timestamp: new Date().toISOString(),
-      productInfo: {
-        id: product.id,
-        name: product.product_name,
-        image_url: imageUrl,
-        product_code: product.product_code,
-      },
-    });
-    
-    // Show success toast
-    toast({
-      title: "✅ Đã thêm sản phẩm",
-      description: product.product_name,
-    });
-  };
 
   if (scannedBarcodes.length === 0) {
     return (
@@ -66,15 +39,6 @@ export function ScannedBarcodesPanel() {
             Barcode đã quét ({scannedBarcodes.length})
           </CardTitle>
           <div className="flex gap-2">
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => setIsSelectProductOpen(true)}
-              className="h-7 px-2"
-            >
-              <Plus className="h-3.5 w-3.5 mr-1" />
-              Thêm thủ công
-            </Button>
             <Button
               variant="ghost"
               size="sm"
@@ -151,13 +115,6 @@ export function ScannedBarcodesPanel() {
           </ScrollArea>
         </CardContent>
       )}
-
-      {/* Select Product Dialog */}
-      <SelectProductDialog
-        open={isSelectProductOpen}
-        onOpenChange={setIsSelectProductOpen}
-        onSelect={handleProductSelect}
-      />
     </Card>
   );
 }
