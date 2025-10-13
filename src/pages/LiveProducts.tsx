@@ -260,7 +260,6 @@ export default function LiveProducts() {
     orders?: OrderWithProduct[];
   } | null>(null);
   const [isFullScreenProductViewOpen, setIsFullScreenProductViewOpen] = useState(false);
-  const [tposTopValue, setTposTopValue] = useState("20");
   const [isSyncingTpos, setIsSyncingTpos] = useState(false);
   const [isUploadTPOSOpen, setIsUploadTPOSOpen] = useState(false);
   const [tposSyncResult, setTposSyncResult] = useState<{
@@ -268,15 +267,6 @@ export default function LiveProducts() {
     notFound: number;
     errors: number;
   } | null>(null);
-  const [tposSyncDateRange, setTposSyncDateRange] = useState<DateRange | undefined>(() => {
-    const today = new Date();
-    const twoDaysAgo = new Date(today);
-    twoDaysAgo.setDate(today.getDate() - 2);
-    return {
-      from: twoDaysAgo,
-      to: today
-    };
-  });
   
   // States for Product ID sync
   const [isSyncingProductIds, setIsSyncingProductIds] = useState(false);
@@ -292,6 +282,14 @@ export default function LiveProducts() {
   
   const queryClient = useQueryClient();
   const { enabledPages, addScannedBarcode } = useBarcodeScanner();
+
+  const [tposSyncDateRange, setTposSyncDateRange] = useState<DateRange | undefined>(() => {
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + 1);
+    const startDate = new Date();
+    startDate.setDate(endDate.getDate() - 3); // 4-day range ending tomorrow
+    return { from: startDate, to: endDate };
+  });
 
   // New mutation for updating prepared_quantity
   const updatePreparedQuantityMutation = useMutation({
@@ -1222,38 +1220,43 @@ export default function LiveProducts() {
     }
   });
 
-  const handleSyncTposOrders = async () => {
+  const handleSyncTposOrders = async (): Promise<boolean> => {
     setIsSyncingTpos(true);
     setTposSyncResult(null);
     
     try {
-      // 1. Fetch TPOS orders using selected date range
+      // 1. Use date range from state
       if (!tposSyncDateRange?.from || !tposSyncDateRange?.to) {
-        toast.error("Vui lòng chọn khoảng thời gian");
+        toast.error("Vui lòng chọn khoảng thời gian để đồng bộ.");
         setIsSyncingTpos(false);
-        return;
+        return false;
       }
-      
+
       const startDate = new Date(tposSyncDateRange.from);
-      startDate.setHours(0, 0, 0, 0);
-      
       const endDate = new Date(tposSyncDateRange.to);
-      endDate.setHours(23, 59, 59, 999);
       
+      // Set time to start and end of day
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
+
       const startDateStr = startDate.toISOString();
       const endDateStr = endDate.toISOString();
       
-      const url = `https://tomato.tpos.vn/odata/SaleOnline_Order/ODataService.GetView?$top=${tposTopValue}&$orderby=DateCreated desc&$filter=(DateCreated ge ${startDateStr} and DateCreated le ${endDateStr})&$count=true`;
+      // 2. Construct URL with date range
+      const topValue = 200; // Default as per previous logic
+      const url = `https://tomato.tpos.vn/odata/SaleOnline_Order/ODataService.GetView?$top=${topValue}&$orderby=DateCreated desc&$filter=(DateCreated ge ${startDateStr} and DateCreated le ${endDateStr})&$count=true`;
       
       console.log('[TPOS Sync] Fetching from URL:', url);
       
+      // 3. Get TPOS token
       const token = await getActiveTPOSToken();
       if (!token) {
         toast.error("Chưa có TPOS Bearer Token. Vui lòng cập nhật trong Cài đặt.");
         setIsSyncingTpos(false);
-        return;
+        return false;
       }
       
+      // 4. Fetch from TPOS
       const response = await fetch(url, {
         headers: getTPOSHeaders(token)
       });
@@ -1263,92 +1266,88 @@ export default function LiveProducts() {
       const data = await response.json();
       console.log('[TPOS Sync] Response data:', data);
       
-      // 2. Create mapping: SessionIndex -> {Id, Code}
+      // 5. Create mapping: SessionIndex -> {Id, Code}
       const tposMap = new Map<string, { id: string; code: string }>();
       data.value?.forEach((order: any) => {
         if (order.SessionIndex && order.Id && order.Code) {
-          // Convert SessionIndex to string and trim whitespace
           const sessionIndexStr = String(order.SessionIndex).trim();
           tposMap.set(sessionIndexStr, {
             id: order.Id,
             code: order.Code
           });
-          console.log(`[TPOS Sync] Mapping: SessionIndex "${sessionIndexStr}" -> Id: ${order.Id}, Code: ${order.Code}`);
         }
       });
       
       console.log('[TPOS Sync] Total TPOS mappings:', tposMap.size);
-      console.log('[TPOS Sync] Sample TPOS SessionIndex type:', typeof data.value?.[0]?.SessionIndex);
       
-      // 3. Match and update
+      // 6. Get local orders that need syncing
+      const ordersToSync = ordersWithProducts.filter(o => !o.tpos_order_id && o.order_code);
+      if (ordersToSync.length === 0) {
+        toast.info("Không có đơn hàng nào cần đồng bộ.");
+        setIsSyncingTpos(false);
+        return true; // Still success, just nothing to do
+      }
+      
+      console.log(`[TPOS Sync] Found ${ordersToSync.length} local orders to sync.`);
+      
+      // 7. Match and prepare updates
       let matched = 0;
       let notFound = 0;
-      let errors = 0;
-      
-      // Group orders by order_code
-      const orderGroups = ordersWithProducts.reduce((groups, order) => {
-        if (!groups[order.order_code]) {
-          groups[order.order_code] = [];
-        }
-        groups[order.order_code].push(order);
-        return groups;
-      }, {} as Record<string, typeof ordersWithProducts>);
-      
-      console.log('[TPOS Sync] Local order codes:', Object.keys(orderGroups));
-      console.log('[TPOS Sync] Sample local order_code type:', typeof ordersWithProducts[0]?.order_code);
-      
-      // Process each order group
-      for (const [orderCode, orders] of Object.entries(orderGroups)) {
-        // Normalize order_code to string and trim
-        const normalizedOrderCode = String(orderCode).trim();
+      const updates: { id: string; tpos_order_id: string; code_tpos_order_id: string }[] = [];
+
+      for (const order of ordersToSync) {
+        const normalizedOrderCode = String(order.order_code).trim();
         const tposData = tposMap.get(normalizedOrderCode);
         
-        console.log(`[TPOS Sync] Checking order_code "${orderCode}" (normalized: "${normalizedOrderCode}"):`, tposData ? `Found TPOS Id: ${tposData.id}, Code: ${tposData.code}` : 'NOT FOUND');
-        
         if (tposData) {
-          // Update all orders with this order_code - save Id and Code separately
-          try {
-            const orderIds = orders.map(o => o.id);
-            
-            const { error } = await supabase
-              .from('live_orders')
-              .update({ 
-                tpos_order_id: tposData.code,
-                code_tpos_order_id: tposData.id
-              })
-              .in('id', orderIds);
-            
-            if (error) throw error;
-            
-            matched += orders.length;
-            console.log(`[TPOS Sync] ✓ Updated ${orders.length} orders with code "${orderCode}" -> TPOS Id: ${tposData.id}, Code: ${tposData.code}`);
-          } catch (err) {
-            console.error(`[TPOS Sync] ✗ Error updating order ${orderCode}:`, err);
-            errors += orders.length;
-          }
+          updates.push({
+            id: order.id,
+            tpos_order_id: tposData.code,
+            code_tpos_order_id: tposData.id,
+          });
+          matched++;
         } else {
-          notFound += orders.length;
+          notFound++;
         }
       }
       
-      console.log('[TPOS Sync] Summary:', { matched, notFound, errors });
+      console.log(`[TPOS Sync] Matched: ${matched}, Not Found: ${notFound}`);
       
-      // 4. Refresh data
-      await queryClient.invalidateQueries({ queryKey: ['live-orders', selectedPhase] });
-      await queryClient.invalidateQueries({ queryKey: ['orders-with-products', selectedPhase] });
+      // 8. Perform batch update to Supabase
+      if (updates.length > 0) {
+        const { error } = await supabase
+          .from('live_orders')
+          .upsert(updates, { onConflict: 'id' });
+        
+        if (error) throw error;
+      }
       
-      setTposSyncResult({ matched, notFound, errors });
+      // 9. Update result state and show toast
+      setTposSyncResult({ matched, notFound, errors: 0 });
+      toast.success(`Đồng bộ hoàn tất: ${matched} đơn được cập nhật, ${notFound} không tìm thấy.`);
       
-      toast.success(`Đã cập nhật ${matched} đơn hàng${notFound > 0 ? `, ${notFound} không tìm thấy` : ''}`);
+      // 10. Invalidate queries
+      queryClient.invalidateQueries({ queryKey: ['live-orders', selectedPhase, selectedSession] });
+      queryClient.invalidateQueries({ queryKey: ['orders-with-products', selectedPhase, selectedSession] });
+      
+      setIsSyncingTpos(false);
+      return true;
       
     } catch (error) {
       console.error("Error syncing TPOS orders:", error);
-      toast.error("Không thể lấy dữ liệu từ TPOS");
-    } finally {
+      toast.error("Không thể lấy dữ liệu từ TPOS. " + (error instanceof Error ? error.message : ""));
+      setTposSyncResult({ matched: 0, notFound: 0, errors: 1 });
       setIsSyncingTpos(false);
+      return false;
     }
   };
 
+  const handleSyncAndUpload = async () => {
+    const syncSuccess = await handleSyncTposOrders();
+    if (syncSuccess) {
+      setIsUploadTPOSOpen(true);
+    }
+  };
 
   const handleEditProduct = (product: LiveProduct) => {
     setEditingProduct({
@@ -2183,14 +2182,12 @@ export default function LiveProducts() {
                                                     handleEditOrderItem(aggregatedProduct);
                                                   }}
                                                 >
-                                                  {isOversell && (
-                                                    <AlertTriangle className="h-3 w-3 mr-1" />
-                                                  )}
+                                                  {isOversell && <AlertTriangle className="h-3 w-3 mr-1" />}
                                                   {order.quantity === 1 ? order.order_code : `${order.order_code} x${order.quantity}`}
                                                 </Badge>
                                               </TooltipTrigger>
                                               <TooltipContent>
-                                                <p>{isOversell ? "⚠️ Đơn quá số" : `Đơn hàng: ${order.order_code} - Số lượng: ${order.quantity}`}</p>
+                                                <p>{isOversell ? "⚠️ Đơn quá số" : `Đơn: ${order.order_code} - SL: ${order.quantity}`}</p>
                                               </TooltipContent>
                                             </Tooltip>
                                           </TooltipProvider>
@@ -2424,14 +2421,10 @@ export default function LiveProducts() {
             <TabsContent value="orders" className="space-y-4">
               <TPOSActionsCollapsible
                 hasOrders={ordersWithProducts.length > 0}
+                handleSyncAndUpload={handleSyncAndUpload}
+                isSyncingTpos={isSyncingTpos}
                 tposSyncDateRange={tposSyncDateRange}
                 setTposSyncDateRange={setTposSyncDateRange}
-                tposTopValue={tposTopValue}
-                setTposTopValue={setTposTopValue}
-                handleSyncTposOrders={handleSyncTposOrders}
-                isSyncingTpos={isSyncingTpos}
-                tposSyncResult={tposSyncResult}
-                setIsUploadTPOSOpen={setIsUploadTPOSOpen}
                 maxRecordsToFetch={maxRecordsToFetch}
                 setMaxRecordsToFetch={setMaxRecordsToFetch}
                 handleSyncProductIds={handleSyncProductIds}
