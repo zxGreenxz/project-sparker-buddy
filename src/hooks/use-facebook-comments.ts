@@ -44,25 +44,28 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
         console.log(`[Realtime Hook] Video: ${videoId}`);
         console.log(`  DB: ${currentDbCount}, TPOS: ${tposCount}, Deleted: ${deletedCountRef.current}, Last TPOS: ${lastKnownCountRef.current}`);
         
-        // 2. Check if TPOS deleted comments
+        // 2. Check if TPOS deleted comments (TPOS count decreased)
         if (lastKnownCountRef.current > 0 && tposCount < lastKnownCountRef.current) {
           const deletedThisTime = lastKnownCountRef.current - tposCount;
           deletedCountRef.current += deletedThisTime;
-          console.log(`[Realtime Hook] TPOS deleted ${deletedThisTime} comments (Total deleted: ${deletedCountRef.current})`);
+          console.log(`[Realtime Hook] ⚠️ TPOS deleted ${deletedThisTime} comments (Total deleted: ${deletedCountRef.current})`);
+          
+          // Also update expected count immediately
+          lastKnownCountRef.current = tposCount;
         }
         
         // 3. Calculate expected DB count: TPOS count + deleted count
         const expectedDbCount = tposCount + deletedCountRef.current;
         console.log(`  Expected DB count: ${tposCount} + ${deletedCountRef.current} = ${expectedDbCount}`);
         
-        // 4. If DB has fewer comments than expected → Fetch new comments
+        // 4. Check if we need to fetch new comments
         if (currentDbCount < expectedDbCount) {
           const newCommentsCount = expectedDbCount - currentDbCount;
-          console.log(`[Realtime Hook] Fetching ${newCommentsCount} new comments`);
+          console.log(`[Realtime Hook] 📥 Fetching ${newCommentsCount} new comments`);
           
           const { data: { session } } = await supabase.auth.getSession();
           
-          await fetch(
+          const response = await fetch(
             `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/facebook-comments?pageId=${pageId}&postId=${videoId}&limit=100&order=reverse_chronological`,
             {
               headers: {
@@ -72,12 +75,30 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
             }
           );
           
-          queryClient.invalidateQueries({ queryKey: ['facebook-comments', pageId, videoId] });
+          const result = await response.json();
+          
+          // If Edge Function returned from database (TPOS failed), it means post/comment was deleted
+          if (result.source === 'database') {
+            console.log(`[Realtime Hook] ⚠️ TPOS API unavailable - comments may have been deleted by Facebook/TPOS`);
+            // Don't invalidate queries if data is stale
+          } else {
+            console.log(`[Realtime Hook] ✅ Successfully fetched from TPOS`);
+            queryClient.invalidateQueries({ queryKey: ['facebook-comments', pageId, videoId] });
+          }
         } else if (currentDbCount === expectedDbCount) {
-          console.log(`[Realtime Hook] DB in sync: ${currentDbCount} = ${expectedDbCount}`);
+          console.log(`[Realtime Hook] ✅ DB in sync: ${currentDbCount} = ${expectedDbCount}`);
+        } else if (currentDbCount > expectedDbCount) {
+          // DB has more than expected - this shouldn't happen, but if it does, adjust deleted count
+          console.log(`[Realtime Hook] ⚠️ DB has MORE than expected: ${currentDbCount} > ${expectedDbCount}`);
+          const excess = currentDbCount - tposCount;
+          deletedCountRef.current = excess;
+          console.log(`[Realtime Hook] Adjusted deletedCount to ${deletedCountRef.current}`);
         }
         
-        lastKnownCountRef.current = tposCount;
+        // Always update lastKnownCountRef if not already updated
+        if (lastKnownCountRef.current !== tposCount) {
+          lastKnownCountRef.current = tposCount;
+        }
       } catch (error) {
         console.error('[Realtime Hook] Error:', error);
       } finally {
@@ -182,7 +203,13 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
 
         const data = await response.json();
         const elapsed = Date.now() - startTime;
-        console.log(`[useFacebookComments] Fetched ${data.data?.length || 0} comments from TPOS in ${elapsed}ms`);
+        
+        // Check source of data
+        if (data.source === 'database') {
+          console.log(`[useFacebookComments] ⚠️ Fetched ${data.data?.length || 0} comments from DATABASE (TPOS unavailable) in ${elapsed}ms`);
+        } else {
+          console.log(`[useFacebookComments] ✅ Fetched ${data.data?.length || 0} comments from TPOS in ${elapsed}ms`);
+        }
         
         setErrorCount(0);
         setHasError(false);
