@@ -244,12 +244,52 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
         });
       }
 
-      return { ordersCreated, billDataList, sessionIndex };
+      // Call edge function to create TPOS order
+      const { data: tposResponse, error: tposError } = await supabase.functions.invoke(
+        'create-tpos-order-from-comment',
+        {
+          body: { 
+            comment: {
+              id: comment.id,
+              message: comment.message,
+              from: comment.from,
+              created_time: comment.created_time
+            },
+            video: selectedVideo 
+          }
+        }
+      );
+
+      if (tposError) {
+        console.error('TPOS upload error:', tposError);
+        // Don't throw - we still want to save locally even if TPOS fails
+      }
+
+      // If TPOS order created successfully, update live_orders with tpos_order_id
+      if (tposResponse?.response?.Id) {
+        const { error: updateTPOSIdError } = await supabase
+          .from('live_orders')
+          .update({ tpos_order_id: tposResponse.response.Id })
+          .eq('order_code', sessionIndex)
+          .eq('live_session_id', activeSession.id);
+        
+        if (updateTPOSIdError) {
+          console.error('Failed to update tpos_order_id:', updateTPOSIdError);
+        }
+      }
+
+      return { 
+        ordersCreated, 
+        billDataList, 
+        sessionIndex, 
+        tposOrderId: tposResponse?.response?.Id || null,
+        tposError 
+      };
     },
     onMutate: (variables) => {
       setPendingCommentIds(prev => new Set(prev).add(variables.comment.id));
     },
-    onSuccess: ({ ordersCreated, billDataList, sessionIndex }) => {
+    onSuccess: ({ ordersCreated, billDataList, sessionIndex, tposOrderId, tposError }) => {
       // Invalidate queries
       queryClient.invalidateQueries({ queryKey: ['tpos-orders', selectedVideo?.objectId] });
       queryClient.invalidateQueries({ queryKey: ['facebook-comments', pageId, selectedVideo?.objectId] });
@@ -337,11 +377,17 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
 
       // Show toast
       const hasOversell = ordersCreated.some(o => o.isOversell);
+      const tposStatus = tposError 
+        ? " ⚠️ (Không upload được TPOS)" 
+        : tposOrderId 
+          ? ` ✅ (TPOS: ${tposOrderId})` 
+          : "";
+
       toast({
         title: hasOversell ? "⚠️ Đã tạo đơn (có oversell)" : "Thành công",
         description: hasOversell 
-          ? `Đã tạo ${ordersCreated.length} đơn cho #${sessionIndex} (có vượt số lượng)`
-          : `Đã tạo ${ordersCreated.length} đơn hàng cho #${sessionIndex}`,
+          ? `Đã tạo ${ordersCreated.length} đơn cho #${sessionIndex} (có vượt số lượng)${tposStatus}`
+          : `Đã tạo ${ordersCreated.length} đơn hàng cho #${sessionIndex}${tposStatus}`,
         variant: hasOversell ? "destructive" : "default",
       });
     },
