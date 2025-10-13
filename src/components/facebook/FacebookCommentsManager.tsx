@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Video, MessageCircle, Heart, RefreshCw, Pause, Play, Search, Loader2, Facebook, ChevronDown, Copy, Maximize, Minimize } from "lucide-react";
+import { Video, MessageCircle, Heart, RefreshCw, Pause, Play, Search, Loader2, Facebook, ChevronDown, Copy, Maximize, Minimize, X, Plus, Check } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
@@ -176,11 +176,17 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
   });
 
   const handleCreateOrderClick = (comment: CommentWithStatus) => {
+    // Create a modified comment with product codes in the message
+    const modifiedComment = {
+      ...comment,
+      message: getCommentWithProductCodes(comment.id, comment.message)
+    };
+    
     if (comment.orderInfo) {
-      setConfirmCreateOrderComment(comment);
+      setConfirmCreateOrderComment(modifiedComment);
     } else {
       if (!selectedVideo) return;
-      createOrderMutation.mutate({ comment, video: selectedVideo });
+      createOrderMutation.mutate({ comment: modifiedComment, video: selectedVideo });
     }
   };
 
@@ -340,13 +346,54 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
     return 'Bình thường';
   };
 
-  // Handle manual product selection
+  // Handle manual product selection - SUPPORT MULTIPLE PRODUCTS
   const handleSelectProduct = (commentId: string, product: any) => {
     setSelectedProductsMap(prev => {
       const newMap = new Map(prev);
-      newMap.set(commentId, product);
+      const existingProducts = newMap.get(commentId) || [];
+      
+      // Check if product already exists (based on code)
+      const alreadyExists = existingProducts.some((p: any) => p.code === product.code);
+      
+      if (!alreadyExists) {
+        newMap.set(commentId, [...existingProducts, product]);
+      }
+      
       return newMap;
     });
+  };
+
+  // Handle removing a selected product
+  const handleRemoveProduct = (commentId: string, productCode: string) => {
+    setSelectedProductsMap(prev => {
+      const newMap = new Map(prev);
+      const existingProducts = newMap.get(commentId) || [];
+      const filteredProducts = existingProducts.filter((p: any) => p.code !== productCode);
+      
+      if (filteredProducts.length === 0) {
+        newMap.delete(commentId);
+      } else {
+        newMap.set(commentId, filteredProducts);
+      }
+      
+      return newMap;
+    });
+  };
+
+  // Generate comment text with product codes
+  const getCommentWithProductCodes = (commentId: string, originalMessage: string) => {
+    const selectedProducts = selectedProductsMap.get(commentId) || [];
+    
+    if (selectedProducts.length === 0) {
+      return originalMessage;
+    }
+    
+    // Format: (CODE1 - CODE2 - CODE3)
+    const productCodes = selectedProducts
+      .map((p: any) => p.code)
+      .join(' - ');
+    
+    return `(${productCodes}) ${originalMessage}`;
   };
 
   const fetchPartnerStatusBatch = useCallback(async (
@@ -1111,50 +1158,59 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
                                   </div>
                                   
                                   <div className="mt-1.5 space-y-2">
-                                    <DropdownMenu>
-                                      <DropdownMenuTrigger asChild>
-                                        <div className="flex items-center gap-2 cursor-pointer hover:bg-accent/50 p-2 rounded-md transition-colors">
-                                          <span className="text-sm font-medium text-muted-foreground">Chọn sản phẩm:</span>
-                                          {(() => {
-                                            const selectedProduct = selectedProductsMap.get(comment.id);
-                                            
-                                            if (!selectedProduct) {
-                                              return (
-                                                <Badge variant="outline" className="text-xs">
-                                                  Nhấn để chọn sản phẩm
-                                                </Badge>
-                                              );
-                                            }
-                                            
-                                            if (!selectedProduct.productInfo) {
-                                              return (
-                                                <Badge variant="secondary" className="text-xs">
-                                                  {selectedProduct.code} - Không tìm thấy
-                                                </Badge>
-                                              );
-                                            }
-                                            
-                                            return (
-                                              <div className="flex items-center gap-2 flex-1">
-                                                {selectedProduct.productInfo.image_url && (
+                                    {/* Selected Products Display */}
+                                    {(() => {
+                                      const selectedProducts = selectedProductsMap.get(comment.id) || [];
+                                      
+                                      if (selectedProducts.length > 0) {
+                                        return (
+                                          <div className="flex flex-wrap gap-2 mb-2">
+                                            {selectedProducts.map((product: any, idx: number) => (
+                                              <div 
+                                                key={idx}
+                                                className="flex items-center gap-2 bg-primary/10 rounded-md p-2 pr-1"
+                                              >
+                                                {product.productInfo?.image_url && (
                                                   <img 
-                                                    src={selectedProduct.productInfo.image_url} 
-                                                    alt={selectedProduct.productInfo.name}
-                                                    className="w-8 h-8 rounded object-cover"
+                                                    src={product.productInfo.image_url} 
+                                                    alt={product.productInfo.name}
+                                                    className="w-6 h-6 rounded object-cover"
                                                   />
                                                 )}
-                                                <div className="flex-1 min-w-0">
-                                                  <p className="text-sm font-medium truncate">
-                                                    {selectedProduct.productInfo.name}
-                                                  </p>
-                                                  <p className="text-xs text-muted-foreground font-mono">
-                                                    {selectedProduct.code}
-                                                  </p>
-                                                </div>
+                                                <span className="text-xs font-mono font-medium">
+                                                  {product.code}
+                                                </span>
+                                                <Button
+                                                  size="sm"
+                                                  variant="ghost"
+                                                  className="h-5 w-5 p-0 hover:bg-destructive hover:text-destructive-foreground"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleRemoveProduct(comment.id, product.code);
+                                                  }}
+                                                >
+                                                  <X className="h-3 w-3" />
+                                                </Button>
                                               </div>
-                                            );
-                                          })()}
-                                        </div>
+                                            ))}
+                                          </div>
+                                        );
+                                      }
+                                      
+                                      return null;
+                                    })()}
+                                    
+                                    {/* Dropdown to add more products */}
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button 
+                                          variant="outline" 
+                                          size="sm" 
+                                          className="h-8 text-xs w-full justify-start"
+                                        >
+                                          <Plus className="h-4 w-4 mr-2" />
+                                          Chọn sản phẩm
+                                        </Button>
                                       </DropdownMenuTrigger>
                                       <DropdownMenuContent className="w-80 max-h-[400px] overflow-y-auto bg-background z-50">
                                         <DropdownMenuLabel>Sản phẩm đã quét</DropdownMenuLabel>
@@ -1164,40 +1220,50 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
                                             Chưa có sản phẩm nào được quét
                                           </div>
                                         ) : (
-                                          scannedBarcodes.map((barcode, index) => (
-                                            <DropdownMenuItem 
-                                              key={index}
-                                              className="cursor-pointer p-3"
-                                              onClick={() => handleSelectProduct(comment.id, barcode)}
-                                            >
-                                              <div className="flex items-center gap-3 w-full">
-                                                {barcode.productInfo?.image_url && (
-                                                  <img 
-                                                    src={barcode.productInfo.image_url} 
-                                                    alt={barcode.productInfo.name}
-                                                    className="w-12 h-12 rounded object-cover flex-shrink-0"
-                                                  />
+                                          scannedBarcodes.map((barcode, index) => {
+                                            const selectedProducts = selectedProductsMap.get(comment.id) || [];
+                                            const isSelected = selectedProducts.some((p: any) => p.code === barcode.code);
+                                            
+                                            return (
+                                              <DropdownMenuItem 
+                                                key={index}
+                                                className={cn(
+                                                  "cursor-pointer p-3",
+                                                  isSelected && "bg-primary/10"
                                                 )}
-                                                <div className="flex-1 min-w-0">
-                                                  <p className="font-medium truncate text-sm">
-                                                    {barcode.productInfo?.name || barcode.code}
-                                                  </p>
-                                                  <p className="text-xs text-muted-foreground font-mono">
-                                                    {barcode.code}
-                                                  </p>
-                                                  <p className="text-xs text-muted-foreground">
-                                                    {format(new Date(barcode.timestamp), 'HH:mm:ss')}
-                                                  </p>
+                                                onClick={() => handleSelectProduct(comment.id, barcode)}
+                                              >
+                                                <div className="flex items-center gap-3 w-full">
+                                                  {isSelected && <Check className="h-4 w-4 text-primary flex-shrink-0" />}
+                                                  {barcode.productInfo?.image_url && (
+                                                    <img 
+                                                      src={barcode.productInfo.image_url} 
+                                                      alt={barcode.productInfo.name}
+                                                      className="w-12 h-12 rounded object-cover flex-shrink-0"
+                                                    />
+                                                  )}
+                                                  <div className="flex-1 min-w-0">
+                                                    <p className="font-medium truncate text-sm">
+                                                      {barcode.productInfo?.name || barcode.code}
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground font-mono">
+                                                      {barcode.code}
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground">
+                                                      {format(new Date(barcode.timestamp), 'HH:mm:ss')}
+                                                    </p>
+                                                  </div>
                                                 </div>
-                                              </div>
-                                            </DropdownMenuItem>
-                                          ))
+                                              </DropdownMenuItem>
+                                            );
+                                          })
                                         )}
                                       </DropdownMenuContent>
                                     </DropdownMenu>
                                     
+                                    {/* Original comment with product codes */}
                                     <p className="text-xs text-muted-foreground italic border-l-2 pl-2">
-                                      "{comment.message}"
+                                      "{getCommentWithProductCodes(comment.id, comment.message)}"
                                     </p>
                                   </div>
                                   
