@@ -65,6 +65,9 @@ export function RealtimeProvider() {
         queryClient.invalidateQueries({ queryKey: ["tpos-orders"] });
         queryClient.invalidateQueries({ queryKey: ["facebook-comments"] });
       })
+      .on("postgres_changes", { event: "*", schema: "public", table: "facebook_comments_archive" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["facebook-comments"] });
+      })
       // Customers & reports & activity logs
       .on("postgres_changes", { event: "*", schema: "public", table: "customers" }, () => {
         queryClient.invalidateQueries({ queryKey: ["customers"] });

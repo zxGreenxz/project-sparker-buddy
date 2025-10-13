@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -74,6 +75,43 @@ serve(async (req) => {
       afterCursor: data?.paging?.cursors?.after,
       nextUrl: data?.paging?.next
     });
+    
+    // ========== NEW: Save comments to database ==========
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    const comments = data?.data || [];
+    if (comments.length > 0) {
+      console.log(`Saving ${comments.length} comments to database`);
+      
+      const upsertData = comments.map((comment: any) => ({
+        facebook_comment_id: comment.id,
+        facebook_post_id: postId,
+        facebook_user_id: comment.from?.id || null,
+        facebook_user_name: comment.from?.name || null,
+        comment_message: comment.message || '',
+        comment_created_time: comment.created_time,
+        like_count: comment.like_count || 0,
+        last_fetched_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }));
+
+      const { error: upsertError } = await supabaseClient
+        .from('facebook_comments_archive')
+        .upsert(upsertData, { 
+          onConflict: 'facebook_comment_id',
+          ignoreDuplicates: false 
+        });
+
+      if (upsertError) {
+        console.error('Error upserting comments:', upsertError);
+      } else {
+        console.log(`Successfully upserted ${upsertData.length} comments`);
+      }
+    }
+    // ========== END NEW ==========
     
     let responsePayload;
 

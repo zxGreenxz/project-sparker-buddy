@@ -1076,6 +1076,21 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
                       </>
                     )}
                   </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      queryClient.removeQueries({ queryKey: ['facebook-comments', pageId, selectedVideo?.objectId] });
+                      refetchComments();
+                      toast({
+                        title: "Đang làm mới",
+                        description: "Đang tải lại comments từ TPOS...",
+                      });
+                    }}
+                  >
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Làm mới từ TPOS
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => refetchComments()}>
                     <RefreshCw className="mr-2 h-4 w-4" />
                     Refresh

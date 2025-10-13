@@ -312,19 +312,37 @@ serve(async (req) => {
         const newOrderCount = existingOrder.order_count + 1;
         console.log(`Updating existing order, incrementing count to: ${newOrderCount}`);
 
-        const { error: updateError } = await supabase
-          .from('facebook_pending_orders')
+      const { error: updateError } = await supabase
+        .from('facebook_pending_orders')
+        .update({
+          name: data.Name || comment.from.name,
+          session_index: data.SessionIndex?.toString() || null,
+          code: data.Code || null,
+          phone: data.Telephone || null,
+          comment: comment.message || null,
+          tpos_order_id: data.Id || null,
+          order_count: newOrderCount,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existingOrder.id);
+      
+      // Update facebook_comments_archive
+      if (!updateError) {
+        const { error: archiveUpdateError } = await supabase
+          .from('facebook_comments_archive')
           .update({
-            name: data.Name || comment.from.name,
-            session_index: data.SessionIndex?.toString() || null,
-            code: data.Code || null,
-            phone: data.Telephone || null,
-            comment: comment.message || null,
-            tpos_order_id: data.Id || null,
-            order_count: newOrderCount,
+            tpos_order_id: data.Id?.toString() || null,
+            tpos_session_index: data.SessionIndex?.toString() || null,
+            tpos_sync_status: 'synced',
+            last_synced_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
-          .eq('id', existingOrder.id);
+          .eq('facebook_comment_id', comment.id);
+
+        if (archiveUpdateError) {
+          console.error('Error updating comment archive:', archiveUpdateError);
+        }
+      }
 
         if (updateError) {
           console.error('Error updating facebook_pending_orders:', updateError);
@@ -335,21 +353,39 @@ serve(async (req) => {
         // Insert new record with count = 1
         console.log('Creating new order with count: 1');
 
-        const { error: insertError } = await supabase
-          .from('facebook_pending_orders')
-          .insert({
-            name: data.Name || comment.from.name,
-            session_index: data.SessionIndex?.toString() || null,
-            code: data.Code || null,
-            phone: data.Telephone || null,
-            comment: comment.message || null,
-            created_time: convertFacebookTimeToISO(comment.created_time),
-            tpos_order_id: data.Id || null,
-            facebook_comment_id: comment.id,
-            facebook_user_id: comment.from.id,
-            facebook_post_id: video.objectId,
-            order_count: 1,
-          });
+      const { error: insertError } = await supabase
+        .from('facebook_pending_orders')
+        .insert({
+          name: data.Name || comment.from.name,
+          session_index: data.SessionIndex?.toString() || null,
+          code: data.Code || null,
+          phone: data.Telephone || null,
+          comment: comment.message || null,
+          created_time: convertFacebookTimeToISO(comment.created_time),
+          tpos_order_id: data.Id || null,
+          facebook_comment_id: comment.id,
+          facebook_user_id: comment.from.id,
+          facebook_post_id: video.objectId,
+          order_count: 1,
+        });
+      
+      // Update facebook_comments_archive
+      if (!insertError) {
+        const { error: archiveUpdateError } = await supabase
+          .from('facebook_comments_archive')
+          .update({
+            tpos_order_id: data.Id?.toString() || null,
+            tpos_session_index: data.SessionIndex?.toString() || null,
+            tpos_sync_status: 'synced',
+            last_synced_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('facebook_comment_id', comment.id);
+
+        if (archiveUpdateError) {
+          console.error('Error updating comment archive:', archiveUpdateError);
+        }
+      }
 
         if (insertError) {
           console.error('Error saving to facebook_pending_orders:', insertError);

@@ -48,7 +48,46 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
       console.log(`[useFacebookComments] Fetching comments for video ${videoId}, pageParam: ${pageParam}`);
       const startTime = Date.now();
       
-      const order = 'reverse_chronological'; // Always show newest comments first
+      // ========== NEW: Check database first (only on first page) ==========
+      if (!pageParam) {
+        const oneMonthAgo = new Date();
+        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+        
+        const { data: cachedComments, error: dbError } = await supabase
+          .from('facebook_comments_archive' as any)
+          .select('*')
+          .eq('facebook_post_id', videoId)
+          .gte('comment_created_time', oneMonthAgo.toISOString())
+          .order('comment_created_time', { ascending: false })
+          .limit(500);
+        
+        if (!dbError && cachedComments && cachedComments.length > 0) {
+          console.log(`[useFacebookComments] Using ${cachedComments.length} cached comments from DB`);
+          
+          const formattedComments = cachedComments.map((c: any) => ({
+            id: c.facebook_comment_id,
+            message: c.comment_message || '',
+            from: {
+              name: c.facebook_user_name || 'Unknown',
+              id: c.facebook_user_id || '',
+            },
+            created_time: c.comment_created_time,
+            like_count: c.like_count || 0,
+          }));
+          
+          setErrorCount(0);
+          setHasError(false);
+          
+          return { 
+            data: formattedComments, 
+            paging: {},
+            fromCache: true 
+          };
+        }
+      }
+      // ========== END NEW ==========
+      
+      const order = 'reverse_chronological';
       
       let url = `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/facebook-comments?pageId=${pageId}&postId=${videoId}&limit=500&order=${order}`;
       if (pageParam) {
@@ -75,9 +114,8 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
 
         const data = await response.json();
         const elapsed = Date.now() - startTime;
-        console.log(`[useFacebookComments] Fetched ${data.data?.length || 0} comments in ${elapsed}ms`);
+        console.log(`[useFacebookComments] Fetched ${data.data?.length || 0} comments from TPOS in ${elapsed}ms`);
         
-        // Reset error count on success
         setErrorCount(0);
         setHasError(false);
         
@@ -90,6 +128,9 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
       }
     },
     getNextPageParam: (lastPage) => {
+      // If from cache, no pagination
+      if (lastPage.fromCache) return undefined;
+      
       if (!lastPage.data || lastPage.data.length === 0) return undefined;
       const nextPageCursor = lastPage.paging?.cursors?.after || (lastPage.paging?.next ? new URL(lastPage.paging.next).searchParams.get('after') : null);
       if (!nextPageCursor) return undefined;
