@@ -400,6 +400,18 @@ serve(async (req) => {
         } else if (liveProducts && liveProducts.length > 0) {
           console.log(`✓ Found ${liveProducts.length} live products with variants`);
           
+          // Log summary of codes we're looking for
+          console.log(`\n🔍 Looking for product codes: [${productCodes.join(', ')}]`);
+          
+          // Check how many variants contain each code we're looking for
+          productCodes.forEach(code => {
+            const matchingCount = liveProducts.filter(p => {
+              const variantCode = getVariantCode(p.variant);
+              return variantCode.toUpperCase().includes(code);
+            }).length;
+            console.log(`  Variants containing "${code}": ${matchingCount}`);
+          });
+          
           // Log all variants for debugging
           console.log('All variants in database:');
           liveProducts.forEach((p, idx) => {
@@ -417,10 +429,18 @@ serve(async (req) => {
             
             // Primary: Match by variant code
             matchedProduct = liveProducts.find(product => {
-              const variantCode = getVariantCode(product.variant);
+              const rawVariant = product.variant;
+              const parsed = parseVariant(product.variant);
+              const variantCode = parsed.code;
               const normalized = variantCode.toUpperCase().trim();
               const isMatch = normalized === productCode;
-              console.log(`  [Variant] Compare: "${productCode}" vs "${normalized}" from variant "${product.variant}" → ${isMatch ? '✓ MATCH' : '✗ no match'}`);
+              
+              // Detailed logging for debugging
+              console.log(`  [DEBUG] Raw variant: "${rawVariant}"`);
+              console.log(`  [DEBUG] Parsed → name: "${parsed.name}", code: "${parsed.code}"`);
+              console.log(`  [DEBUG] Normalized code: "${normalized}"`);
+              console.log(`  [DEBUG] Comparing: "${productCode}" === "${normalized}" → ${isMatch ? '✓ MATCH' : '✗'}`);
+              
               return isMatch;
             });
             
