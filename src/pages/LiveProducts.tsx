@@ -1804,7 +1804,7 @@ export default function LiveProducts() {
                                           <img 
                                             src={product.image_url} 
                                             alt={group.product_name}
-                                            className="w-12 h-12 object-cover rounded"
+                                            className="w-12 h-12 object-cover rounded cursor-pointer transition-transform duration-200 hover:scale-[14] hover:z-50 relative origin-left"
                                           />
                                         ) : (
                                           <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
@@ -2099,7 +2099,7 @@ export default function LiveProducts() {
                                 <img 
                                   src={product.image_url} 
                                   alt={product.product_name}
-                                  className="w-12 h-12 object-cover rounded"
+                                  className="w-12 h-12 object-cover rounded cursor-pointer transition-transform duration-200 hover:scale-[14] hover:z-50 relative origin-left"
                                 />
                               ) : (
                                 <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
@@ -2347,7 +2347,7 @@ export default function LiveProducts() {
                                     <img 
                                       src={product.image_url} 
                                       alt={product.product_name} 
-                                      className="w-12 h-12 object-cover rounded"
+                                      className="w-12 h-12 object-cover rounded cursor-pointer transition-transform duration-200 hover:scale-[14] hover:z-50 relative origin-left"
                                     />
                                   ) : (
                                     <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">

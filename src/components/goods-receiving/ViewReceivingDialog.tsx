@@ -188,7 +188,7 @@ export function ViewReceivingDialog({ open, onOpenChange, orderId }: ViewReceivi
                             <img 
                               src={item.purchase_order_item.products.product_images[0]} 
                               alt={item.product_name}
-                              className="w-16 h-16 object-cover rounded border cursor-pointer transition-transform duration-200 hover:scale-[14] hover:z-50 relative"
+                              className="w-16 h-16 object-cover rounded border cursor-pointer transition-transform duration-200 hover:scale-[14] hover:z-50 relative origin-left"
                             />
                           ) : (
                             <div className="w-16 h-16 bg-muted rounded border flex items-center justify-center">
