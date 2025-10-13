@@ -87,6 +87,11 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
   // State for fullscreen mode on mobile
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [pendingCommentIds, setPendingCommentIds] = useState<Set<string>>(new Set());
+  
+  // State for manual product selection
+  const [selectedProductsMap, setSelectedProductsMap] = useState<Map<string, any>>(new Map());
+  const [isSelectProductDialogOpen, setIsSelectProductDialogOpen] = useState(false);
+  const [currentSelectingCommentId, setCurrentSelectingCommentId] = useState<string | null>(null);
 
   // Fetch Facebook pages from database
   const { data: facebookPages } = useQuery({
@@ -336,29 +341,22 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
     return 'Bình thường';
   };
 
-  // Helper function để tìm sản phẩm gần nhất với comment (không phân biệt trước/sau)
-  const findClosestScannedProduct = (commentTime: string) => {
-    if (scannedBarcodes.length === 0) return null;
-    
-    const commentTimestamp = new Date(commentTime).getTime();
-    
-    // Tìm barcode có khoảng cách thời gian nhỏ nhất (absolute difference)
-    let closestBarcode = null;
-    let smallestTimeDiff = Infinity;
-    
-    for (const barcode of scannedBarcodes) {
-      const barcodeTimestamp = new Date(barcode.timestamp).getTime();
-      
-      // Tính khoảng cách tuyệt đối (không quan tâm trước hay sau)
-      const timeDiff = Math.abs(commentTimestamp - barcodeTimestamp);
-      
-      if (timeDiff < smallestTimeDiff) {
-        smallestTimeDiff = timeDiff;
-        closestBarcode = barcode;
-      }
+  // Handle manual product selection
+  const handleOpenSelectProduct = (commentId: string) => {
+    setCurrentSelectingCommentId(commentId);
+    setIsSelectProductDialogOpen(true);
+  };
+
+  const handleSelectProduct = (product: any) => {
+    if (currentSelectingCommentId) {
+      setSelectedProductsMap(prev => {
+        const newMap = new Map(prev);
+        newMap.set(currentSelectingCommentId, product);
+        return newMap;
+      });
     }
-    
-    return closestBarcode;
+    setIsSelectProductDialogOpen(false);
+    setCurrentSelectingCommentId(null);
   };
 
   const fetchPartnerStatusBatch = useCallback(async (
@@ -1123,42 +1121,45 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
                                   </div>
                                   
                                   <div className="mt-1.5 space-y-2">
-                                    <div className="flex items-center gap-2">
+                                    <div 
+                                      className="flex items-center gap-2 cursor-pointer hover:bg-accent/50 p-2 rounded-md transition-colors"
+                                      onClick={() => handleOpenSelectProduct(comment.id)}
+                                    >
                                       <span className="text-sm font-medium text-muted-foreground">Chọn sản phẩm:</span>
                                       {(() => {
-                                        const closestProduct = findClosestScannedProduct(comment.created_time);
+                                        const selectedProduct = selectedProductsMap.get(comment.id);
                                         
-                                        if (!closestProduct) {
+                                        if (!selectedProduct) {
                                           return (
                                             <Badge variant="outline" className="text-xs">
-                                              Chưa có sản phẩm được quét
+                                              Nhấn để chọn sản phẩm
                                             </Badge>
                                           );
                                         }
                                         
-                                        if (!closestProduct.productInfo) {
+                                        if (!selectedProduct.productInfo) {
                                           return (
                                             <Badge variant="secondary" className="text-xs">
-                                              {closestProduct.code} - Không tìm thấy
+                                              {selectedProduct.code} - Không tìm thấy
                                             </Badge>
                                           );
                                         }
                                         
                                         return (
                                           <div className="flex items-center gap-2 flex-1">
-                                            {closestProduct.productInfo.image_url && (
+                                            {selectedProduct.productInfo.image_url && (
                                               <img 
-                                                src={closestProduct.productInfo.image_url} 
-                                                alt={closestProduct.productInfo.name}
+                                                src={selectedProduct.productInfo.image_url} 
+                                                alt={selectedProduct.productInfo.name}
                                                 className="w-8 h-8 rounded object-cover"
                                               />
                                             )}
                                             <div className="flex-1 min-w-0">
                                               <p className="text-sm font-medium truncate">
-                                                {closestProduct.productInfo.name}
+                                                {selectedProduct.productInfo.name}
                                               </p>
                                               <p className="text-xs text-muted-foreground font-mono">
-                                                {closestProduct.code}
+                                                {selectedProduct.code}
                                               </p>
                                             </div>
                                           </div>
@@ -1358,6 +1359,59 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Select Product Dialog */}
+      <Dialog open={isSelectProductDialogOpen} onOpenChange={setIsSelectProductDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Chọn sản phẩm đã quét</DialogTitle>
+            <DialogDescription>
+              Danh sách các sản phẩm đã được quét barcode
+            </DialogDescription>
+          </DialogHeader>
+          
+          <ScrollArea className="h-[400px] pr-4">
+            {scannedBarcodes.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8">
+                <p className="text-muted-foreground text-sm">Chưa có sản phẩm nào được quét</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {scannedBarcodes.map((barcode, index) => (
+                  <Card 
+                    key={index}
+                    className="cursor-pointer hover:bg-accent/50 transition-colors"
+                    onClick={() => handleSelectProduct(barcode)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        {barcode.productInfo?.image_url && (
+                          <img 
+                            src={barcode.productInfo.image_url} 
+                            alt={barcode.productInfo.name}
+                            className="w-16 h-16 rounded object-cover"
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">
+                            {barcode.productInfo?.name || barcode.code}
+                          </p>
+                          <p className="text-xs text-muted-foreground font-mono">
+                            {barcode.code}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Quét lúc: {format(new Date(barcode.timestamp), 'dd/MM/yyyy HH:mm:ss')}
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );
