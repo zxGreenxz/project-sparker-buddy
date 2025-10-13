@@ -67,12 +67,12 @@ WITH CHECK (true);
 -- 7. Enable realtime
 ALTER TABLE facebook_comments_archive REPLICA IDENTITY FULL;
 
--- Drop from realtime first if exists
+-- Drop from realtime first if exists (catch error if not in publication)
 DO $$ 
 BEGIN
-  ALTER PUBLICATION supabase_realtime DROP TABLE IF EXISTS facebook_comments_archive;
+  ALTER PUBLICATION supabase_realtime DROP TABLE facebook_comments_archive;
 EXCEPTION
-  WHEN undefined_object THEN NULL;
+  WHEN OTHERS THEN NULL;
 END $$;
 
 -- Add to realtime
