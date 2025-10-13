@@ -105,7 +105,8 @@ export function QuickAddOrder({ productId, phaseId, sessionId, availableQuantity
         },
         (payload) => {
           // Only refetch if the new order is for today's phase
-          const createdTime = new Date(payload.new.created_time);
+          if (!payload.new || typeof payload.new !== 'object') return;
+          const createdTime = new Date((payload.new as any).created_time);
           const phaseDate = new Date(phaseData.phase_date);
           
           if (
@@ -459,7 +460,7 @@ export function QuickAddOrder({ productId, phaseId, sessionId, availableQuantity
                             <span className="font-bold truncate">{group.name || '(không có tên)'}</span>
                           </CommandItem>
                         </HoverCardTrigger>
-                        <HoverCardContent className="w-[500px] p-3 bg-popover">
+                        <HoverCardContent side="left" className="w-[500px] p-3 bg-popover">
                           <div className="text-sm font-semibold mb-2">
                             Chọn comment cho #{group.sessionIndex} - {group.name || 'Không tên'}
                           </div>
