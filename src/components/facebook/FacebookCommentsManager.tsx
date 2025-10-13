@@ -49,7 +49,7 @@ interface FacebookCommentsManagerProps {
 export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsManagerProps = {}) {
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
-  const { enabledPages, addScannedBarcode } = useBarcodeScanner();
+  const { enabledPages, addScannedBarcode, scannedBarcodes } = useBarcodeScanner();
   const [pageId, setPageId] = useState(() => {
     return localStorage.getItem('liveProducts_commentsPageId') || "";
   });
@@ -334,6 +334,31 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
     }
 
     return 'Bình thường';
+  };
+
+  // Helper function để tìm sản phẩm gần nhất với comment (không phân biệt trước/sau)
+  const findClosestScannedProduct = (commentTime: string) => {
+    if (scannedBarcodes.length === 0) return null;
+    
+    const commentTimestamp = new Date(commentTime).getTime();
+    
+    // Tìm barcode có khoảng cách thời gian nhỏ nhất (absolute difference)
+    let closestBarcode = null;
+    let smallestTimeDiff = Infinity;
+    
+    for (const barcode of scannedBarcodes) {
+      const barcodeTimestamp = new Date(barcode.timestamp).getTime();
+      
+      // Tính khoảng cách tuyệt đối (không quan tâm trước hay sau)
+      const timeDiff = Math.abs(commentTimestamp - barcodeTimestamp);
+      
+      if (timeDiff < smallestTimeDiff) {
+        smallestTimeDiff = timeDiff;
+        closestBarcode = barcode;
+      }
+    }
+    
+    return closestBarcode;
   };
 
   const fetchPartnerStatusBatch = useCallback(async (
@@ -1097,7 +1122,54 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
                                     </span>
                                   </div>
                                   
-                                  <p className="text-sm mt-1.5 break-words">{comment.message}</p>
+                                  <div className="mt-1.5 space-y-2">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-sm font-medium text-muted-foreground">Chọn sản phẩm:</span>
+                                      {(() => {
+                                        const closestProduct = findClosestScannedProduct(comment.created_time);
+                                        
+                                        if (!closestProduct) {
+                                          return (
+                                            <Badge variant="outline" className="text-xs">
+                                              Chưa có sản phẩm được quét
+                                            </Badge>
+                                          );
+                                        }
+                                        
+                                        if (!closestProduct.productInfo) {
+                                          return (
+                                            <Badge variant="secondary" className="text-xs">
+                                              {closestProduct.code} - Không tìm thấy
+                                            </Badge>
+                                          );
+                                        }
+                                        
+                                        return (
+                                          <div className="flex items-center gap-2 flex-1">
+                                            {closestProduct.productInfo.image_url && (
+                                              <img 
+                                                src={closestProduct.productInfo.image_url} 
+                                                alt={closestProduct.productInfo.name}
+                                                className="w-8 h-8 rounded object-cover"
+                                              />
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                              <p className="text-sm font-medium truncate">
+                                                {closestProduct.productInfo.name}
+                                              </p>
+                                              <p className="text-xs text-muted-foreground font-mono">
+                                                {closestProduct.code}
+                                              </p>
+                                            </div>
+                                          </div>
+                                        );
+                                      })()}
+                                    </div>
+                                    
+                                    <p className="text-xs text-muted-foreground italic border-l-2 pl-2">
+                                      "{comment.message}"
+                                    </p>
+                                  </div>
                                   
                                   <div className="flex items-center gap-2 mt-3 flex-wrap">
                                     <Button 
