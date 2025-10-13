@@ -30,6 +30,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { useBarcodeScanner } from "@/contexts/BarcodeScannerContext";
 import { ScannedBarcodesPanel } from "./ScannedBarcodesPanel";
+import { getVariantCode } from "@/lib/variant-utils";
 
 // Helper: Debounce function
 function debounce<T extends (...args: any[]) => any>(
@@ -120,50 +121,233 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
     });
   };
 
-  const createOrderMutation = useMutation({
-    mutationFn: async ({ comment, video }: { comment: FacebookComment; video: FacebookVideo }) => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("User not authenticated");
+  // Extract session index from comment message
+  const extractSessionIndex = (message: string): string | null => {
+    const match = message.match(/\b([A-Z]\d+)\b/i);
+    return match ? match[1].toUpperCase() : null;
+  };
 
-      const response = await fetch(
-        `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/create-tpos-order-from-comment`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ comment, video }),
-        }
-      );
-
-      const responseData = await response.json();
-      if (!response.ok) {
-        throw new Error(JSON.stringify(responseData));
+  const createOrderFromCommentMutation = useMutation({
+    mutationFn: async ({ 
+      comment, 
+      selectedProducts 
+    }: { 
+      comment: CommentWithStatus; 
+      selectedProducts: Array<{ code: string; name?: string }> 
+    }) => {
+      // 1. Extract sessionIndex from comment message
+      const sessionIndex = extractSessionIndex(comment.message);
+      if (!sessionIndex) {
+        throw new Error("Không tìm thấy mã đơn (A1, B2...) trong comment");
       }
 
-      return responseData;
+      // 2. Get active live session & phase
+      const sessionsQuery: any = await supabase
+        .from('live_sessions')
+        .select('id')
+        .eq('is_active', true)
+        .limit(1);
+      
+      const sessions: Array<{ id: string }> | null = sessionsQuery.data;
+      
+      if (!sessions || sessions.length === 0) {
+        throw new Error("Không có live session nào đang hoạt động");
+      }
+
+      const activeSession: { id: string } = sessions[0];
+
+      const phasesQuery: any = await supabase
+        .from('live_phases')
+        .select('id, phase_date')
+        .eq('live_session_id', activeSession.id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      
+      const phases: Array<{ id: string; phase_date: string }> | null = phasesQuery.data;
+      
+      if (!phases || phases.length === 0) {
+        throw new Error("Không có phase nào trong session");
+      }
+
+      const activePhase: { id: string; phase_date: string } = phases[0];
+
+      // 3. Query all live_products in current phase
+      const { data: liveProducts, error: productsError } = await supabase
+        .from('live_products')
+        .select('*')
+        .eq('live_phase_id', activePhase.id);
+
+      if (productsError) throw productsError;
+      if (!liveProducts || liveProducts.length === 0) {
+        throw new Error("Không có sản phẩm nào trong phase hiện tại");
+      }
+
+      // 4. Match each selected product with live_products
+      const ordersCreated = [];
+      const billDataList = [];
+
+      for (const selectedProduct of selectedProducts) {
+        const productCode = selectedProduct.code;
+
+        // Find matching live_product
+        const matchedProduct = liveProducts.find(lp => {
+          const variantCode = getVariantCode(lp.variant);
+          const codeToMatch = variantCode || lp.product_code;
+          return codeToMatch === productCode;
+        });
+
+        if (!matchedProduct) {
+          console.warn(`Sản phẩm ${productCode} không có trong live session`);
+          continue;
+        }
+
+        // Calculate oversell
+        const newSoldQuantity = (matchedProduct.sold_quantity || 0) + 1;
+        const isOversell = newSoldQuantity > matchedProduct.prepared_quantity;
+
+        // Insert into live_orders
+        const { error: orderError } = await supabase
+          .from('live_orders')
+          .insert({
+            order_code: sessionIndex,
+            facebook_comment_id: comment.id,
+            live_session_id: activeSession.id,
+            live_phase_id: activePhase.id,
+            live_product_id: matchedProduct.id,
+            quantity: 1,
+            is_oversell: isOversell
+          });
+
+        if (orderError) throw orderError;
+
+        // Update sold_quantity
+        const { error: updateError } = await supabase
+          .from('live_products')
+          .update({ sold_quantity: newSoldQuantity })
+          .eq('id', matchedProduct.id);
+
+        if (updateError) throw updateError;
+
+        ordersCreated.push({ matchedProduct, isOversell });
+
+        // Prepare bill data
+        billDataList.push({
+          sessionIndex,
+          phone: comment.orderInfo?.Telephone || 'Chưa có SĐT',
+          customerName: comment.from?.name || 'Khách hàng',
+          productCode: matchedProduct.product_code,
+          productName: matchedProduct.product_name,
+          comment: comment.message,
+          createdTime: comment.created_time,
+        });
+      }
+
+      return { ordersCreated, billDataList, sessionIndex };
     },
     onMutate: (variables) => {
       setPendingCommentIds(prev => new Set(prev).add(variables.comment.id));
     },
-    onSuccess: (data) => {
+    onSuccess: ({ ordersCreated, billDataList, sessionIndex }) => {
+      // Invalidate queries
+      queryClient.invalidateQueries({ queryKey: ['tpos-orders', selectedVideo?.objectId] });
+      queryClient.invalidateQueries({ queryKey: ['facebook-comments', pageId, selectedVideo?.objectId] });
+
+      // Print bills (one by one, like QuickAddOrder)
+      billDataList.forEach(billData => {
+        const billHtml = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="UTF-8">
+            <style>
+              body { 
+                margin: 0; 
+                padding: 20px; 
+                font-family: Tahoma, sans-serif; 
+              }
+              .bill-container {
+                display: flex;
+                flex-direction: column;
+                gap: 0;
+                text-align: center;
+                line-height: 2.0;
+              }
+              .session-name {
+                font-size: 19.5pt;
+                font-weight: bold;
+                line-height: 2.0;
+              }
+              .phone {
+                font-size: 8pt;
+                font-weight: bold;
+                line-height: 2.0;
+              }
+              .product {
+                font-size: 10pt;
+                font-weight: bold;
+                line-height: 2.0;
+              }
+              .comment {
+                font-size: 15pt;
+                font-weight: bold;
+                font-style: italic;
+                color: #000;
+                line-height: 2.0;
+              }
+              .time {
+                font-size: 6pt;
+                font-weight: bold;
+                color: #000;
+                line-height: 2.0;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="bill-container">
+              <div class="session-name">#${billData.sessionIndex} - ${billData.customerName}</div>
+              <div class="phone">${billData.phone}</div>
+              <div class="product">${billData.productCode} - ${billData.productName.replace(/^\d+\s+/, '')}</div>
+              ${billData.comment ? `<div class="comment">${billData.comment}</div>` : ''}
+              <div class="time">${new Date(billData.createdTime).toLocaleString('vi-VN', { 
+                timeZone: 'Asia/Bangkok',
+                day: '2-digit',
+                month: '2-digit', 
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}</div>
+            </div>
+          </body>
+          </html>
+        `;
+        
+        const printWindow = window.open('', '_blank', 'width=400,height=600');
+        if (printWindow) {
+          printWindow.document.write(billHtml);
+          printWindow.document.close();
+          printWindow.focus();
+          
+          printWindow.onload = () => {
+            printWindow.print();
+          };
+        }
+      });
+
+      // Show toast
+      const hasOversell = ordersCreated.some(o => o.isOversell);
       toast({
-        title: "Tạo đơn hàng thành công!",
-        description: `Đơn hàng ${data.response.Code} đã được tạo.`,
+        title: hasOversell ? "⚠️ Đã tạo đơn (có oversell)" : "Thành công",
+        description: hasOversell 
+          ? `Đã tạo ${ordersCreated.length} đơn cho #${sessionIndex} (có vượt số lượng)`
+          : `Đã tạo ${ordersCreated.length} đơn hàng cho #${sessionIndex}`,
+        variant: hasOversell ? "destructive" : "default",
       });
     },
-    onError: (error: any) => {
-      let errorData;
-      try {
-        errorData = JSON.parse(error.message);
-      } catch (e) {
-        errorData = { error: error.message };
-      }
-
+    onError: (error: Error) => {
+      console.error('Create order error:', error);
       toast({
         title: "Lỗi tạo đơn hàng",
-        description: errorData.error || "Có lỗi không xác định",
+        description: error.message || "Không thể tạo đơn hàng",
         variant: "destructive",
       });
     },
@@ -173,8 +357,6 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
         next.delete(variables.comment.id);
         return next;
       });
-      queryClient.invalidateQueries({ queryKey: ["tpos-orders", selectedVideo?.objectId] });
-      queryClient.invalidateQueries({ queryKey: ['facebook-comments', pageId, selectedVideo?.objectId] });
     },
   });
 
@@ -182,12 +364,6 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
     // Check if products are selected
     const selectedProducts = selectedProductsMap.get(comment.id) || [];
     const hasProducts = selectedProducts.length > 0;
-    
-    // Create a modified comment with product codes in the message
-    const modifiedComment = {
-      ...comment,
-      message: getCommentWithProductCodes(comment.id, comment.message)
-    };
     
     // If comment already has order, show inline confirmation
     if (comment.orderInfo) {
@@ -202,14 +378,10 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
     }
     
     // Create order directly if has products and no existing order
-    if (selectedVideo) {
-      createOrderMutation.mutate({ comment: modifiedComment, video: selectedVideo });
-    }
+    createOrderFromCommentMutation.mutate({ comment, selectedProducts });
   };
 
   const handleConfirmDuplicateOrder = (comment: CommentWithStatus) => {
-    if (!selectedVideo) return;
-    
     // Check if products are selected
     const selectedProducts = selectedProductsMap.get(comment.id) || [];
     const hasProducts = selectedProducts.length > 0;
@@ -224,12 +396,7 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
     }
     
     // Create order if has products
-    const modifiedComment = {
-      ...comment,
-      message: getCommentWithProductCodes(comment.id, comment.message)
-    };
-    
-    createOrderMutation.mutate({ comment: modifiedComment, video: selectedVideo });
+    createOrderFromCommentMutation.mutate({ comment, selectedProducts });
   };
 
   const handleCancelDuplicateOrder = () => {
@@ -237,14 +404,9 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
   };
 
   const handleConfirmNoProduct = (comment: CommentWithStatus) => {
-    if (!selectedVideo) return;
+    const selectedProducts = selectedProductsMap.get(comment.id) || [];
     
-    const modifiedComment = {
-      ...comment,
-      message: getCommentWithProductCodes(comment.id, comment.message)
-    };
-    
-    createOrderMutation.mutate({ comment: modifiedComment, video: selectedVideo });
+    createOrderFromCommentMutation.mutate({ comment, selectedProducts });
     setConfirmNoProductCommentId(null);
   };
 
