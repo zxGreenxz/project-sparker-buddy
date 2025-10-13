@@ -634,7 +634,7 @@ export function AddProductToLiveDialog({ open, onOpenChange, phaseId, sessionId,
                               <img
                                 src={variant.product_images?.[0] || variant.tpos_image_url || ""}
                                 alt={variant.variant}
-                                className="w-10 h-10 object-cover rounded border cursor-pointer transition-transform duration-200 hover:scale-[12] hover:z-50 relative origin-right"
+                                className="w-10 h-10 object-cover rounded border img-zoom-right-lg"
                               />
                             )}
                             

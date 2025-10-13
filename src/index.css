@@ -118,3 +118,36 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  /* Image zoom effect that expands to the right */
+  .img-zoom-right {
+    @apply cursor-pointer transition-transform duration-200 relative;
+  }
+  
+  .img-zoom-right:hover {
+    transform: translateX(100%) scale(8.5);
+    transform-origin: left center;
+    z-index: 50;
+  }
+  
+  .img-zoom-right-lg {
+    @apply cursor-pointer transition-transform duration-200 relative;
+  }
+  
+  .img-zoom-right-lg:hover {
+    transform: translateX(100%) scale(12);
+    transform-origin: left center;
+    z-index: 50;
+  }
+  
+  .img-zoom-right-md {
+    @apply cursor-pointer transition-transform duration-200 relative;
+  }
+  
+  .img-zoom-right-md:hover {
+    transform: translateX(100%) scale(6);
+    transform-origin: left center;
+    z-index: 50;
+  }
+}

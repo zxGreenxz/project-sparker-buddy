@@ -64,7 +64,7 @@ export function ProductImage({
       <img
         src={imageUrl}
         alt={productCode}
-        className="w-10 h-10 object-cover rounded cursor-pointer transition-transform duration-200 hover:scale-[12] hover:z-50 relative origin-right"
+        className="w-10 h-10 object-cover rounded img-zoom-right-lg"
         onClick={() => setIsDialogOpen(true)}
         onError={(e) => {
           // If image fails to load, show placeholder
