@@ -77,55 +77,50 @@ serve(async (req) => {
     });
     
     // ========== NEW: Save comments to database ==========
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    // Try to save to DB but don't fail if table doesn't exist yet
+    try {
+      const supabaseClient = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      );
 
-    const comments = data?.data || [];
-    if (comments.length > 0) {
-      console.log(`Saving ${comments.length} comments to database`);
-      
-      const upsertData = comments.map((comment: any) => ({
-        facebook_comment_id: comment.id,
-        facebook_post_id: postId,
-        facebook_user_id: comment.from?.id || null,
-        facebook_user_name: comment.from?.name || null,
-        comment_message: comment.message || '',
-        comment_created_time: comment.created_time,
-        like_count: comment.like_count || 0,
-        last_fetched_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }));
+      const comments = data?.data || [];
+      if (comments.length > 0) {
+        console.log(`Attempting to save ${comments.length} comments to database`);
+        
+        const upsertData = comments.map((comment: any) => ({
+          facebook_comment_id: comment.id,
+          facebook_post_id: postId,
+          facebook_user_id: comment.from?.id || null,
+          facebook_user_name: comment.from?.name || null,
+          comment_message: comment.message || '',
+          comment_created_time: comment.created_time,
+          like_count: comment.like_count || 0,
+          last_fetched_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }));
 
-      const { error: upsertError } = await supabaseClient
-        .from('facebook_comments_archive')
-        .upsert(upsertData, { 
-          onConflict: 'facebook_comment_id',
-          ignoreDuplicates: false 
-        });
+        const { error: upsertError } = await supabaseClient
+          .from('facebook_comments_archive')
+          .upsert(upsertData, { 
+            onConflict: 'facebook_comment_id',
+            ignoreDuplicates: false 
+          });
 
-      if (upsertError) {
-        console.error('Error upserting comments to facebook_comments_archive:', {
-          error: upsertError,
-          message: upsertError.message,
-          details: upsertError.details,
-          hint: upsertError.hint,
-          code: upsertError.code
-        });
-        // Return error to client so they know table needs to be created
-        return new Response(
-          JSON.stringify({ 
-            error: 'Database error - table may not exist',
+        if (upsertError) {
+          console.warn('⚠️ Could not save comments to facebook_comments_archive (table may not exist):', {
             message: upsertError.message,
-            hint: 'Please run the facebook_comments_archive_setup.sql script first',
-            details: upsertError.details
-          }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      } else {
-        console.log(`✅ Successfully upserted ${upsertData.length} comments to facebook_comments_archive`);
+            code: upsertError.code,
+            hint: 'Run facebook_comments_archive_setup.sql to create the table'
+          });
+          // Don't return error - continue to return comments to client
+        } else {
+          console.log(`✅ Successfully saved ${upsertData.length} comments to facebook_comments_archive`);
+        }
       }
+    } catch (dbError) {
+      console.warn('⚠️ Exception while saving to DB:', dbError);
+      // Continue execution - don't fail the request
     }
     // ========== END NEW ==========
     
