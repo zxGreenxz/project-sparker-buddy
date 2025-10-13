@@ -62,13 +62,21 @@ function getVariantCode(variant: string | null | undefined): string {
 }
 
 /**
- * Extract product code from comment text
- * Pattern: N followed by letters/numbers (e.g., N55, N236L)
+ * Extract all product codes from comment text
+ * Pattern: N followed by numbers and optional letters (e.g., N55, N236L, N217)
+ * Handles special characters around codes: (N217), [N217], N217., N217,, etc.
  */
-function extractProductCode(text: string): string | null {
-  const pattern = /\bN\d+[A-Z]*\b/i;
-  const match = text.match(pattern);
-  return match ? match[0].toUpperCase() : null;
+function extractProductCodes(text: string): string[] {
+  // More flexible pattern: N followed by digits, then optional letters
+  // Allows for various surrounding characters
+  const pattern = /N\d+[A-Z]*/gi;
+  const matches = text.match(pattern);
+  
+  if (!matches) return [];
+  
+  // Convert to uppercase, remove duplicates, and normalize
+  const codes = matches.map(m => m.toUpperCase().trim());
+  return [...new Set(codes)]; // Remove duplicates
 }
 
 async function getCRMTeamId(
@@ -338,26 +346,47 @@ serve(async (req) => {
 
     // Try to match with live_products and create live_orders
     try {
-      const productCode = extractProductCode(comment.message);
+      const productCodes = extractProductCodes(comment.message);
       const sessionIndex = data.SessionIndex;
       
-      if (productCode && sessionIndex) {
-        console.log(`Extracted product code: ${productCode}, SessionIndex: ${sessionIndex}`);
+      console.log(`Raw comment message: "${comment.message}"`);
+      console.log(`Extracted product codes: [${productCodes.join(', ')}]`);
+      console.log(`SessionIndex from TPOS: ${sessionIndex}`);
+      
+      if (productCodes.length > 0 && sessionIndex) {
+        // Query live_products from recent sessions only (last 7 days)
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
         
-        // Query all live_products with variants
         const { data: liveProducts, error: liveProductsError } = await supabase
           .from('live_products')
-          .select('id, live_session_id, live_phase_id, variant, prepared_quantity, sold_quantity')
-          .not('variant', 'is', null);
+          .select('id, live_session_id, live_phase_id, variant, prepared_quantity, sold_quantity, created_at')
+          .not('variant', 'is', null)
+          .gte('created_at', sevenDaysAgo.toISOString())
+          .order('created_at', { ascending: false });
         
         if (liveProductsError) {
           console.error('Error querying live_products:', liveProductsError);
         } else if (liveProducts && liveProducts.length > 0) {
-          // Find matching product
-          const matchedProduct = liveProducts.find(product => {
-            const variantCode = getVariantCode(product.variant);
-            return variantCode === productCode;
-          });
+          console.log(`Found ${liveProducts.length} live products with variants (last 7 days)`);
+          
+          // Try to match each extracted product code
+          let matchedProduct = null;
+          let matchedCode = '';
+          
+          for (const productCode of productCodes) {
+            matchedProduct = liveProducts.find(product => {
+              const variantCode = getVariantCode(product.variant);
+              const normalized = variantCode.toUpperCase().trim();
+              console.log(`Comparing "${productCode}" with variant "${product.variant}" (code: "${normalized}")`);
+              return normalized === productCode;
+            });
+            
+            if (matchedProduct) {
+              matchedCode = productCode;
+              break;
+            }
+          }
           
           if (matchedProduct) {
             console.log(`Found matching product: ${matchedProduct.id}, variant: ${matchedProduct.variant}`);
@@ -398,11 +427,11 @@ serve(async (req) => {
               }
             }
           } else {
-            console.log(`No matching product found for code: ${productCode}`);
+            console.log(`No matching product found for codes: [${productCodes.join(', ')}]`);
           }
         }
       } else {
-        console.log('No product code or sessionIndex found, skipping live_products matching');
+        console.log('No product codes extracted or SessionIndex missing, skipping live_products matching');
       }
     } catch (liveProductError) {
       console.error('Error in live_products matching logic:', liveProductError);
