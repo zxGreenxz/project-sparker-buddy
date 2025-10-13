@@ -583,7 +583,11 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
   const getCommentWithProductCodes = (commentId: string, originalMessage: string) => {
     const selectedProducts = selectedProductsMap.get(commentId) || [];
     
+    console.log(`[Frontend] getCommentWithProductCodes for comment ${commentId}:`);
+    console.log(`  Selected products:`, selectedProducts);
+    
     if (selectedProducts.length === 0) {
+      console.log(`  → No products selected, returning original message`);
       return originalMessage;
     }
     
@@ -592,7 +596,12 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
       .map((p: any) => p.code)
       .join(' - ');
     
-    return `(${productCodes}) ${originalMessage}`;
+    const result = `(${productCodes}) ${originalMessage}`;
+    
+    console.log(`  → Product codes: [${selectedProducts.map((p: any) => p.code).join(', ')}]`);
+    console.log(`  → Modified message: "${result}"`);
+    
+    return result;
   };
 
   const fetchPartnerStatusBatch = useCallback(async (

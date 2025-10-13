@@ -374,12 +374,17 @@ serve(async (req) => {
       const productCodes = extractProductCodes(comment.message);
       const sessionIndex = data.SessionIndex;
       
+      console.log('\n=== 🔍 CRITICAL DEBUG INFO ===');
+      console.log(`✓ Order created in TPOS: ${data.Code || 'N/A'}`);
+      console.log(`✓ SessionIndex: ${sessionIndex || 'NULL/UNDEFINED'}`);
+      console.log(`✓ Product codes extracted: [${productCodes.join(', ')}] (${productCodes.length} codes)`);
+      console.log(`✓ Video ID: ${video.objectId}`);
+      console.log(`✓ Comment ID: ${comment.id}`);
+      console.log(`✓ Raw message: "${comment.message}"`);
+      console.log(`✓ Will attempt matching: ${productCodes.length > 0 && sessionIndex ? '✅ YES' : '❌ NO'}`);
+      console.log('============================\n');
+      
       console.log('============ MATCHING DEBUG START ============');
-      console.log(`Comment ID: ${comment.id}`);
-      console.log(`Post ID: ${video.id}`);
-      console.log(`Raw comment message: "${comment.message}"`);
-      console.log(`Extracted product codes: [${productCodes.join(', ')}]`);
-      console.log(`SessionIndex from TPOS: ${sessionIndex}`);
       
       if (productCodes.length > 0 && sessionIndex) {
         // Query live_products from recent sessions only (last 30 days for better matching)
@@ -469,14 +474,16 @@ serve(async (req) => {
             }
           }
           
+          // MATCH RESULT SUMMARY
           if (matchedProduct) {
-            console.log(`\n✓ SUCCESS: Found matching product!`);
+            console.log(`\n✅ MATCH SUCCESS!`);
             console.log(`  Product ID: ${matchedProduct.id}`);
             console.log(`  Variant: "${matchedProduct.variant}"`);
             console.log(`  Matched Code: "${matchedCode}"`);
             console.log(`  Session ID: ${matchedProduct.live_session_id}`);
             console.log(`  Phase ID: ${matchedProduct.live_phase_id}`);
             console.log(`  Current sold: ${matchedProduct.sold_quantity || 0}/${matchedProduct.prepared_quantity || 0}`);
+            console.log(`  → Will create live_order with sessionIndex: ${sessionIndex}`);
             
             // Check if oversell
             const isOversell = (matchedProduct.sold_quantity || 0) >= (matchedProduct.prepared_quantity || 0);
@@ -493,7 +500,8 @@ serve(async (req) => {
               is_oversell: isOversell,
             };
             
-            console.log('\nInserting into live_orders with data:', JSON.stringify(orderData, null, 2));
+            console.log('\n💾 Creating live_order...');
+            console.log(`  Data:`, JSON.stringify(orderData, null, 2));
             
             // Insert into live_orders
             const { data: insertedOrder, error: liveOrderError } = await supabase
@@ -503,10 +511,11 @@ serve(async (req) => {
               .single();
             
             if (liveOrderError) {
-              console.error('❌ Error inserting live_order:', liveOrderError);
+              console.error('❌ Failed to create live_order:', liveOrderError);
               console.error('Error details:', JSON.stringify(liveOrderError, null, 2));
             } else {
-              console.log('✓ Successfully created live_order:', insertedOrder);
+              console.log(`✅ Successfully created live_order (ID: ${insertedOrder.id})`);
+              console.log('Order details:', insertedOrder);
               
               // Update sold_quantity
               const newSoldQuantity = (matchedProduct.sold_quantity || 0) + 1;
