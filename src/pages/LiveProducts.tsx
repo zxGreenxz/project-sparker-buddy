@@ -492,7 +492,10 @@ export default function LiveProducts() {
         // 2. Kiểm tra xem tên sản phẩm có dấu "-" không
         if (scannedProduct.product_name.includes('-')) {
           // CASE 1: Tên có dấu "-" → Split và tìm theo tên
-          const baseNamePrefix = scannedProduct.product_name.split('-')[0].trim();
+          // Ưu tiên split theo ' - ' (với space) nếu có, fallback về '-' nếu không
+          const baseNamePrefix = scannedProduct.product_name.includes(' - ')
+            ? scannedProduct.product_name.split(' - ')[0].trim()
+            : scannedProduct.product_name.split('-')[0].trim();
           
           const { data: matchingProducts, error: matchError } = await supabase
             .from("products")

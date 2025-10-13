@@ -34,40 +34,56 @@ function convertFacebookTimeToISO(facebookTime: string): string {
 }
 
 /**
- * Parse variant string to extract code after "-"
- * Format: "variant_name - product_code"
- * Example: "L - N236L" → "N236L", "- N217" → "N217", " - N217" → "N217"
- * Synced with frontend parseVariant() logic for consistency
+ * Parse variant string into name and code components
+ * Format: "variant_name - product_code" or "- product_code"
+ * Example: "Size M - N152" → { name: "Size M", code: "N152" }
+ * Synced with frontend src/lib/variant-utils.ts for consistency
  */
-function getVariantCode(variant: string | null | undefined): string {
+function parseVariant(variant: string | null | undefined): { name: string; code: string } {
   if (!variant || variant.trim() === '') {
-    return '';
+    return { name: '', code: '' };
   }
   
   const trimmed = variant.trim();
   
-  // Format 1: "variant_name - product_code" (e.g., "Size M - N217")
-  // Format 2: " - product_code" (e.g., " - N217")
+  // Format: "variant_name - product_code"
   if (trimmed.includes(' - ')) {
     const parts = trimmed.split(' - ');
     if (parts.length >= 2) {
-      // Return the last part as code (handles "2-in-1 - N152")
-      return parts[parts.length - 1].toUpperCase().trim();
+      return {
+        name: parts[0].trim(),
+        code: parts.slice(1).join(' - ').trim() // Handle edge case: "2-in-1 - N152"
+      };
     }
   }
   
-  // Format 3: "- product_code" (no space before dash, e.g., "- N217")
+  // Format: "- product_code" (no variant name)
   if (trimmed.startsWith('- ')) {
-    return trimmed.substring(2).toUpperCase().trim();
+    return {
+      name: '',
+      code: trimmed.substring(2).trim()
+    };
   }
   
-  // Format 4: "-product_code" (no space at all, e.g., "-N217")
-  if (trimmed.startsWith('-')) {
-    return trimmed.substring(1).toUpperCase().trim();
-  }
-  
-  // No recognized format
-  return '';
+  // Old format: just variant name (backward compatibility)
+  return {
+    name: trimmed,
+    code: ''
+  };
+}
+
+/**
+ * Get only the variant code part (after " - ")
+ */
+function getVariantCode(variant: string | null | undefined): string {
+  return parseVariant(variant).code.toUpperCase();
+}
+
+/**
+ * Get only the variant name part (before " - ")
+ */
+function getVariantName(variant: string | null | undefined): string {
+  return parseVariant(variant).name;
 }
 
 /**
