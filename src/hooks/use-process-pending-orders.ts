@@ -58,15 +58,14 @@ export function useProcessPendingOrders() {
       const phase_date = today.toISOString().split('T')[0];
 
       // 1. Fetch pending_live_orders that haven't been processed yet
-      const { data: rawPendingOrders, error: fetchError } = await supabase
-        .from('pending_live_orders')
+      // Note: Using 'as any' to bypass TypeScript until migration is run
+      const { data: pendingOrders, error: fetchError } = await supabase
+        .from('pending_live_orders' as any)
         .select('*')
         .eq('processed', false)
         .gte('created_at', `${phase_date}T00:00:00`)
         .lt('created_at', `${phase_date}T23:59:59`)
-        .order('created_at', { ascending: true });
-      
-      const pendingOrders = rawPendingOrders as PendingLiveOrder[] | null;
+        .order('created_at', { ascending: true }) as { data: PendingLiveOrder[] | null; error: any };
 
       if (fetchError) {
         console.error('[useProcessPendingOrders] ❌ Error fetching:', fetchError);
@@ -140,7 +139,7 @@ export function useProcessPendingOrders() {
 
       for (const pending of pendingOrders) {
         console.log(`\n[Processing] Pending order ${pending.id}:`);
-        console.log(`  Comment: ${pending.comment}`);
+        console.log(`  Comment: ${pending.comment_text}`);
         console.log(`  Session index: ${pending.session_index}`);
 
         // Extract product codes from comment
@@ -152,7 +151,7 @@ export function useProcessPendingOrders() {
           
           // Mark as processed with error
           await supabase
-            .from('pending_live_orders')
+            .from('pending_live_orders' as any)
             .update({ 
               processed: true, 
               processed_at: new Date().toISOString(),
@@ -265,7 +264,7 @@ export function useProcessPendingOrders() {
 
         // Mark pending order as processed
         await supabase
-          .from('pending_live_orders')
+          .from('pending_live_orders' as any)
           .update({ 
             processed: true, 
             processed_at: new Date().toISOString(),

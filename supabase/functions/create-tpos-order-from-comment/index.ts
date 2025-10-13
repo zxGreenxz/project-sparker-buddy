@@ -372,7 +372,7 @@ serve(async (req) => {
     // Save to pending_live_orders (queue table for background processing)
     try {
       const { error: pendingError } = await supabase
-        .from('pending_live_orders')
+        .from('pending_live_orders' as any)
         .upsert({
           id: data.Id,
           facebook_comment_id: comment.id,
