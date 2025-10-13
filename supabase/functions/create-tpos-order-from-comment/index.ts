@@ -369,194 +369,45 @@ serve(async (req) => {
     const data = await response.json();
     console.log("TPOS response:", data);
 
-    // Try to match with live_products and create live_orders
+    // Save to pending_live_orders for processing in /live-products
     try {
       const productCodes = extractProductCodes(comment.message);
       const sessionIndex = data.SessionIndex;
       
-      console.log('\n=== 🔍 CRITICAL DEBUG INFO ===');
-      console.log(`✓ Order created in TPOS: ${data.Code || 'N/A'}`);
-      console.log(`✓ SessionIndex: ${sessionIndex || 'NULL/UNDEFINED'}`);
-      console.log(`✓ Product codes extracted: [${productCodes.join(', ')}] (${productCodes.length} codes)`);
-      console.log(`✓ Video ID: ${video.objectId}`);
+      console.log('\n=== 💾 SAVING TO PENDING QUEUE ===');
+      console.log(`✓ SessionIndex: ${sessionIndex || 'NULL'}`);
+      console.log(`✓ Product codes: [${productCodes.join(', ')}]`);
       console.log(`✓ Comment ID: ${comment.id}`);
-      console.log(`✓ Raw message: "${comment.message}"`);
-      console.log(`✓ Will attempt matching: ${productCodes.length > 0 && sessionIndex ? '✅ YES' : '❌ NO'}`);
-      console.log('============================\n');
+      console.log(`✓ Video ID: ${video.objectId}`);
       
-      console.log('============ MATCHING DEBUG START ============');
-      
-      if (productCodes.length > 0 && sessionIndex) {
-        // Query live_products from recent sessions only (last 30 days for better matching)
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        
-        console.log(`Querying live_products from last 30 days (since ${thirtyDaysAgo.toISOString()})...`);
-        
-        const { data: liveProducts, error: liveProductsError } = await supabase
-          .from('live_products')
-          .select('id, live_session_id, live_phase_id, variant, product_code, prepared_quantity, sold_quantity, created_at')
-          .not('variant', 'is', null)
-          .gte('created_at', thirtyDaysAgo.toISOString())
-          .order('created_at', { ascending: false });
-        
-        if (liveProductsError) {
-          console.error('❌ Error querying live_products:', liveProductsError);
-        } else if (liveProducts && liveProducts.length > 0) {
-          console.log(`✓ Found ${liveProducts.length} live products with variants`);
-          
-          // Log summary of codes we're looking for
-          console.log(`\n🔍 Looking for product codes: [${productCodes.join(', ')}]`);
-          
-          // Check how many variants contain each code we're looking for
-          productCodes.forEach(code => {
-            const matchingCount = liveProducts.filter(p => {
-              const variantCode = getVariantCode(p.variant);
-              return variantCode.toUpperCase().includes(code);
-            }).length;
-            console.log(`  Variants containing "${code}": ${matchingCount}`);
-          });
-          
-          // Log all variants for debugging
-          console.log('All variants in database:');
-          liveProducts.forEach((p, idx) => {
-            const code = getVariantCode(p.variant);
-            console.log(`  [${idx + 1}] ID: ${p.id}, Variant: "${p.variant}", Code: "${code}", Product Code: "${p.product_code || 'N/A'}"`);
-          });
-          
-          // Try to match each extracted product code
-          let matchedProduct = null;
-          let matchedCode = '';
-          
-          console.log('\nStarting matching process...');
-          for (const productCode of productCodes) {
-            console.log(`\nTrying to match code: "${productCode}"`);
-            
-            // Primary: Match by variant code
-            matchedProduct = liveProducts.find(product => {
-              const rawVariant = product.variant;
-              const parsed = parseVariant(product.variant);
-              const variantCode = parsed.code;
-              const normalized = variantCode.toUpperCase().trim();
-              const isMatch = normalized === productCode;
-              
-              // Detailed logging for debugging
-              console.log(`  [DEBUG] Raw variant: "${rawVariant}"`);
-              console.log(`  [DEBUG] Parsed → name: "${parsed.name}", code: "${parsed.code}"`);
-              console.log(`  [DEBUG] Normalized code: "${normalized}"`);
-              console.log(`  [DEBUG] Comparing: "${productCode}" === "${normalized}" → ${isMatch ? '✓ MATCH' : '✗'}`);
-              
-              return isMatch;
-            });
-            
-            // Fallback: Match by product_code if variant matching failed
-            if (!matchedProduct) {
-              console.log(`  Trying fallback: match by product_code...`);
-              matchedProduct = liveProducts.find(product => {
-                if (!product.product_code) return false;
-                const normalized = product.product_code.toUpperCase().trim();
-                const isMatch = normalized === productCode;
-                console.log(`  [Product Code] Compare: "${productCode}" vs "${normalized}" → ${isMatch ? '✓ MATCH' : '✗ no match'}`);
-                return isMatch;
-              });
-              
-              if (matchedProduct) {
-                console.log(`✓ Found match using product_code fallback: "${matchedProduct.product_code}"`);
-              }
-            }
-            
-            if (matchedProduct) {
-              matchedCode = productCode;
-              console.log(`✓ Found match with code: "${matchedCode}"`);
-              break;
-            } else {
-              console.log(`✗ No match found for code: "${productCode}"`);
-            }
-          }
-          
-          // MATCH RESULT SUMMARY
-          if (matchedProduct) {
-            console.log(`\n✅ MATCH SUCCESS!`);
-            console.log(`  Product ID: ${matchedProduct.id}`);
-            console.log(`  Variant: "${matchedProduct.variant}"`);
-            console.log(`  Matched Code: "${matchedCode}"`);
-            console.log(`  Session ID: ${matchedProduct.live_session_id}`);
-            console.log(`  Phase ID: ${matchedProduct.live_phase_id}`);
-            console.log(`  Current sold: ${matchedProduct.sold_quantity || 0}/${matchedProduct.prepared_quantity || 0}`);
-            console.log(`  → Will create live_order with sessionIndex: ${sessionIndex}`);
-            
-            // Check if oversell
-            const isOversell = (matchedProduct.sold_quantity || 0) >= (matchedProduct.prepared_quantity || 0);
-            console.log(`  Is oversell: ${isOversell}`);
-            
-            // Prepare order data
-            const orderData = {
-              live_product_id: matchedProduct.id,
-              live_session_id: matchedProduct.live_session_id,
-              live_phase_id: matchedProduct.live_phase_id,
-              order_code: sessionIndex.toString(),
-              facebook_comment_id: comment.id,
-              quantity: 1,
-              is_oversell: isOversell,
-            };
-            
-            console.log('\n💾 Creating live_order...');
-            console.log(`  Data:`, JSON.stringify(orderData, null, 2));
-            
-            // Insert into live_orders
-            const { data: insertedOrder, error: liveOrderError } = await supabase
-              .from('live_orders')
-              .insert(orderData)
-              .select()
-              .single();
-            
-            if (liveOrderError) {
-              console.error('❌ Failed to create live_order:', liveOrderError);
-              console.error('Error details:', JSON.stringify(liveOrderError, null, 2));
-            } else {
-              console.log(`✅ Successfully created live_order (ID: ${insertedOrder.id})`);
-              console.log('Order details:', insertedOrder);
-              
-              // Update sold_quantity
-              const newSoldQuantity = (matchedProduct.sold_quantity || 0) + 1;
-              console.log(`\nUpdating sold_quantity: ${matchedProduct.sold_quantity || 0} → ${newSoldQuantity}`);
-              
-              const { data: updatedProduct, error: updateError } = await supabase
-                .from('live_products')
-                .update({ 
-                  sold_quantity: newSoldQuantity
-                })
-                .eq('id', matchedProduct.id)
-                .select()
-                .single();
-              
-              if (updateError) {
-                console.error('❌ Error updating sold_quantity:', updateError);
-                console.error('Error details:', JSON.stringify(updateError, null, 2));
-              } else {
-                console.log('✓ Successfully updated sold_quantity:', updatedProduct);
-              }
-            }
-          } else {
-            console.log(`\n✗ NO MATCH: No matching product found for codes: [${productCodes.join(', ')}]`);
-          }
-        } else {
-          console.log('✗ No live products found with variants in the last 30 days');
-        }
+      // Insert into pending_live_orders for later processing
+      const { data: pendingOrder, error: pendingError } = await supabase
+        .from('pending_live_orders')
+        .insert({
+          comment_id: comment.id,
+          comment_text: comment.message,
+          customer_name: comment.from.name,
+          facebook_user_id: comment.from.id,
+          product_codes: productCodes,
+          session_index: sessionIndex?.toString() || null,
+          tpos_order_code: data.Code || null,
+          video_id: video.objectId,
+          processed: false,
+        })
+        .select()
+        .single();
+
+      if (pendingError) {
+        console.error('❌ Failed to save to pending queue:', pendingError);
+        // Don't throw - TPOS order was created successfully
       } else {
-        if (productCodes.length === 0) {
-          console.log('✗ No product codes extracted from comment message');
-        }
-        if (!sessionIndex) {
-          console.log('✗ SessionIndex missing from TPOS response');
-        }
+        console.log('✅ Saved to pending queue (ID: ' + pendingOrder.id + ')');
+        console.log('   Will be processed when user visits /live-products');
       }
-      console.log('============ MATCHING DEBUG END ============\n');
-    } catch (liveProductError) {
-      console.error('❌ FATAL ERROR in live_products matching logic:', liveProductError);
-      if (liveProductError instanceof Error) {
-        console.error('Error stack:', liveProductError.stack);
-      }
+
+      console.log('============================\n');
+    } catch (pendingOrderError) {
+      console.error('❌ ERROR saving to pending queue:', pendingOrderError);
       // Don't fail the whole request if this optional feature fails
     }
 
