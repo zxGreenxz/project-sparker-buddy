@@ -3,7 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Barcode, Trash2, X, Package } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Barcode, Trash2, X, Package, CheckCircle } from "lucide-react";
 import { useBarcodeScanner } from "@/contexts/BarcodeScannerContext";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -13,18 +14,58 @@ export function ScannedBarcodesPanel() {
   const { scannedBarcodes, clearScannedBarcodes, removeScannedBarcode } = useBarcodeScanner();
   const isMobile = useIsMobile();
   const [isExpanded, setIsExpanded] = useState(true);
+  const [manualCode, setManualCode] = useState("");
+
+  const handleManualSubmit = () => {
+    if (!manualCode.trim()) return;
+    
+    // Dispatch the same barcode-scanned event
+    window.dispatchEvent(
+      new CustomEvent('barcode-scanned', { 
+        detail: { code: manualCode.trim() } 
+      })
+    );
+    
+    setManualCode("");
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleManualSubmit();
+    }
+  };
 
   if (scannedBarcodes.length === 0) {
     return (
       <Card className={cn("border-dashed", isMobile ? "mx-4" : "")}>
-        <CardContent className="flex flex-col items-center justify-center py-8">
-          <Barcode className="h-12 w-12 text-muted-foreground mb-3" />
-          <p className="text-sm text-muted-foreground text-center">
-            Chưa có barcode nào được quét
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Quét barcode để theo dõi sản phẩm trong livestream
-          </p>
+        <CardContent className="flex flex-col items-center justify-center py-8 space-y-4">
+          <div className="text-center">
+            <Barcode className="h-12 w-12 text-muted-foreground mb-3 mx-auto" />
+            <p className="text-sm text-muted-foreground">
+              Chưa có barcode nào được quét
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Quét barcode hoặc nhập mã thủ công
+            </p>
+          </div>
+          
+          <div className="flex gap-2 w-full max-w-sm">
+            <Input
+              placeholder="Nhập mã sản phẩm..."
+              value={manualCode}
+              onChange={(e) => setManualCode(e.target.value)}
+              onKeyPress={handleKeyPress}
+              className="flex-1"
+            />
+            <Button
+              onClick={handleManualSubmit}
+              disabled={!manualCode.trim()}
+              size="sm"
+            >
+              <CheckCircle className="h-4 w-4 mr-1" />
+              Xác nhận
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );
@@ -60,7 +101,26 @@ export function ScannedBarcodesPanel() {
       </CardHeader>
       
       {isExpanded && (
-        <CardContent className="pt-0">
+        <CardContent className="pt-0 space-y-4">
+          <div className="flex gap-2">
+            <Input
+              placeholder="Nhập mã sản phẩm..."
+              value={manualCode}
+              onChange={(e) => setManualCode(e.target.value)}
+              onKeyPress={handleKeyPress}
+              className="flex-1"
+            />
+            <Button
+              onClick={handleManualSubmit}
+              disabled={!manualCode.trim()}
+              size="sm"
+            >
+              <CheckCircle className="h-4 w-4 mr-1" />
+              Xác nhận
+            </Button>
+          </div>
+          
+          
           <ScrollArea className="h-[300px]">
             <div className="space-y-2">
               {scannedBarcodes.map((barcode, index) => (
