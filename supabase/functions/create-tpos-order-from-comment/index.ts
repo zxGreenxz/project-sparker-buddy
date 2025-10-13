@@ -33,6 +33,44 @@ function convertFacebookTimeToISO(facebookTime: string): string {
   return facebookTime.replace('+0000', '.000Z');
 }
 
+/**
+ * Parse variant string to extract code after "-"
+ * Format: "variant_name - product_code"
+ * Example: "L - N236L" → "N236L"
+ */
+function getVariantCode(variant: string | null | undefined): string {
+  if (!variant || variant.trim() === '') {
+    return '';
+  }
+  
+  const trimmed = variant.trim();
+  
+  // Format: "variant_name - product_code"
+  if (trimmed.includes(' - ')) {
+    const parts = trimmed.split(' - ');
+    if (parts.length >= 2) {
+      return parts.slice(1).join(' - ').trim();
+    }
+  }
+  
+  // Format: "- product_code"
+  if (trimmed.startsWith('- ')) {
+    return trimmed.substring(2).trim();
+  }
+  
+  return '';
+}
+
+/**
+ * Extract product code from comment text
+ * Pattern: N followed by letters/numbers (e.g., N55, N236L)
+ */
+function extractProductCode(text: string): string | null {
+  const pattern = /\bN\d+[A-Z]*\b/i;
+  const match = text.match(pattern);
+  return match ? match[0].toUpperCase() : null;
+}
+
 async function getCRMTeamId(
   postId: string,
   bearerToken: string,
@@ -297,6 +335,79 @@ serve(async (req) => {
 
     const data = await response.json();
     console.log("TPOS response:", data);
+
+    // Try to match with live_products and create live_orders
+    try {
+      const productCode = extractProductCode(comment.message);
+      const sessionIndex = data.SessionIndex;
+      
+      if (productCode && sessionIndex) {
+        console.log(`Extracted product code: ${productCode}, SessionIndex: ${sessionIndex}`);
+        
+        // Query all live_products with variants
+        const { data: liveProducts, error: liveProductsError } = await supabase
+          .from('live_products')
+          .select('id, live_session_id, live_phase_id, variant, prepared_quantity, sold_quantity')
+          .not('variant', 'is', null);
+        
+        if (liveProductsError) {
+          console.error('Error querying live_products:', liveProductsError);
+        } else if (liveProducts && liveProducts.length > 0) {
+          // Find matching product
+          const matchedProduct = liveProducts.find(product => {
+            const variantCode = getVariantCode(product.variant);
+            return variantCode === productCode;
+          });
+          
+          if (matchedProduct) {
+            console.log(`Found matching product: ${matchedProduct.id}, variant: ${matchedProduct.variant}`);
+            
+            // Check if oversell
+            const isOversell = (matchedProduct.sold_quantity || 0) >= (matchedProduct.prepared_quantity || 0);
+            
+            // Insert into live_orders
+            const { error: liveOrderError } = await supabase
+              .from('live_orders')
+              .insert({
+                live_product_id: matchedProduct.id,
+                live_session_id: matchedProduct.live_session_id,
+                live_phase_id: matchedProduct.live_phase_id,
+                order_code: sessionIndex.toString(),
+                facebook_comment_id: comment.id,
+                quantity: 1,
+                is_oversell: isOversell,
+              });
+            
+            if (liveOrderError) {
+              console.error('Error inserting live_order:', liveOrderError);
+            } else {
+              console.log('Successfully created live_order');
+              
+              // Update sold_quantity
+              const { error: updateError } = await supabase
+                .from('live_products')
+                .update({ 
+                  sold_quantity: (matchedProduct.sold_quantity || 0) + 1 
+                })
+                .eq('id', matchedProduct.id);
+              
+              if (updateError) {
+                console.error('Error updating sold_quantity:', updateError);
+              } else {
+                console.log('Successfully updated sold_quantity');
+              }
+            }
+          } else {
+            console.log(`No matching product found for code: ${productCode}`);
+          }
+        }
+      } else {
+        console.log('No product code or sessionIndex found, skipping live_products matching');
+      }
+    } catch (liveProductError) {
+      console.error('Error in live_products matching logic:', liveProductError);
+      // Don't fail the whole request if this optional feature fails
+    }
 
     // Save to facebook_pending_orders table
     try {
