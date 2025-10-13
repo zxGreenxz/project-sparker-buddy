@@ -55,6 +55,7 @@ import type { FacebookVideo } from "@/types/facebook";
 import { toast } from "sonner";
 import { generateOrderImage } from "@/lib/order-image-generator";
 import { getProductImageUrl } from "@/lib/tpos-image-loader";
+import { formatVariant } from "@/lib/variant-utils";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { getTPOSHeaders, getActiveTPOSToken } from "@/lib/tpos-config";
@@ -559,7 +560,7 @@ export default function LiveProducts() {
               live_phase_id: selectedPhase,
               product_code: variant.product_code,
               product_name: variant.product_name,
-              variant: variant.variant,
+              variant: formatVariant(variant.variant, variant.product_code),
               base_product_code: variant.base_product_code,
               prepared_quantity: 1,
               sold_quantity: 0,

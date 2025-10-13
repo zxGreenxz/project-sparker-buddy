@@ -31,6 +31,7 @@ import { detectSupplierFromProductName } from "@/lib/supplier-detector";
 import { Badge } from "@/components/ui/badge";
 import { detectVariantsFromText } from "@/lib/variant-detector";
 import { generateProductName, generateVariantCode } from "@/lib/variant-code-generator";
+import { formatVariant } from "@/lib/variant-utils";
 import { Store } from "lucide-react";
 import { useProductVariants } from "@/hooks/use-product-variants";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -349,7 +350,7 @@ export function AddProductToLiveDialog({ open, onOpenChange, phaseId, sessionId,
               live_phase_id: phaseId,
               product_code: matchedProduct.product_code,
               product_name: matchedProduct.product_name,
-              variant: matchedProduct.variant,
+              variant: formatVariant(matchedProduct.variant, matchedProduct.product_code),
               base_product_code: matchedProduct.base_product_code,
               prepared_quantity: variant.quantity,
               sold_quantity: 0,
@@ -392,7 +393,7 @@ export function AddProductToLiveDialog({ open, onOpenChange, phaseId, sessionId,
             live_phase_id: phaseId,
             product_code: productCode,
             product_name: productName,
-            variant: variantName,
+            variant: formatVariant(variantName, productCode),
             base_product_code: null,
             prepared_quantity: variant.quantity,
             sold_quantity: 0,

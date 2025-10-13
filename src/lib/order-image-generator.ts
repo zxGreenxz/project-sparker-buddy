@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { getVariantName } from "@/lib/variant-utils";
 
 export const generateOrderImage = async (
   imageUrl: string,
@@ -42,9 +43,10 @@ export const generateOrderImage = async (
     const imageY = 0;
     ctx.drawImage(img, imageX, imageY, scaledWidth, scaledHeight);
 
-    // Prepare text
-    const text = variant && variant.trim() 
-      ? `${variant} - ${quantity}` 
+    // Prepare text - extract only variant name (before " - ")
+    const variantName = getVariantName(variant);
+    const text = variantName 
+      ? `${variantName} - ${quantity}` 
       : `${quantity}`;
     
     // Draw text background (1/3 bottom area)

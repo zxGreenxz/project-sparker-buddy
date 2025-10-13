@@ -12,6 +12,7 @@ import {
 } from "./variant-attributes";
 import { detectVariantsFromText, getSimpleDetection } from "./variant-detector";
 import { supabase } from "@/integrations/supabase/client";
+import { getVariantName } from "@/lib/variant-utils";
 
 // =====================================================
 // CACHE MANAGEMENT
@@ -557,7 +558,7 @@ export function generateTPOSExcel(items: TPOSProductItem[]): Blob {
     "Chiết khấu mua": undefined,
     "Tồn kho": undefined,
     "Giá vốn": undefined,
-    "Ghi chú": item.variant || undefined,
+    "Ghi chú": getVariantName(item.variant) || undefined,
     "Cho phép bán ở công ty khác": "FALSE",
     "Thuộc tính": undefined,
     "Link Hình Ảnh": item.product_images?.[0] || undefined,
@@ -1222,7 +1223,7 @@ export async function uploadToTPOS(
         "Chiết khấu mua": undefined,
         "Tồn kho": undefined,
         "Giá vốn": undefined,
-        "Ghi chú": (item.variant && item.variant !== "-" && item.variant.trim() !== "") ? item.variant : undefined,
+        "Ghi chú": getVariantName(item.variant) || undefined,
         "Cho phép bán ở công ty khác": "FALSE",
         "Thuộc tính": undefined,
       }];
