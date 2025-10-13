@@ -369,48 +369,6 @@ serve(async (req) => {
     const data = await response.json();
     console.log("TPOS response:", data);
 
-    // Save to pending_live_orders for processing in /live-products
-    try {
-      const productCodes = extractProductCodes(comment.message);
-      const sessionIndex = data.SessionIndex;
-      
-      console.log('\n=== 💾 SAVING TO PENDING QUEUE ===');
-      console.log(`✓ SessionIndex: ${sessionIndex || 'NULL'}`);
-      console.log(`✓ Product codes: [${productCodes.join(', ')}]`);
-      console.log(`✓ Comment ID: ${comment.id}`);
-      console.log(`✓ Video ID: ${video.objectId}`);
-      
-      // Insert into pending_live_orders for later processing
-      const { data: pendingOrder, error: pendingError } = await supabase
-        .from('pending_live_orders')
-        .insert({
-          comment_id: comment.id,
-          comment_text: comment.message,
-          customer_name: comment.from.name,
-          facebook_user_id: comment.from.id,
-          product_codes: productCodes,
-          session_index: sessionIndex?.toString() || null,
-          tpos_order_code: data.Code || null,
-          video_id: video.objectId,
-          processed: false,
-        })
-        .select()
-        .single();
-
-      if (pendingError) {
-        console.error('❌ Failed to save to pending queue:', pendingError);
-        // Don't throw - TPOS order was created successfully
-      } else {
-        console.log('✅ Saved to pending queue (ID: ' + pendingOrder.id + ')');
-        console.log('   Will be processed when user visits /live-products');
-      }
-
-      console.log('============================\n');
-    } catch (pendingOrderError) {
-      console.error('❌ ERROR saving to pending queue:', pendingOrderError);
-      // Don't fail the whole request if this optional feature fails
-    }
-
     // Save to facebook_pending_orders table
     try {
       // Check for existing order with the same comment_id

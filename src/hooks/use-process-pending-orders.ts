@@ -4,20 +4,34 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { parseVariant } from '@/lib/variant-utils';
 
-interface PendingLiveOrder {
+/**
+ * Extract all product codes from comment text
+ * Pattern: N followed by numbers and optional letters (e.g., N55, N236L, N217)
+ * Handles special characters around codes: (N217), [N217], N217., N217,, etc.
+ */
+function extractProductCodes(text: string): string[] {
+  const pattern = /N\d+[A-Z]*/gi;
+  const matches = text.match(pattern);
+  
+  if (!matches) return [];
+  
+  // Convert to uppercase, remove duplicates, and normalize
+  const codes = matches.map(m => m.toUpperCase().trim());
+  return [...new Set(codes)]; // Remove duplicates
+}
+
+interface FacebookPendingOrder {
   id: string;
-  comment_id: string;
-  comment_text: string | null;
-  customer_name: string | null;
+  facebook_comment_id: string;
+  comment: string | null;
+  name: string | null;
   facebook_user_id: string | null;
-  product_codes: string[];
   session_index: string | null;
-  tpos_order_code: string | null;
-  video_id: string | null;
-  created_at: string;
-  processed: boolean;
-  processed_at: string | null;
-  error_message: string | null;
+  code: string | null;
+  phone: string | null;
+  created_time: string;
+  tpos_order_id: string | null;
+  facebook_post_id: string | null;
 }
 
 interface LiveProduct {
@@ -42,14 +56,19 @@ export function useProcessPendingOrders() {
     console.log('[useProcessPendingOrders] 🔄 Starting to process pending orders...');
 
     try {
-      // 1. Fetch unprocessed pending orders
+      // Get phase_date from today
+      const today = new Date();
+      const phase_date = today.toISOString().split('T')[0];
+
+      // 1. Fetch facebook_pending_orders from today
       const { data: rawPendingOrders, error: fetchError } = await supabase
-        .from('pending_live_orders' as any)
+        .from('facebook_pending_orders')
         .select('*')
-        .eq('processed', false)
-        .order('created_at', { ascending: true });
+        .gte('created_time', `${phase_date}T00:00:00`)
+        .lt('created_time', `${phase_date}T23:59:59`)
+        .order('created_time', { ascending: true });
       
-      const pendingOrders = (rawPendingOrders as unknown) as PendingLiveOrder[] | null;
+      const pendingOrders = rawPendingOrders as FacebookPendingOrder[] | null;
 
       if (fetchError) {
         console.error('[useProcessPendingOrders] ❌ Error fetching:', fetchError);
@@ -63,7 +82,16 @@ export function useProcessPendingOrders() {
 
       console.log(`[useProcessPendingOrders] 📦 Found ${pendingOrders.length} pending orders`);
 
-      // 2. Fetch all live_products with variants (last 30 days)
+      // 2. Fetch existing live_orders to check which products are already processed
+      const { data: existingOrders } = await supabase
+        .from('live_orders')
+        .select('facebook_comment_id, live_product_id')
+        .gte('created_at', `${phase_date}T00:00:00`)
+        .lt('created_at', `${phase_date}T23:59:59`);
+
+      console.log(`[useProcessPendingOrders] 📊 Found ${existingOrders?.length || 0} existing live orders`);
+
+      // 3. Fetch all live_products with variants (last 30 days)
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -108,20 +136,37 @@ export function useProcessPendingOrders() {
       });
       console.log('🐛 ===== END DEBUG =====\n');
 
-      // 3. Process each pending order
+      // 4. Process each pending order
       let processedCount = 0;
       let errorCount = 0;
 
       for (const pending of pendingOrders) {
         console.log(`\n[Processing] Pending order ${pending.id}:`);
-        console.log(`  Product codes: [${pending.product_codes.join(', ')}]`);
+        console.log(`  Comment: ${pending.comment}`);
         console.log(`  Session index: ${pending.session_index}`);
+
+        // Extract product codes from comment
+        const productCodes = extractProductCodes(pending.comment || '');
+        console.log(`  Product codes: [${productCodes.join(', ')}]`);
+
+        if (productCodes.length === 0) {
+          console.log(`  ⚠️ No product codes found in comment`);
+          continue;
+        }
+
+        // Check which products from this comment have already been processed
+        const processedProductIds = new Set(
+          existingOrders
+            ?.filter(o => o.facebook_comment_id === pending.facebook_comment_id)
+            .map(o => o.live_product_id) || []
+        );
+        console.log(`  Already processed product IDs: [${Array.from(processedProductIds).join(', ')}]`);
 
         let matchedProduct = null;
         let matchedCode = '';
 
         // Try to match each product code
-        for (const productCode of pending.product_codes) {
+        for (const productCode of productCodes) {
           console.log(`  🔍 Looking for: "${productCode}"`);
 
           matchedProduct = liveProducts?.find(product => {
@@ -157,6 +202,13 @@ export function useProcessPendingOrders() {
           if (matchedProduct) {
             matchedCode = productCode;
             console.log(`  ✅ Found match! Product ID: ${matchedProduct.id}`);
+            
+            // Check if this product has already been processed for this comment
+            if (processedProductIds.has(matchedProduct.id)) {
+              console.log(`  ⚠️ Product ${matchedProduct.id} already processed for this comment, skipping...`);
+              continue;
+            }
+            
             break;
           }
         }
@@ -169,13 +221,13 @@ export function useProcessPendingOrders() {
           const { data: newOrder, error: insertError } = await supabase
             .from('live_orders')
             .insert({
-              facebook_comment_id: pending.comment_id,
+              facebook_comment_id: pending.facebook_comment_id,
               session_index: pending.session_index,
               live_product_id: matchedProduct.id,
               live_session_id: matchedProduct.live_session_id,
               live_phase_id: matchedProduct.live_phase_id,
-              comment_text: pending.comment_text,
-              customer_name: pending.customer_name,
+              comment_text: pending.comment,
+              customer_name: pending.name,
               facebook_user_id: pending.facebook_user_id,
               is_oversell: isOversell,
             } as any)
@@ -184,17 +236,6 @@ export function useProcessPendingOrders() {
 
           if (insertError) {
             console.error(`  ❌ Failed to create live_order:`, insertError);
-            
-            // Mark as processed with error
-            await supabase
-              .from('pending_live_orders' as any)
-              .update({
-                processed: true,
-                processed_at: new Date().toISOString(),
-                error_message: insertError.message,
-              })
-              .eq('id', pending.id);
-
             errorCount++;
           } else {
             console.log(`  ✅ Created live_order successfully (ID: ${newOrder.id})`);
@@ -206,30 +247,10 @@ export function useProcessPendingOrders() {
               .update({ sold_quantity: newSoldQuantity })
               .eq('id', matchedProduct.id);
 
-            // Mark as processed
-            await supabase
-              .from('pending_live_orders' as any)
-              .update({
-                processed: true,
-                processed_at: new Date().toISOString(),
-              })
-              .eq('id', pending.id);
-
             processedCount++;
           }
         } else {
-          console.log(`  ⚠️ No matching product found`);
-          
-          // Mark as processed with error (no match)
-          await supabase
-            .from('pending_live_orders' as any)
-            .update({
-              processed: true,
-              processed_at: new Date().toISOString(),
-              error_message: `No matching product found for codes: ${pending.product_codes.join(', ')}`,
-            })
-            .eq('id', pending.id);
-
+          console.log(`  ⚠️ No matching product found for codes: [${productCodes.join(', ')}]`);
           errorCount++;
         }
       }
