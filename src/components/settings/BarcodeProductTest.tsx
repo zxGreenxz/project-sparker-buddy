@@ -27,11 +27,11 @@ interface TestProduct {
 export function BarcodeProductTest() {
   const [testProducts, setTestProducts] = useState<TestProduct[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const { enabledPage } = useBarcodeScanner();
+  const { enabledPages } = useBarcodeScanner();
 
-  // Lắng nghe barcode-scanned event - chỉ hoạt động khi enabledPage là 'settings-test'
+  // Lắng nghe barcode-scanned event - chỉ hoạt động khi enabledPages bao gồm 'settings-test'
   useEffect(() => {
-    if (enabledPage !== 'settings-test') return;
+    if (!enabledPages.includes('settings-test')) return;
 
     const handleBarcodeScanned = (event: CustomEvent) => {
       const code = event.detail.code;
@@ -43,7 +43,7 @@ export function BarcodeProductTest() {
     return () => {
       window.removeEventListener('barcode-scanned' as any, handleBarcodeScanned as any);
     };
-  }, [enabledPage]);
+  }, [enabledPages]);
 
   const handleBarcodeSearch = async (code: string) => {
     if (!code.trim()) return;
@@ -124,14 +124,14 @@ export function BarcodeProductTest() {
             <Barcode className="h-4 w-4" />
             <span className="text-sm font-medium">Trạng thái quét barcode:</span>
           </div>
-          {enabledPage === 'settings-test' ? (
+          {enabledPages.includes('settings-test') ? (
             <Badge variant="default" className="bg-green-600">Đang bật</Badge>
           ) : (
             <Badge variant="secondary">Đang tắt - Bật trong Cài Đặt Quét Barcode</Badge>
           )}
         </div>
 
-        {enabledPage === 'settings-test' && (
+        {enabledPages.includes('settings-test') && (
           <div className="text-sm text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950 p-3 rounded-lg">
             <strong>💡 Chế độ hoạt động:</strong> Quét barcode ở bất kỳ đâu sẽ tự động thêm sản phẩm vào bảng này
           </div>

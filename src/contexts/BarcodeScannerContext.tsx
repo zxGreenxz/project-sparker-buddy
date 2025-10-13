@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useRef, ReactNode } fro
 import { useLocation, useNavigate } from "react-router-dom";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
-type ScannerPage = 'live-products' | 'settings-test' | 'facebook-comments' | 'disabled';
+type ScannerPage = 'live-products' | 'settings-test' | 'facebook-comments';
 
 interface ScannedBarcode {
   code: string;
@@ -16,8 +16,8 @@ interface ScannedBarcode {
 }
 
 interface BarcodeScannerContextType {
-  enabledPage: ScannerPage;
-  setEnabledPage: (page: ScannerPage) => void;
+  enabledPages: ScannerPage[];
+  togglePage: (page: ScannerPage) => void;
   lastScannedCode: string;
   scannedBarcodes: ScannedBarcode[];
   addScannedBarcode: (barcode: ScannedBarcode) => void;
@@ -28,9 +28,9 @@ interface BarcodeScannerContextType {
 const BarcodeScannerContext = createContext<BarcodeScannerContextType | undefined>(undefined);
 
 export function BarcodeScannerProvider({ children }: { children: ReactNode }) {
-  const [enabledPage, setEnabledPageState] = useState<ScannerPage>(() => {
-    const saved = localStorage.getItem('barcode_scanner_enabled_page');
-    return (saved as ScannerPage) || 'disabled';
+  const [enabledPages, setEnabledPages] = useState<ScannerPage[]>(() => {
+    const saved = localStorage.getItem('barcode_scanner_enabled_pages');
+    return saved ? JSON.parse(saved) : [];
   });
   const [lastScannedCode, setLastScannedCode] = useState("");
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
@@ -43,9 +43,14 @@ export function BarcodeScannerProvider({ children }: { children: ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const setEnabledPage = (page: ScannerPage) => {
-    setEnabledPageState(page);
-    localStorage.setItem('barcode_scanner_enabled_page', page);
+  const togglePage = (page: ScannerPage) => {
+    setEnabledPages(prev => {
+      const newPages = prev.includes(page)
+        ? prev.filter(p => p !== page)
+        : [...prev, page];
+      localStorage.setItem('barcode_scanner_enabled_pages', JSON.stringify(newPages));
+      return newPages;
+    });
   };
 
   const addScannedBarcode = (barcode: ScannedBarcode) => {
@@ -71,7 +76,7 @@ export function BarcodeScannerProvider({ children }: { children: ReactNode }) {
 
   // Global keyboard listener
   useEffect(() => {
-    if (enabledPage === 'disabled') return;
+    if (enabledPages.length === 0) return;
 
     const handleGlobalKeyPress = (e: KeyboardEvent) => {
       // Bỏ qua nếu đang focus vào textarea, input, hoặc contentEditable
@@ -119,16 +124,28 @@ export function BarcodeScannerProvider({ children }: { children: ReactNode }) {
       
       // Kiểm tra xem có đang ở đúng trang không
       const currentPath = location.pathname;
-      const shouldBeOnPath = enabledPage === 'live-products' ? '/live-products' 
-        : enabledPage === 'facebook-comments' ? '/facebook-comments'
-        : '/settings';
       
-      if (currentPath !== shouldBeOnPath) {
-        // Không đúng trang, hiện dialog hỏi có muốn chuyển không
-        setPendingNavigation(shouldBeOnPath);
-      } else {
-        // Đúng trang rồi, dispatch event để trang xử lý
+      // Tìm trang được enable phù hợp với path hiện tại
+      const pathToPageMap: Record<string, ScannerPage> = {
+        '/live-products': 'live-products',
+        '/facebook-comments': 'facebook-comments',
+        '/settings': 'settings-test'
+      };
+      
+      const currentPage = pathToPageMap[currentPath];
+      
+      // Nếu đang ở một trong các trang được enable
+      if (currentPage && enabledPages.includes(currentPage)) {
+        // Dispatch event để trang xử lý
         window.dispatchEvent(new CustomEvent('barcode-scanned', { detail: { code } }));
+      } else {
+        // Tìm trang được enable đầu tiên để navigate tới
+        const targetPage = enabledPages[0];
+        const targetPath = targetPage === 'live-products' ? '/live-products' 
+          : targetPage === 'facebook-comments' ? '/facebook-comments'
+          : '/settings';
+        
+        setPendingNavigation(targetPath);
       }
     };
 
@@ -140,7 +157,7 @@ export function BarcodeScannerProvider({ children }: { children: ReactNode }) {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [enabledPage, location.pathname]);
+  }, [enabledPages, location.pathname]);
 
   const handleNavigate = () => {
     if (pendingNavigation) {
@@ -157,10 +174,17 @@ export function BarcodeScannerProvider({ children }: { children: ReactNode }) {
     setPendingNavigation(null);
   };
 
+  const getPageName = (path: string) => {
+    if (path === '/live-products') return 'Sản phẩm Live';
+    if (path === '/facebook-comments') return 'Facebook Comments';
+    if (path === '/settings') return 'Settings Test';
+    return path;
+  };
+
   return (
     <BarcodeScannerContext.Provider value={{ 
-      enabledPage, 
-      setEnabledPage, 
+      enabledPages, 
+      togglePage, 
       lastScannedCode,
       scannedBarcodes,
       addScannedBarcode,
@@ -174,14 +198,9 @@ export function BarcodeScannerProvider({ children }: { children: ReactNode }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Chuyển trang để quét barcode?</AlertDialogTitle>
             <AlertDialogDescription>
-              Bạn đang quét barcode nhưng tính năng này chỉ hoạt động ở trang{" "}
-              <strong>
-                {enabledPage === 'live-products' ? 'Sản phẩm Live' 
-                  : enabledPage === 'facebook-comments' ? 'Facebook Comments' 
-                  : 'Settings Test'}
-              </strong>.
+              Bạn đang quét barcode nhưng không ở trang được kích hoạt.
               <br /><br />
-              Bạn có muốn chuyển sang trang đó ngay bây giờ không?
+              Bạn có muốn chuyển sang trang <strong>{getPageName(pendingNavigation || '')}</strong> không?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

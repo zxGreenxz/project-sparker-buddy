@@ -49,7 +49,7 @@ interface FacebookCommentsManagerProps {
 export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsManagerProps = {}) {
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
-  const { enabledPage, addScannedBarcode } = useBarcodeScanner();
+  const { enabledPages, addScannedBarcode } = useBarcodeScanner();
   const [pageId, setPageId] = useState(() => {
     return localStorage.getItem('liveProducts_commentsPageId') || "";
   });
@@ -526,7 +526,7 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
 
   // Handle barcode scanning
   useEffect(() => {
-    if (enabledPage !== 'facebook-comments') return;
+    if (!enabledPages.includes('facebook-comments')) return;
     
     const handleBarcodeScan = async (event: Event) => {
       const customEvent = event as CustomEvent;
@@ -566,7 +566,7 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
     return () => {
       window.removeEventListener('barcode-scanned', handleBarcodeScan);
     };
-  }, [enabledPage, addScannedBarcode, toast]);
+  }, [enabledPages, addScannedBarcode, toast]);
 
   const handleLoadVideos = async () => {
     if (!pageId) {
@@ -644,7 +644,7 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
       <div className={cn("flex-1 overflow-auto", isMobile ? "p-2" : "p-4")}>
         <div className="space-y-4">
           {/* Scanned Barcodes Panel */}
-          {enabledPage === 'facebook-comments' && <ScannedBarcodesPanel />}
+          {enabledPages.includes('facebook-comments') && <ScannedBarcodesPanel />}
           
           {/* Video List - now full width */}
           {!selectedVideo && (

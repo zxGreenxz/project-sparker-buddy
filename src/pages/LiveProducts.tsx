@@ -286,7 +286,7 @@ export default function LiveProducts() {
   const [productSearch, setProductSearch] = useState("");
   
   const queryClient = useQueryClient();
-  const { enabledPage } = useBarcodeScanner();
+  const { enabledPages } = useBarcodeScanner();
 
   // New mutation for updating prepared_quantity
   const updatePreparedQuantityMutation = useMutation({
@@ -446,9 +446,9 @@ export default function LiveProducts() {
     [allLiveProducts]
   );
 
-  // Barcode scanner listener - chỉ hoạt động khi enabledPage là 'live-products'
+  // Barcode scanner listener - chỉ hoạt động khi enabledPages bao gồm 'live-products'
   useEffect(() => {
-    if (enabledPage !== 'live-products') return;
+    if (!enabledPages.includes('live-products')) return;
 
     const handleBarcodeScanned = async (event: CustomEvent) => {
       const code = event.detail.code;
@@ -605,7 +605,7 @@ export default function LiveProducts() {
     return () => {
       window.removeEventListener('barcode-scanned' as any, handleBarcodeScanned as any);
     };
-  }, [enabledPage, selectedSession, selectedPhase, queryClient]);
+  }, [enabledPages, selectedSession, selectedPhase, queryClient]);
 
   // Persist state changes to localStorage
   useEffect(() => {
