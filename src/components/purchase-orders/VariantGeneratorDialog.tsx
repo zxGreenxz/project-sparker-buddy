@@ -90,6 +90,15 @@ export function VariantGeneratorDialog({
     }
   }, [selectedSizeText, selectedColors, selectedSizeNumber, currentItem.product_code, currentItem.product_name]);
 
+  // Auto-select all preview results when they change
+  useEffect(() => {
+    if (previewResults.length > 0) {
+      setSelectedVariantIndices(new Set(previewResults.map((_, i) => i)));
+    } else {
+      setSelectedVariantIndices(new Set());
+    }
+  }, [previewResults]);
+
   const toggleSelection = (type: 'sizeText' | 'color' | 'sizeNumber', value: string) => {
     // Block if different type is already active
     if (activeAttributeType && activeAttributeType !== type) {
