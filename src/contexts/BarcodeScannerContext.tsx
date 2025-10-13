@@ -2,12 +2,27 @@ import { createContext, useContext, useState, useEffect, useRef, ReactNode } fro
 import { useLocation, useNavigate } from "react-router-dom";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
-type ScannerPage = 'live-products' | 'settings-test' | 'disabled';
+type ScannerPage = 'live-products' | 'settings-test' | 'facebook-comments' | 'disabled';
+
+interface ScannedBarcode {
+  code: string;
+  timestamp: string;
+  productInfo?: {
+    id: string;
+    name: string;
+    image_url?: string;
+    product_code: string;
+  };
+}
 
 interface BarcodeScannerContextType {
   enabledPage: ScannerPage;
   setEnabledPage: (page: ScannerPage) => void;
   lastScannedCode: string;
+  scannedBarcodes: ScannedBarcode[];
+  addScannedBarcode: (barcode: ScannedBarcode) => void;
+  clearScannedBarcodes: () => void;
+  removeScannedBarcode: (code: string) => void;
 }
 
 const BarcodeScannerContext = createContext<BarcodeScannerContextType | undefined>(undefined);
@@ -19,6 +34,10 @@ export function BarcodeScannerProvider({ children }: { children: ReactNode }) {
   });
   const [lastScannedCode, setLastScannedCode] = useState("");
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
+  const [scannedBarcodes, setScannedBarcodes] = useState<ScannedBarcode[]>(() => {
+    const saved = localStorage.getItem('scanned_barcodes');
+    return saved ? JSON.parse(saved) : [];
+  });
   const barcodeBufferRef = useRef<string>("");
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const location = useLocation();
@@ -27,6 +46,27 @@ export function BarcodeScannerProvider({ children }: { children: ReactNode }) {
   const setEnabledPage = (page: ScannerPage) => {
     setEnabledPageState(page);
     localStorage.setItem('barcode_scanner_enabled_page', page);
+  };
+
+  const addScannedBarcode = (barcode: ScannedBarcode) => {
+    setScannedBarcodes(prev => {
+      const updated = [barcode, ...prev];
+      localStorage.setItem('scanned_barcodes', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const clearScannedBarcodes = () => {
+    setScannedBarcodes([]);
+    localStorage.removeItem('scanned_barcodes');
+  };
+
+  const removeScannedBarcode = (code: string) => {
+    setScannedBarcodes(prev => {
+      const updated = prev.filter(b => b.code !== code);
+      localStorage.setItem('scanned_barcodes', JSON.stringify(updated));
+      return updated;
+    });
   };
 
   // Global keyboard listener
@@ -79,7 +119,9 @@ export function BarcodeScannerProvider({ children }: { children: ReactNode }) {
       
       // Kiểm tra xem có đang ở đúng trang không
       const currentPath = location.pathname;
-      const shouldBeOnPath = enabledPage === 'live-products' ? '/live-products' : '/settings';
+      const shouldBeOnPath = enabledPage === 'live-products' ? '/live-products' 
+        : enabledPage === 'facebook-comments' ? '/facebook-comments'
+        : '/settings';
       
       if (currentPath !== shouldBeOnPath) {
         // Không đúng trang, hiện dialog hỏi có muốn chuyển không
@@ -116,7 +158,15 @@ export function BarcodeScannerProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <BarcodeScannerContext.Provider value={{ enabledPage, setEnabledPage, lastScannedCode }}>
+    <BarcodeScannerContext.Provider value={{ 
+      enabledPage, 
+      setEnabledPage, 
+      lastScannedCode,
+      scannedBarcodes,
+      addScannedBarcode,
+      clearScannedBarcodes,
+      removeScannedBarcode
+    }}>
       {children}
       
       <AlertDialog open={!!pendingNavigation} onOpenChange={(open) => !open && handleCancel()}>
@@ -125,7 +175,11 @@ export function BarcodeScannerProvider({ children }: { children: ReactNode }) {
             <AlertDialogTitle>Chuyển trang để quét barcode?</AlertDialogTitle>
             <AlertDialogDescription>
               Bạn đang quét barcode nhưng tính năng này chỉ hoạt động ở trang{" "}
-              <strong>{enabledPage === 'live-products' ? 'Sản phẩm Live' : 'Settings Test'}</strong>.
+              <strong>
+                {enabledPage === 'live-products' ? 'Sản phẩm Live' 
+                  : enabledPage === 'facebook-comments' ? 'Facebook Comments' 
+                  : 'Settings Test'}
+              </strong>.
               <br /><br />
               Bạn có muốn chuyển sang trang đó ngay bây giờ không?
             </AlertDialogDescription>

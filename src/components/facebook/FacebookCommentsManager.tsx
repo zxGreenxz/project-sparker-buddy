@@ -27,6 +27,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import { useBarcodeScanner } from "@/contexts/BarcodeScannerContext";
+import { ScannedBarcodesPanel } from "./ScannedBarcodesPanel";
 
 // Helper: Debounce function
 function debounce<T extends (...args: any[]) => any>(
@@ -47,6 +49,7 @@ interface FacebookCommentsManagerProps {
 export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsManagerProps = {}) {
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
+  const { enabledPage, addScannedBarcode } = useBarcodeScanner();
   const [pageId, setPageId] = useState(() => {
     return localStorage.getItem('liveProducts_commentsPageId') || "";
   });
@@ -521,6 +524,50 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
     allCommentIdsRef.current = currentIds;
   }, [comments, toast]);
 
+  // Handle barcode scanning
+  useEffect(() => {
+    if (enabledPage !== 'facebook-comments') return;
+    
+    const handleBarcodeScan = async (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const code = customEvent.detail.code;
+      
+      // Search product in database
+      const { data: products } = await supabase
+        .from('products')
+        .select('id, product_name, product_images, tpos_image_url, product_code')
+        .eq('product_code', code)
+        .limit(1);
+      
+      const product = products?.[0];
+      
+      // Get the first available image
+      const imageUrl = product?.product_images?.[0] || product?.tpos_image_url || undefined;
+      
+      addScannedBarcode({
+        code,
+        timestamp: new Date().toISOString(),
+        productInfo: product ? {
+          id: product.id,
+          name: product.product_name,
+          image_url: imageUrl,
+          product_code: product.product_code,
+        } : undefined,
+      });
+      
+      toast({
+        title: product ? "✅ Đã quét barcode" : "⚠️ Không tìm thấy sản phẩm",
+        description: product ? product.product_name : `Barcode: ${code}`,
+      });
+    };
+    
+    window.addEventListener('barcode-scanned', handleBarcodeScan);
+    
+    return () => {
+      window.removeEventListener('barcode-scanned', handleBarcodeScan);
+    };
+  }, [enabledPage, addScannedBarcode, toast]);
+
   const handleLoadVideos = async () => {
     if (!pageId) {
       toast({
@@ -596,6 +643,9 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
     <div className="h-full flex flex-col overflow-hidden">
       <div className={cn("flex-1 overflow-auto", isMobile ? "p-2" : "p-4")}>
         <div className="space-y-4">
+          {/* Scanned Barcodes Panel */}
+          {enabledPage === 'facebook-comments' && <ScannedBarcodesPanel />}
+          
           {/* Video List - now full width */}
           {!selectedVideo && (
           <Card className="border-0 shadow-sm">

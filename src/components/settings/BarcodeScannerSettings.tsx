@@ -39,6 +39,22 @@ export function BarcodeScannerSettings() {
             </div>
 
             <div className="flex items-start space-x-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors">
+              <RadioGroupItem value="facebook-comments" id="facebook-comments" className="mt-1" />
+              <div className="flex-1">
+                <Label htmlFor="facebook-comments" className="flex items-center gap-2 cursor-pointer">
+                  <TestTube2 className="h-4 w-4" />
+                  <span className="font-medium">Facebook Comments</span>
+                  {enabledPage === 'facebook-comments' && (
+                    <Badge variant="default" className="ml-auto">Đang bật</Badge>
+                  )}
+                </Label>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Quét barcode để theo dõi sản phẩm trong livestream comments
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start space-x-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors">
               <RadioGroupItem value="settings-test" id="settings-test" className="mt-1" />
               <div className="flex-1">
                 <Label htmlFor="settings-test" className="flex items-center gap-2 cursor-pointer">
