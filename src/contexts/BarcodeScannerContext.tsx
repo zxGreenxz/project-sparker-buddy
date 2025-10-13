@@ -30,7 +30,7 @@ const BarcodeScannerContext = createContext<BarcodeScannerContextType | undefine
 export function BarcodeScannerProvider({ children }: { children: ReactNode }) {
   const [enabledPages, setEnabledPages] = useState<ScannerPage[]>(() => {
     const saved = localStorage.getItem('barcode_scanner_enabled_pages');
-    return saved ? JSON.parse(saved) : [];
+    return saved ? JSON.parse(saved) : ['live-products', 'facebook-comments'];
   });
   const [lastScannedCode, setLastScannedCode] = useState("");
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
