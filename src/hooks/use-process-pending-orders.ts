@@ -117,7 +117,14 @@ export function useProcessPendingOrders() {
               return false;
             }
 
+            // DEBUG: Log raw variant and split result
+            console.log(`    📝 Raw variant: "${product.variant}"`);
+            const splitResult = product.variant.split(" - ");
+            console.log(`    📝 Split result: [${splitResult.map(s => `"${s}"`).join(', ')}]`);
+            console.log(`    📝 Split[1]: "${splitResult[1] || 'UNDEFINED'}"`);
+
             const variantCode = parseVariant(product.variant).code;
+            console.log(`    📝 Parsed code: "${variantCode}"`);
             
             // Skip if variant code is empty (old format: variant name only)
             if (!variantCode || variantCode.trim() === '') {
