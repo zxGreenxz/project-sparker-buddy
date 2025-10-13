@@ -36,8 +36,8 @@ function convertFacebookTimeToISO(facebookTime: string): string {
 /**
  * Parse variant string to extract code after "-"
  * Format: "variant_name - product_code"
- * Example: "L - N236L" → "N236L", " - N217" → "N217"
- * Improved to handle edge cases: leading spaces, multiple formats
+ * Example: "L - N236L" → "N236L", "- N217" → "N217", " - N217" → "N217"
+ * Synced with frontend parseVariant() logic for consistency
  */
 function getVariantCode(variant: string | null | undefined): string {
   if (!variant || variant.trim() === '') {
@@ -46,24 +46,27 @@ function getVariantCode(variant: string | null | undefined): string {
   
   const trimmed = variant.trim();
   
-  // Match pattern: "anything - CODE" where CODE is alphanumeric
-  // This handles: "Size M - N217", " - N217", "2-in-1 - N152"
-  const match = trimmed.match(/\s-\s+([A-Z0-9]+)$/i);
-  if (match) {
-    return match[1].toUpperCase().trim();
-  }
-  
-  // Fallback: extract last part after " - "
+  // Format 1: "variant_name - product_code" (e.g., "Size M - N217")
+  // Format 2: " - product_code" (e.g., " - N217")
   if (trimmed.includes(' - ')) {
     const parts = trimmed.split(' - ');
-    return parts[parts.length - 1].toUpperCase().trim();
+    if (parts.length >= 2) {
+      // Return the last part as code (handles "2-in-1 - N152")
+      return parts[parts.length - 1].toUpperCase().trim();
+    }
   }
   
-  // Format: "- product_code" (no variant name)
+  // Format 3: "- product_code" (no space before dash, e.g., "- N217")
   if (trimmed.startsWith('- ')) {
     return trimmed.substring(2).toUpperCase().trim();
   }
   
+  // Format 4: "-product_code" (no space at all, e.g., "-N217")
+  if (trimmed.startsWith('-')) {
+    return trimmed.substring(1).toUpperCase().trim();
+  }
+  
+  // No recognized format
   return '';
 }
 
