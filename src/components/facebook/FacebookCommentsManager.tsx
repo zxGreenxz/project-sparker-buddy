@@ -91,6 +91,9 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
   
   // State for manual product selection
   const [selectedProductsMap, setSelectedProductsMap] = useState<Map<string, any>>(new Map());
+  
+  // State for confirming order creation without products
+  const [confirmNoProductCommentId, setConfirmNoProductCommentId] = useState<string | null>(null);
 
   // Fetch Facebook pages from database
   const { data: facebookPages } = useQuery({
@@ -176,16 +179,30 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
   });
 
   const handleCreateOrderClick = (comment: CommentWithStatus) => {
+    // Check if products are selected
+    const selectedProducts = selectedProductsMap.get(comment.id) || [];
+    const hasProducts = selectedProducts.length > 0;
+    
     // Create a modified comment with product codes in the message
     const modifiedComment = {
       ...comment,
       message: getCommentWithProductCodes(comment.id, comment.message)
     };
     
+    // If comment already has order, confirm creation
     if (comment.orderInfo) {
       setConfirmCreateOrderComment(modifiedComment);
-    } else {
-      if (!selectedVideo) return;
+      return;
+    }
+    
+    // If no products selected, show inline confirmation
+    if (!hasProducts) {
+      setConfirmNoProductCommentId(comment.id);
+      return;
+    }
+    
+    // Create order directly if has products
+    if (selectedVideo) {
       createOrderMutation.mutate({ comment: modifiedComment, video: selectedVideo });
     }
   };
@@ -195,6 +212,22 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
       createOrderMutation.mutate({ comment: confirmCreateOrderComment, video: selectedVideo });
     }
     setConfirmCreateOrderComment(null);
+  };
+
+  const handleConfirmNoProduct = (comment: CommentWithStatus) => {
+    if (!selectedVideo) return;
+    
+    const modifiedComment = {
+      ...comment,
+      message: getCommentWithProductCodes(comment.id, comment.message)
+    };
+    
+    createOrderMutation.mutate({ comment: modifiedComment, video: selectedVideo });
+    setConfirmNoProductCommentId(null);
+  };
+
+  const handleCancelNoProduct = () => {
+    setConfirmNoProductCommentId(null);
   };
 
   // Fetch videos
@@ -1267,6 +1300,33 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
                                     </p>
                                   </div>
                                   
+                                  {/* Inline confirmation for no products */}
+                                  {confirmNoProductCommentId === comment.id && (
+                                    <div className="mb-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                                      <p className="text-sm text-yellow-800 dark:text-yellow-200 mb-2">
+                                        ⚠️ Chưa chọn sản phẩm. Bỏ qua chọn sản phẩm?
+                                      </p>
+                                      <div className="flex gap-2">
+                                        <Button 
+                                          size="sm" 
+                                          variant="default"
+                                          className="h-7 text-xs"
+                                          onClick={() => handleConfirmNoProduct(comment)}
+                                        >
+                                          Bỏ qua
+                                        </Button>
+                                        <Button 
+                                          size="sm" 
+                                          variant="outline"
+                                          className="h-7 text-xs"
+                                          onClick={handleCancelNoProduct}
+                                        >
+                                          Hủy
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  )}
+                                  
                                   <div className="flex items-center gap-2 mt-3 flex-wrap">
                                     <Button 
                                       size="sm" 
@@ -1287,20 +1347,6 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
                                     >
                                       Thông tin
                                     </Button>
-                                    <Badge 
-                                      variant="secondary"
-                                      className={isWarning
-                                        ? 'bg-orange-500 hover:bg-orange-600 text-white' 
-                                        : 'bg-gray-500 hover:bg-gray-600 text-white'
-                                      }
-                                    >
-                                      {comment.isLoadingStatus ? (
-                                        <>
-                                          <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                                          Đang tải...
-                                        </>
-                                      ) : status}
-                                    </Badge>
                                     {comment.like_count > 0 && (
                                       <span className="flex items-center gap-1 text-xs text-muted-foreground ml-auto">
                                         <Heart className="h-3 w-3" />
