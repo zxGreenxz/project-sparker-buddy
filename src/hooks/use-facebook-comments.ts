@@ -131,14 +131,56 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
     isLoading: commentsLoading,
     error: commentsError,
   } = useInfiniteQuery({
-    queryKey: ['facebook-comments', pageId, videoId],
+    queryKey: ['facebook-comments', pageId, videoId, selectedVideo?.statusLive],
     queryFn: async ({ pageParam }) => {
       if (!pageId || !videoId) return { data: [], paging: {} };
       
       console.log(`[useFacebookComments] Fetching comments for video ${videoId}, pageParam: ${pageParam}`);
       const startTime = Date.now();
       
-      // ========== NEW: Check database first (only on first page) ==========
+      // ========== OFFLINE VIDEO: Only query DB, no Edge Function ==========
+      if (selectedVideo && selectedVideo.statusLive !== 1) {
+        console.log(`[useFacebookComments] Video OFFLINE - fetching from DB only`);
+        
+        const { data: cachedComments, error: dbError } = await supabase
+          .from('facebook_comments_archive' as any)
+          .select('*')
+          .eq('facebook_post_id', videoId)
+          .eq('is_deleted', false)
+          .order('comment_created_time', { ascending: false })
+          .limit(1000);
+        
+        if (dbError) {
+          console.error('[useFacebookComments] DB error:', dbError);
+          return { data: [], paging: {}, isOffline: true };
+        }
+        
+        const formattedComments = cachedComments?.map((c: any) => ({
+          id: c.facebook_comment_id,
+          message: c.comment_message || '',
+          from: {
+            name: c.facebook_user_name || 'Unknown',
+            id: c.facebook_user_id || '',
+          },
+          created_time: c.comment_created_time,
+          like_count: c.like_count || 0,
+        })) || [];
+        
+        const elapsed = Date.now() - startTime;
+        console.log(`[useFacebookComments] Loaded ${formattedComments.length} offline comments in ${elapsed}ms`);
+        
+        setErrorCount(0);
+        setHasError(false);
+        
+        return { 
+          data: formattedComments, 
+          paging: {},
+          fromCache: true,
+          isOffline: true 
+        };
+      }
+      
+      // ========== LIVE VIDEO: Check cache first, then Edge Function ==========
       if (!pageParam) {
         const oneMonthAgo = new Date();
         oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
@@ -147,7 +189,7 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
           .from('facebook_comments_archive' as any)
           .select('*')
           .eq('facebook_post_id', videoId)
-          .eq('is_deleted', false) // Only fetch non-deleted comments
+          .eq('is_deleted', false)
           .gte('comment_created_time', oneMonthAgo.toISOString())
           .order('comment_created_time', { ascending: false })
           .limit(1000);
@@ -176,7 +218,6 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
           };
         }
       }
-      // ========== END NEW ==========
       
       const order = 'reverse_chronological';
       
@@ -225,8 +266,8 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
       }
     },
     getNextPageParam: (lastPage) => {
-      // If from cache, no pagination
-      if (lastPage.fromCache) return undefined;
+      // No pagination for offline videos or cached data
+      if (lastPage.fromCache || lastPage.isOffline) return undefined;
       
       if (!lastPage.data || lastPage.data.length === 0) return undefined;
       const nextPageCursor = lastPage.paging?.cursors?.after || (lastPage.paging?.next ? new URL(lastPage.paging.next).searchParams.get('after') : null);
