@@ -94,6 +94,10 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
   
   // State for confirming order creation without products
   const [confirmNoProductCommentId, setConfirmNoProductCommentId] = useState<string | null>(null);
+  
+  // Refs for realtime checking
+  const lastKnownCountRef = useRef<number>(0);
+  const isCheckingNewCommentsRef = useRef(false);
 
   // Fetch Facebook pages from database
   const { data: facebookPages } = useQuery({
@@ -293,6 +297,46 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
     queryFn: async ({ pageParam }) => {
       if (!pageId || !selectedVideo?.objectId) return { data: [], paging: {} };
       
+      console.log(`[FacebookCommentsManager] Fetching comments, pageParam: ${pageParam}`);
+      const startTime = Date.now();
+      
+      // Check database first (only on first page)
+      if (!pageParam) {
+        const oneMonthAgo = new Date();
+        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+        
+        const { data: cachedComments, error: dbError } = await supabase
+          .from('facebook_comments_archive' as any)
+          .select('*')
+          .eq('facebook_post_id', selectedVideo.objectId)
+          .gte('comment_created_time', oneMonthAgo.toISOString())
+          .order('comment_created_time', { ascending: false })
+          .limit(1000);
+        
+        if (!dbError && cachedComments && cachedComments.length > 0) {
+          const elapsed = Date.now() - startTime;
+          console.log(`[FacebookCommentsManager] Using ${cachedComments.length} cached comments from DB (${elapsed}ms)`);
+          
+          const formattedComments = cachedComments.map((c: any) => ({
+            id: c.facebook_comment_id,
+            message: c.comment_message || '',
+            from: {
+              name: c.facebook_user_name || 'Unknown',
+              id: c.facebook_user_id || '',
+            },
+            created_time: c.comment_created_time,
+            like_count: c.like_count || 0,
+          }));
+          
+          return { 
+            data: formattedComments, 
+            paging: {},
+            fromCache: true 
+          };
+        }
+      }
+      
+      // Fetch from TPOS if not in cache
       const order = selectedVideo.statusLive === 1 ? 'reverse_chronological' : 'chronological';
       
       let url = `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/facebook-comments?pageId=${pageId}&postId=${selectedVideo.objectId}&limit=500&order=${order}`;
@@ -314,9 +358,16 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
         throw new Error(error.error || 'Failed to fetch comments');
       }
 
-      return await response.json();
+      const data = await response.json();
+      const elapsed = Date.now() - startTime;
+      console.log(`[FacebookCommentsManager] Fetched ${data.data?.length || 0} comments from TPOS (${elapsed}ms)`);
+
+      return data;
     },
     getNextPageParam: (lastPage) => {
+      // If from cache, no pagination
+      if (lastPage.fromCache) return undefined;
+      
       if (!lastPage.data || lastPage.data.length === 0) {
         return undefined;
       }
@@ -331,8 +382,86 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
     },
     initialPageParam: undefined,
     enabled: !!selectedVideo && !!pageId,
-    refetchInterval: isAutoRefresh && selectedVideo?.statusLive === 1 ? 8000 : false,
+    refetchInterval: false, // Disabled - using realtime check instead
   });
+  
+  // Realtime check for new comments (only when live)
+  useEffect(() => {
+    if (!selectedVideo || !pageId || !isAutoRefresh || selectedVideo.statusLive !== 1) {
+      return;
+    }
+
+    const checkForNewComments = async () => {
+      if (isCheckingNewCommentsRef.current) return;
+      
+      isCheckingNewCommentsRef.current = true;
+      
+      try {
+        // 1. Count comments in DB
+        const { count: dbCount } = await supabase
+          .from('facebook_comments_archive' as any)
+          .select('*', { count: 'exact', head: true })
+          .eq('facebook_post_id', selectedVideo.objectId);
+        
+        const currentDbCount = dbCount || 0;
+        const tposCount = selectedVideo.countComment || 0;
+        
+        console.log(`[Realtime Check] Video: ${selectedVideo.objectId}, DB: ${currentDbCount}, TPOS: ${tposCount}, Last: ${lastKnownCountRef.current}`);
+        
+        // 2. If TPOS has more comments than DB → Fetch new comments
+        if (tposCount > currentDbCount) {
+          console.log(`[Realtime Check] New comments detected! Fetching...`);
+          
+          const { data: { session } } = await supabase.auth.getSession();
+          
+          // Fetch only latest comments
+          await fetch(
+            `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/facebook-comments?pageId=${pageId}&postId=${selectedVideo.objectId}&limit=100&order=reverse_chronological`,
+            {
+              headers: {
+                'Authorization': `Bearer ${session?.access_token}`,
+                'Content-Type': 'application/json',
+              },
+            }
+          );
+          
+          // Invalidate to reload from DB
+          queryClient.invalidateQueries({ queryKey: ['facebook-comments', pageId, selectedVideo.objectId] });
+          
+          toast({
+            title: "Comment mới",
+            description: `Có ${tposCount - currentDbCount} comment mới`,
+          });
+        }
+        
+        // 3. If TPOS count decreased → Comments were deleted
+        if (tposCount < lastKnownCountRef.current && lastKnownCountRef.current > 0) {
+          console.log(`[Realtime Check] Comments deleted on TPOS! Was: ${lastKnownCountRef.current}, Now: ${tposCount}`);
+          toast({
+            title: "Cảnh báo",
+            description: `TPOS đã xóa ${lastKnownCountRef.current - tposCount} comment`,
+            variant: "destructive",
+          });
+        }
+        
+        lastKnownCountRef.current = tposCount;
+      } catch (error) {
+        console.error('[Realtime Check] Error:', error);
+      } finally {
+        isCheckingNewCommentsRef.current = false;
+      }
+    };
+
+    // Initial count
+    if (lastKnownCountRef.current === 0) {
+      lastKnownCountRef.current = selectedVideo.countComment || 0;
+    }
+    
+    // Check every 10 seconds when live
+    const interval = setInterval(checkForNewComments, 10000);
+    
+    return () => clearInterval(interval);
+  }, [selectedVideo, pageId, isAutoRefresh, queryClient, toast]);
 
   const comments = useMemo(() => {
     const allComments = commentsData?.pages.flatMap(page => page.data) || [];
@@ -715,6 +844,8 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
     allCommentIdsRef.current = new Set();
     setNewCommentIds(new Set());
     setSearchQuery("");
+    // Reset realtime check
+    lastKnownCountRef.current = video.countComment || 0;
   };
 
   const handleShowInfo = (orderInfo: TPOSOrder | undefined) => {

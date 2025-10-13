@@ -16,20 +16,75 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
   const allCommentIdsRef = useRef<Set<string>>(new Set());
   const [errorCount, setErrorCount] = useState(0);
   const [hasError, setHasError] = useState(false);
+  const lastKnownCountRef = useRef<number>(0);
+  const isCheckingNewCommentsRef = useRef(false);
 
-  // Dynamic refetch interval based on error rate
-  const getRefetchInterval = useCallback(() => {
-    if (!isAutoRefresh || selectedVideo?.statusLive !== 1) return false;
-    
-    // If we have errors, increase the interval exponentially
-    if (errorCount > 0) {
-      const interval = Math.min(8000 * Math.pow(2, errorCount), 60000); // Max 60s
-      console.log(`[useFacebookComments] Error count: ${errorCount}, using interval: ${interval}ms`);
-      return interval;
+  // Realtime check for new comments (only when live)
+  useEffect(() => {
+    if (!videoId || !selectedVideo || !isAutoRefresh || selectedVideo.statusLive !== 1) {
+      return;
     }
+
+    const checkForNewComments = async () => {
+      if (isCheckingNewCommentsRef.current) return;
+      
+      isCheckingNewCommentsRef.current = true;
+      
+      try {
+        // 1. Count comments in DB
+        const { count: dbCount } = await supabase
+          .from('facebook_comments_archive' as any)
+          .select('*', { count: 'exact', head: true })
+          .eq('facebook_post_id', videoId);
+        
+        const currentDbCount = dbCount || 0;
+        const tposCount = selectedVideo.countComment || 0;
+        
+        console.log(`[Realtime Check] DB: ${currentDbCount}, TPOS: ${tposCount}, Last: ${lastKnownCountRef.current}`);
+        
+        // 2. If TPOS has more comments than DB → Fetch new comments
+        if (tposCount > currentDbCount) {
+          console.log(`[Realtime Check] New comments detected! Fetching...`);
+          
+          // Trigger edge function to fetch and save new comments
+          const { data: { session } } = await supabase.auth.getSession();
+          
+          await fetch(
+            `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/facebook-comments?pageId=${pageId}&postId=${videoId}&limit=100&order=reverse_chronological`,
+            {
+              headers: {
+                'Authorization': `Bearer ${session?.access_token}`,
+                'Content-Type': 'application/json',
+              },
+            }
+          );
+          
+          // Invalidate query to reload from DB
+          queryClient.invalidateQueries({ queryKey: ['facebook-comments', pageId, videoId] });
+        }
+        
+        // 3. If TPOS has fewer comments → Comments were deleted
+        if (tposCount < lastKnownCountRef.current && lastKnownCountRef.current > 0) {
+          console.log(`[Realtime Check] Comments deleted on TPOS! Was: ${lastKnownCountRef.current}, Now: ${tposCount}`);
+          // Note: We keep deleted comments in DB (they won't be removed)
+        }
+        
+        lastKnownCountRef.current = tposCount;
+      } catch (error) {
+        console.error('[Realtime Check] Error:', error);
+      } finally {
+        isCheckingNewCommentsRef.current = false;
+      }
+    };
+
+    // Initial check
+    checkForNewComments();
     
-    return 8000; // Default 8 seconds
-  }, [isAutoRefresh, selectedVideo?.statusLive, errorCount]);
+    // Check every 10 seconds when live
+    const interval = setInterval(checkForNewComments, 10000);
+    
+    return () => clearInterval(interval);
+  }, [videoId, selectedVideo, isAutoRefresh, pageId, queryClient]);
 
   // Fetch comments with infinite scroll
   const {
@@ -59,7 +114,7 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
           .eq('facebook_post_id', videoId)
           .gte('comment_created_time', oneMonthAgo.toISOString())
           .order('comment_created_time', { ascending: false })
-          .limit(500);
+          .limit(1000);
         
         if (!dbError && cachedComments && cachedComments.length > 0) {
           console.log(`[useFacebookComments] Using ${cachedComments.length} cached comments from DB`);
@@ -138,12 +193,12 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
     },
     initialPageParam: undefined,
     enabled: !!videoId && !!pageId,
-    refetchInterval: getRefetchInterval(),
+    refetchInterval: false, // Disabled - using realtime check instead
     retry: (failureCount, error) => {
       console.log(`[useFacebookComments] Retry attempt ${failureCount} for error:`, error);
-      return failureCount < 3; // Retry up to 3 times
+      return failureCount < 3;
     },
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
   const comments = useMemo(() => {
