@@ -36,7 +36,8 @@ function convertFacebookTimeToISO(facebookTime: string): string {
 /**
  * Parse variant string to extract code after "-"
  * Format: "variant_name - product_code"
- * Example: "L - N236L" → "N236L"
+ * Example: "L - N236L" → "N236L", " - N217" → "N217"
+ * Improved to handle edge cases: leading spaces, multiple formats
  */
 function getVariantCode(variant: string | null | undefined): string {
   if (!variant || variant.trim() === '') {
@@ -45,17 +46,22 @@ function getVariantCode(variant: string | null | undefined): string {
   
   const trimmed = variant.trim();
   
-  // Format: "variant_name - product_code"
-  if (trimmed.includes(' - ')) {
-    const parts = trimmed.split(' - ');
-    if (parts.length >= 2) {
-      return parts.slice(1).join(' - ').trim();
-    }
+  // Match pattern: "anything - CODE" where CODE is alphanumeric
+  // This handles: "Size M - N217", " - N217", "2-in-1 - N152"
+  const match = trimmed.match(/\s-\s+([A-Z0-9]+)$/i);
+  if (match) {
+    return match[1].toUpperCase().trim();
   }
   
-  // Format: "- product_code"
+  // Fallback: extract last part after " - "
+  if (trimmed.includes(' - ')) {
+    const parts = trimmed.split(' - ');
+    return parts[parts.length - 1].toUpperCase().trim();
+  }
+  
+  // Format: "- product_code" (no variant name)
   if (trimmed.startsWith('- ')) {
-    return trimmed.substring(2).trim();
+    return trimmed.substring(2).toUpperCase().trim();
   }
   
   return '';
@@ -357,17 +363,17 @@ serve(async (req) => {
       console.log(`SessionIndex from TPOS: ${sessionIndex}`);
       
       if (productCodes.length > 0 && sessionIndex) {
-        // Query live_products from recent sessions only (last 7 days)
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        // Query live_products from recent sessions only (last 30 days for better matching)
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
         
-        console.log(`Querying live_products from last 7 days (since ${sevenDaysAgo.toISOString()})...`);
+        console.log(`Querying live_products from last 30 days (since ${thirtyDaysAgo.toISOString()})...`);
         
         const { data: liveProducts, error: liveProductsError } = await supabase
           .from('live_products')
-          .select('id, live_session_id, live_phase_id, variant, prepared_quantity, sold_quantity, created_at')
+          .select('id, live_session_id, live_phase_id, variant, product_code, prepared_quantity, sold_quantity, created_at')
           .not('variant', 'is', null)
-          .gte('created_at', sevenDaysAgo.toISOString())
+          .gte('created_at', thirtyDaysAgo.toISOString())
           .order('created_at', { ascending: false });
         
         if (liveProductsError) {
@@ -379,7 +385,7 @@ serve(async (req) => {
           console.log('All variants in database:');
           liveProducts.forEach((p, idx) => {
             const code = getVariantCode(p.variant);
-            console.log(`  [${idx + 1}] ID: ${p.id}, Variant: "${p.variant}", Code: "${code}"`);
+            console.log(`  [${idx + 1}] ID: ${p.id}, Variant: "${p.variant}", Code: "${code}", Product Code: "${p.product_code || 'N/A'}"`);
           });
           
           // Try to match each extracted product code
@@ -389,13 +395,31 @@ serve(async (req) => {
           console.log('\nStarting matching process...');
           for (const productCode of productCodes) {
             console.log(`\nTrying to match code: "${productCode}"`);
+            
+            // Primary: Match by variant code
             matchedProduct = liveProducts.find(product => {
               const variantCode = getVariantCode(product.variant);
               const normalized = variantCode.toUpperCase().trim();
               const isMatch = normalized === productCode;
-              console.log(`  Compare: "${productCode}" vs "${normalized}" from variant "${product.variant}" → ${isMatch ? '✓ MATCH' : '✗ no match'}`);
+              console.log(`  [Variant] Compare: "${productCode}" vs "${normalized}" from variant "${product.variant}" → ${isMatch ? '✓ MATCH' : '✗ no match'}`);
               return isMatch;
             });
+            
+            // Fallback: Match by product_code if variant matching failed
+            if (!matchedProduct) {
+              console.log(`  Trying fallback: match by product_code...`);
+              matchedProduct = liveProducts.find(product => {
+                if (!product.product_code) return false;
+                const normalized = product.product_code.toUpperCase().trim();
+                const isMatch = normalized === productCode;
+                console.log(`  [Product Code] Compare: "${productCode}" vs "${normalized}" → ${isMatch ? '✓ MATCH' : '✗ no match'}`);
+                return isMatch;
+              });
+              
+              if (matchedProduct) {
+                console.log(`✓ Found match using product_code fallback: "${matchedProduct.product_code}"`);
+              }
+            }
             
             if (matchedProduct) {
               matchedCode = productCode;
@@ -469,7 +493,7 @@ serve(async (req) => {
             console.log(`\n✗ NO MATCH: No matching product found for codes: [${productCodes.join(', ')}]`);
           }
         } else {
-          console.log('✗ No live products found with variants in the last 7 days');
+          console.log('✗ No live products found with variants in the last 30 days');
         }
       } else {
         if (productCodes.length === 0) {
