@@ -43,6 +43,7 @@ serve(async (req) => {
 
     let data: any = null;
     let isFromDatabase = false;
+    let isObjectDeleted = false;
 
     // Try to fetch from TPOS API first
     try {
@@ -70,6 +71,29 @@ serve(async (req) => {
       if (!response.ok) {
         const errorText = await response.text();
         console.warn('⚠️ TPOS API error:', response.status, errorText);
+        
+        // Check if error is "Object with ID does not exist" (post/comment deleted)
+        if (response.status === 400 && errorText.includes('Object with ID')) {
+          console.log(`🗑️ Post ${postId} deleted by TPOS/Facebook - marking all comments as deleted`);
+          isObjectDeleted = true;
+          
+          // Mark all existing non-deleted comments for this post as deleted
+          const { error: updateError } = await supabaseClient
+            .from('facebook_comments_archive')
+            .update({ 
+              is_deleted: true,
+              updated_at: new Date().toISOString()
+            })
+            .eq('facebook_post_id', postId)
+            .eq('is_deleted', false);
+          
+          if (updateError) {
+            console.error('❌ Error marking comments as deleted:', updateError);
+          } else {
+            console.log(`✅ Marked all non-deleted comments for post ${postId} as deleted`);
+          }
+        }
+        
         throw new Error(`TPOS API failed: ${response.status}`);
       }
 
@@ -80,15 +104,65 @@ serve(async (req) => {
         dataLength: data?.data?.length || (Array.isArray(data) ? data.length : 0),
         hasPaging: !!data?.paging,
       });
+      
+      // Save comments to database (TPOS API successful)
+      const comments = data?.data || [];
+      if (comments.length > 0) {
+        console.log(`💾 Saving ${comments.length} comments to database`);
+        
+        const upsertData = comments.map((comment: any) => ({
+          facebook_comment_id: comment.id,
+          facebook_post_id: postId,
+          facebook_user_id: comment.from?.id || null,
+          facebook_user_name: comment.from?.name || null,
+          comment_message: comment.message || '',
+          comment_created_time: comment.created_time,
+          like_count: comment.like_count || 0,
+          is_deleted: false, // TPOS API successful = not deleted
+          last_fetched_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }));
+
+        const { error: upsertError } = await supabaseClient
+          .from('facebook_comments_archive')
+          .upsert(upsertData, { 
+            onConflict: 'facebook_comment_id',
+            ignoreDuplicates: false 
+          });
+
+        if (upsertError) {
+          console.warn('⚠️ Could not save comments:', upsertError.message);
+        } else {
+          console.log(`✅ Successfully saved ${upsertData.length} comments to database`);
+        }
+      }
+      
     } catch (tposError) {
       console.log('🔄 TPOS API unavailable, falling back to database...');
       
-      // Fallback to database
+      // Fallback to database if object was deleted or TPOS failed
+      if (isObjectDeleted) {
+        console.log(`🗑️ Post ${postId} is deleted - returning empty result`);
+        return new Response(
+          JSON.stringify({ 
+            data: [], 
+            paging: {}, 
+            source: 'database_deleted' 
+          }),
+          { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }, 
+            status: 200 
+          }
+        );
+      }
+      
+      // Fallback: Query non-deleted comments from database
       try {
         const { data: dbComments, error: dbError } = await supabaseClient
           .from('facebook_comments_archive')
           .select('*')
           .eq('facebook_post_id', postId)
+          .eq('is_deleted', false) // Only fetch non-deleted comments
           .order('comment_created_time', { ascending: order === 'chronological' })
           .limit(parseInt(limit));
 
@@ -119,7 +193,7 @@ serve(async (req) => {
         };
 
         isFromDatabase = true;
-        console.log(`✅ Retrieved ${dbComments.length} comments from database`);
+        console.log(`✅ Retrieved ${dbComments.length} non-deleted comments from database`);
       } catch (fallbackError) {
         console.error('❌ Fallback failed:', fallbackError);
         return new Response(
@@ -131,47 +205,6 @@ serve(async (req) => {
         );
       }
     }
-    
-    // ========== Save comments to database (only if from TPOS API) ==========
-    if (!isFromDatabase) {
-      try {
-        const comments = data?.data || [];
-        if (comments.length > 0) {
-          console.log(`Attempting to save ${comments.length} comments to database`);
-          
-          const upsertData = comments.map((comment: any) => ({
-            facebook_comment_id: comment.id,
-            facebook_post_id: postId,
-            facebook_user_id: comment.from?.id || null,
-            facebook_user_name: comment.from?.name || null,
-            comment_message: comment.message || '',
-            comment_created_time: comment.created_time,
-            like_count: comment.like_count || 0,
-            last_fetched_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          }));
-
-          const { error: upsertError } = await supabaseClient
-            .from('facebook_comments_archive')
-            .upsert(upsertData, { 
-              onConflict: 'facebook_comment_id',
-              ignoreDuplicates: false 
-            });
-
-          if (upsertError) {
-            console.warn('⚠️ Could not save comments to facebook_comments_archive:', {
-              message: upsertError.message,
-              code: upsertError.code,
-            });
-          } else {
-            console.log(`✅ Successfully saved ${upsertData.length} comments to database`);
-          }
-        }
-      } catch (dbError) {
-        console.warn('⚠️ Exception while saving to DB:', dbError);
-      }
-    }
-    // ========== END ==========
     
     let responsePayload;
 

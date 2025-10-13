@@ -24,6 +24,7 @@ CREATE TABLE facebook_comments_archive (
   tpos_order_id TEXT,
   tpos_session_index TEXT,
   is_deleted_by_tpos BOOLEAN DEFAULT FALSE,
+  is_deleted BOOLEAN DEFAULT FALSE, -- Track if comment/post deleted by TPOS/Facebook
   tpos_sync_status TEXT DEFAULT 'no_order', -- 'no_order' | 'synced' | 'deleted'
   
   -- Timestamps
@@ -40,6 +41,7 @@ CREATE INDEX idx_fb_comments_tpos_order ON facebook_comments_archive(tpos_order_
 CREATE INDEX idx_fb_comments_sync_status ON facebook_comments_archive(tpos_sync_status, is_deleted_by_tpos);
 CREATE INDEX idx_fb_comments_post_time ON facebook_comments_archive(facebook_post_id, comment_created_time DESC);
 CREATE INDEX idx_fb_comments_created_time ON facebook_comments_archive(comment_created_time);
+CREATE INDEX idx_fb_comments_not_deleted ON facebook_comments_archive(facebook_post_id, is_deleted) WHERE is_deleted = false;
 
 -- 4. Enable RLS
 ALTER TABLE facebook_comments_archive ENABLE ROW LEVEL SECURITY;

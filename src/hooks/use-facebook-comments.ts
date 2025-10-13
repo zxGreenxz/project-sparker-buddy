@@ -32,11 +32,12 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
       isCheckingNewCommentsRef.current = true;
       
       try {
-        // 1. Count comments in DB
+        // 1. Count non-deleted comments in DB
         const { count: dbCount } = await supabase
           .from('facebook_comments_archive' as any)
           .select('*', { count: 'exact', head: true })
-          .eq('facebook_post_id', videoId);
+          .eq('facebook_post_id', videoId)
+          .eq('is_deleted', false);
         
         const currentDbCount = dbCount || 0;
         const tposCount = selectedVideo.countComment || 0;
@@ -146,6 +147,7 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
           .from('facebook_comments_archive' as any)
           .select('*')
           .eq('facebook_post_id', videoId)
+          .eq('is_deleted', false) // Only fetch non-deleted comments
           .gte('comment_created_time', oneMonthAgo.toISOString())
           .order('comment_created_time', { ascending: false })
           .limit(1000);
