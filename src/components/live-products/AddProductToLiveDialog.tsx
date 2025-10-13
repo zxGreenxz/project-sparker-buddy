@@ -36,6 +36,7 @@ import { Store } from "lucide-react";
 import { useProductVariants } from "@/hooks/use-product-variants";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { applyMultiKeywordSearch } from "@/lib/search-utils";
 
 interface AddProductToLiveDialogProps {
   open: boolean;
@@ -141,13 +142,19 @@ export function AddProductToLiveDialog({ open, onOpenChange, phaseId, sessionId,
     queryFn: async () => {
       if (!debouncedSearch || debouncedSearch.length < 2) return [];
       
-      const { data, error } = await supabase
+      let query = supabase
         .from("products")
         .select("*")
-        .or(`product_code.ilike.%${debouncedSearch}%,product_name.ilike.%${debouncedSearch}%`)
         .order('created_at', { ascending: false })
         .limit(10);
       
+      query = applyMultiKeywordSearch(
+        query,
+        debouncedSearch,
+        ['product_name', 'product_code', 'barcode']
+      );
+      
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },

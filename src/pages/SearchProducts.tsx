@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Search, Package, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { applyMultiKeywordSearch } from "@/lib/search-utils";
 import {
   Table,
   TableBody,
@@ -31,13 +32,19 @@ export default function SearchProducts() {
     queryFn: async () => {
       if (debouncedSearch.length < 2) return [];
 
-      const { data, error } = await supabase
+      let query = supabase
         .from("products")
         .select("*")
-        .or(`product_code.ilike.%${debouncedSearch}%,product_name.ilike.%${debouncedSearch}%`)
         .order("created_at", { ascending: false })
         .range(0, 9999);
 
+      query = applyMultiKeywordSearch(
+        query,
+        debouncedSearch,
+        ['product_name', 'product_code', 'barcode']
+      );
+
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },

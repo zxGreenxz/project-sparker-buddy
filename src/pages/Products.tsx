@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Package, Trash2, Store, Download } from "lucide-react";
 import { searchTPOSProduct, importProductFromTPOS } from "@/lib/tpos-api";
+import { applyMultiKeywordSearch } from "@/lib/search-utils";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -46,23 +47,11 @@ export default function Products() {
       
       // If search query exists (>= 2 chars), search in database
       if (debouncedSearch.length >= 2) {
-        // Split search query into keywords
-        const keywords = debouncedSearch.trim().split(/\s+/).filter(k => k.length > 0);
-        
-        if (keywords.length === 1) {
-          // Single keyword: search in product_code, product_name, barcode
-          query = query.or(
-            `product_code.ilike.%${keywords[0]}%,` +
-            `product_name.ilike.%${keywords[0]}%,` +
-            `barcode.ilike.%${keywords[0]}%`
-          );
-        } else {
-          // Multiple keywords: ALL must be present in product_name (in any order)
-          // Also check if full search matches product_code or barcode
-          keywords.forEach((keyword) => {
-            query = query.ilike("product_name", `%${keyword}%`);
-          });
-        }
+        query = applyMultiKeywordSearch(
+          query,
+          debouncedSearch,
+          ['product_name', 'product_code', 'barcode']
+        );
       } else {
         // Otherwise, load 50 latest products
         query = query.range(0, 49);

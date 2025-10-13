@@ -12,6 +12,7 @@ import { Check } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDebounce } from "@/hooks/use-debounce";
 import { ProductImage } from "@/components/products/ProductImage";
+import { applyMultiKeywordSearch } from "@/lib/search-utils";
 
 interface Product {
   id: string;
@@ -49,10 +50,10 @@ export function SelectProductDialog({ open, onOpenChange, onSelect }: SelectProd
       
       // Nếu có search (>= 2 ký tự): Search trong database
       if (debouncedSearch.length >= 2) {
-        query = query.or(
-          `product_code.ilike.%${debouncedSearch}%,` +
-          `product_name.ilike.%${debouncedSearch}%,` +
-          `variant.ilike.%${debouncedSearch}%`
+        query = applyMultiKeywordSearch(
+          query,
+          debouncedSearch,
+          ['product_name', 'product_code', 'barcode', 'variant']
         );
       } else {
         // Load 50 SP mới nhất (không search)
