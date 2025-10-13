@@ -68,6 +68,37 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useProcessPendingOrders } from "@/hooks/use-process-pending-orders";
 
+/**
+ * Client-side multi-keyword product filter
+ * - Single keyword: search in product_code, product_name, variant
+ * - Multiple keywords: ALL must be in product_name
+ */
+const filterProductsBySearch = <T extends { product_code: string; product_name: string; variant?: string | null }>(
+  products: T[], 
+  searchTerm: string
+): T[] => {
+  if (!searchTerm.trim()) return products;
+  
+  const keywords = searchTerm.trim().split(/\s+/).filter(k => k.length > 0);
+  
+  if (keywords.length === 1) {
+    // Single keyword: OR search across fields
+    const searchLower = keywords[0].toLowerCase();
+    return products.filter(product => 
+      product.product_code.toLowerCase().includes(searchLower) ||
+      product.product_name.toLowerCase().includes(searchLower) ||
+      (product.variant?.toLowerCase() || "").includes(searchLower)
+    );
+  } else {
+    // Multiple keywords: ALL must be in product_name
+    return products.filter(product => {
+      const nameLower = product.product_name.toLowerCase();
+      return keywords.every(keyword => nameLower.includes(keyword.toLowerCase()));
+    });
+  }
+};
+
+
 interface LiveSession {
   id: string;
   session_date: string;
@@ -1677,16 +1708,7 @@ export default function LiveProducts() {
                         <TableBody>
                           {(() => {
                             // Filter products based on search - only show hang_dat
-                            const filteredProducts = productSearch.trim()
-                              ? productsHangDat.filter(product => {
-                                  const searchLower = productSearch.toLowerCase();
-                                  return (
-                                    product.product_code.toLowerCase().includes(searchLower) ||
-                                    product.product_name.toLowerCase().includes(searchLower) ||
-                                    (product.variant?.toLowerCase() || "").includes(searchLower)
-                                  );
-                                })
-                              : productsHangDat;
+                            const filteredProducts = filterProductsBySearch(productsHangDat, productSearch);
 
                             // Group products by base_product_code (or unique key for manual products)
                             const productGroups = filteredProducts.reduce((groups, product) => {
@@ -2044,16 +2066,7 @@ export default function LiveProducts() {
                     <TableBody>
                       {(() => {
                         // Filter products based on search
-                        const filteredProducts = productSearch.trim()
-                          ? liveProducts.filter(product => {
-                              const searchLower = productSearch.toLowerCase();
-                              return (
-                                product.product_code.toLowerCase().includes(searchLower) ||
-                                product.product_name.toLowerCase().includes(searchLower) ||
-                                (product.variant?.toLowerCase() || "").includes(searchLower)
-                              );
-                            })
-                          : liveProducts;
+                        const filteredProducts = filterProductsBySearch(liveProducts, productSearch);
 
                         // Sort by created_at (newest first)
                         const sortedProducts = [...filteredProducts].sort((a, b) => {
@@ -2293,16 +2306,7 @@ export default function LiveProducts() {
                       </TableHeader>
                       <TableBody>
                         {(() => {
-                          const filteredHangLe = productSearch.trim()
-                            ? productsHangLe.filter(product => {
-                                const searchLower = productSearch.toLowerCase();
-                                return (
-                                  product.product_code.toLowerCase().includes(searchLower) ||
-                                  product.product_name.toLowerCase().includes(searchLower) ||
-                                  (product.variant?.toLowerCase() || "").includes(searchLower)
-                                );
-                              })
-                            : productsHangLe;
+                          const filteredHangLe = filterProductsBySearch(productsHangLe, productSearch);
 
                           if (filteredHangLe.length === 0) {
                             return (
