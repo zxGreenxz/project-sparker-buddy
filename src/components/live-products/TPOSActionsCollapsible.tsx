@@ -1,30 +1,24 @@
 import { useState, useEffect } from "react";
-import { ChevronDown, Calendar, Download, RefreshCw, Upload, CheckCircle } from "lucide-react";
-import { format } from "date-fns";
-import { vi } from "date-fns/locale";
-import { DateRange } from "react-day-picker";
+import { ChevronDown, Download, RefreshCw, Upload, CheckCircle, Calendar as CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { DateRange } from "react-day-picker";
+import { cn } from "@/lib/utils";
 
 interface TPOSActionsCollapsibleProps {
   hasOrders: boolean;
-  // Đồng bộ TPOS Order
-  tposSyncDateRange: DateRange | undefined;
-  setTposSyncDateRange: (range: DateRange | undefined) => void;
-  tposTopValue: string;
-  setTposTopValue: (value: string) => void;
-  handleSyncTposOrders: () => void;
+  // Đồng bộ & Upload
+  handleSyncAndUpload: () => void;
   isSyncingTpos: boolean;
-  tposSyncResult: { matched: number; notFound: number; errors: number } | null;
-  
-  // Upload TPOS
-  setIsUploadTPOSOpen: (open: boolean) => void;
+  tposSyncDateRange: DateRange | undefined;
+  setTposSyncDateRange: (dateRange: DateRange | undefined) => void;
   
   // Đồng bộ Product IDs
   maxRecordsToFetch: string;
@@ -36,14 +30,10 @@ interface TPOSActionsCollapsibleProps {
 
 export function TPOSActionsCollapsible({
   hasOrders,
+  handleSyncAndUpload,
+  isSyncingTpos,
   tposSyncDateRange,
   setTposSyncDateRange,
-  tposTopValue,
-  setTposTopValue,
-  handleSyncTposOrders,
-  isSyncingTpos,
-  tposSyncResult,
-  setIsUploadTPOSOpen,
   maxRecordsToFetch,
   setMaxRecordsToFetch,
   handleSyncProductIds,
@@ -81,63 +71,51 @@ export function TPOSActionsCollapsible({
 
         <CollapsibleContent>
           <CardContent className="space-y-4 pt-4">
-            {/* Section 1: Đồng bộ mã TPOS Order */}
+            {/* Section 1: Đồng bộ & Upload Orders lên TPOS */}
             <div className="border-b pb-4">
-              <h3 className="text-sm font-semibold mb-3">Đồng bộ mã TPOS Order</h3>
-              <div className="flex flex-wrap gap-3 items-end">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Khoảng thời gian</label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="w-[280px] justify-start text-left font-normal"
-                      >
-                        <Calendar className="mr-2 h-4 w-4" />
-                        {tposSyncDateRange?.from ? (
-                          tposSyncDateRange.to ? (
-                            <>
-                              {format(tposSyncDateRange.from, "dd/MM/yyyy", { locale: vi })} -{" "}
-                              {format(tposSyncDateRange.to, "dd/MM/yyyy", { locale: vi })}
-                            </>
-                          ) : (
-                            format(tposSyncDateRange.from, "dd/MM/yyyy", { locale: vi })
-                          )
+              <h3 className="text-sm font-semibold mb-3">Đồng bộ & Upload Orders lên TPOS</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Tự động lấy mã TPOS cho các đơn hàng trong khoảng thời gian đã chọn và mở cửa sổ upload.
+              </p>
+              <div className="flex items-center gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      id="date"
+                      variant={"outline"}
+                      className={cn(
+                        "w-[280px] justify-start text-left font-normal",
+                        !tposSyncDateRange && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {tposSyncDateRange?.from ? (
+                        tposSyncDateRange.to ? (
+                          <>
+                            {format(tposSyncDateRange.from, "dd/MM/yyyy")} -{" "}
+                            {format(tposSyncDateRange.to, "dd/MM/yyyy")}
+                          </>
                         ) : (
-                          <span>Chọn ngày</span>
-                        )}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <CalendarComponent
-                        mode="range"
-                        selected={tposSyncDateRange}
-                        onSelect={setTposSyncDateRange}
-                        numberOfMonths={2}
-                        initialFocus
-                        className="pointer-events-auto"
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Số lượng đơn hàng</label>
-                  <Select value={tposTopValue} onValueChange={setTposTopValue}>
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="20">20 đơn</SelectItem>
-                      <SelectItem value="50">50 đơn</SelectItem>
-                      <SelectItem value="200">200 đơn</SelectItem>
-                      <SelectItem value="1000">1000 đơn</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
+                          format(tposSyncDateRange.from, "dd/MM/yyyy")
+                        )
+                      ) : (
+                        <span>Chọn ngày</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      initialFocus
+                      mode="range"
+                      defaultMonth={tposSyncDateRange?.from}
+                      selected={tposSyncDateRange}
+                      onSelect={setTposSyncDateRange}
+                      numberOfMonths={2}
+                    />
+                  </PopoverContent>
+                </Popover>
                 <Button
-                  onClick={handleSyncTposOrders}
+                  onClick={handleSyncAndUpload}
                   disabled={isSyncingTpos}
                 >
                   {isSyncingTpos ? (
@@ -147,54 +125,15 @@ export function TPOSActionsCollapsible({
                     </>
                   ) : (
                     <>
-                      <Download className="mr-2 h-4 w-4" />
-                      Thêm mã TPOS
+                      <Upload className="mr-2 h-4 w-4" />
+                      Đồng bộ & Upload
                     </>
                   )}
                 </Button>
               </div>
-              
-              {tposSyncResult && (
-                <Alert className="mt-4">
-                  <CheckCircle className="h-4 w-4" />
-                  <AlertTitle>Kết quả</AlertTitle>
-                  <AlertDescription>
-                    <div className="space-y-1 text-sm">
-                      <div className="flex justify-between">
-                        <span>Đã cập nhật:</span>
-                        <Badge>{tposSyncResult.matched}</Badge>
-                      </div>
-                      {tposSyncResult.notFound > 0 && (
-                        <div className="flex justify-between">
-                          <span>Không tìm thấy:</span>
-                          <Badge variant="outline">{tposSyncResult.notFound}</Badge>
-                        </div>
-                      )}
-                      {tposSyncResult.errors > 0 && (
-                        <div className="flex justify-between">
-                          <span>Lỗi:</span>
-                          <Badge variant="destructive">{tposSyncResult.errors}</Badge>
-                        </div>
-                      )}
-                    </div>
-                  </AlertDescription>
-                </Alert>
-              )}
             </div>
 
-            {/* Section 2: Upload Orders lên TPOS */}
-            <div className="border-b pb-4">
-              <h3 className="text-sm font-semibold mb-3">Upload Orders lên TPOS</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Chọn và upload các đơn hàng lên hệ thống TPOS
-              </p>
-              <Button onClick={() => setIsUploadTPOSOpen(true)}>
-                <Upload className="mr-2 h-4 w-4" />
-                Upload TPOS
-              </Button>
-            </div>
-
-            {/* Section 3: Đồng bộ mã biến thể (Product ID) */}
+            {/* Section 2: Đồng bộ mã biến thể (Product ID) */}
             <div>
               <h3 className="text-sm font-semibold mb-3">Đồng bộ mã biến thể (Product ID)</h3>
               <div className="flex flex-wrap gap-3 items-end">
