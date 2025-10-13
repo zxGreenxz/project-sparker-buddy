@@ -142,34 +142,36 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
       }
 
       // 2. Get active live session & phase
-      const sessionsQuery: any = await supabase
+      // @ts-ignore - Bypass Supabase type complexity
+      const sessionsQuery = await supabase
         .from('live_sessions')
         .select('id')
         .eq('is_active', true)
         .limit(1);
       
-      const sessions: Array<{ id: string }> | null = sessionsQuery.data;
+      const sessions = sessionsQuery.data as Array<{ id: string }> | null;
       
       if (!sessions || sessions.length === 0) {
         throw new Error("Không có live session nào đang hoạt động");
       }
 
-      const activeSession: { id: string } = sessions[0];
+      const activeSession = sessions[0];
 
-      const phasesQuery: any = await supabase
+      // @ts-ignore - Bypass Supabase type complexity
+      const phasesQuery = await supabase
         .from('live_phases')
         .select('id, phase_date')
         .eq('live_session_id', activeSession.id)
         .order('created_at', { ascending: false })
         .limit(1);
       
-      const phases: Array<{ id: string; phase_date: string }> | null = phasesQuery.data;
+      const phases = phasesQuery.data as Array<{ id: string; phase_date: string }> | null;
       
       if (!phases || phases.length === 0) {
         throw new Error("Không có phase nào trong session");
       }
 
-      const activePhase: { id: string; phase_date: string } = phases[0];
+      const activePhase = phases[0];
 
       // 3. Query all live_products in current phase
       const { data: liveProducts, error: productsError } = await supabase
