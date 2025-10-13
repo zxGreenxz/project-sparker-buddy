@@ -20,18 +20,15 @@ function extractProductCodes(text: string): string[] {
   return [...new Set(codes)]; // Remove duplicates
 }
 
-interface FacebookPendingOrder {
+interface PendingLiveOrder {
   id: string;
   facebook_comment_id: string;
-  comment: string | null;
-  name: string | null;
-  facebook_user_id: string | null;
+  comment_text: string | null;
+  customer_name: string | null;
   session_index: string | null;
-  code: string | null;
-  phone: string | null;
-  created_time: string;
-  tpos_order_id: string | null;
-  facebook_post_id: string | null;
+  created_at: string;
+  processed: boolean;
+  error_message: string | null;
 }
 
 interface LiveProduct {
@@ -60,15 +57,16 @@ export function useProcessPendingOrders() {
       const today = new Date();
       const phase_date = today.toISOString().split('T')[0];
 
-      // 1. Fetch facebook_pending_orders from today
+      // 1. Fetch pending_live_orders that haven't been processed yet
       const { data: rawPendingOrders, error: fetchError } = await supabase
-        .from('facebook_pending_orders')
+        .from('pending_live_orders')
         .select('*')
-        .gte('created_time', `${phase_date}T00:00:00`)
-        .lt('created_time', `${phase_date}T23:59:59`)
-        .order('created_time', { ascending: true });
+        .eq('processed', false)
+        .gte('created_at', `${phase_date}T00:00:00`)
+        .lt('created_at', `${phase_date}T23:59:59`)
+        .order('created_at', { ascending: true });
       
-      const pendingOrders = rawPendingOrders as FacebookPendingOrder[] | null;
+      const pendingOrders = rawPendingOrders as PendingLiveOrder[] | null;
 
       if (fetchError) {
         console.error('[useProcessPendingOrders] ❌ Error fetching:', fetchError);
@@ -146,11 +144,22 @@ export function useProcessPendingOrders() {
         console.log(`  Session index: ${pending.session_index}`);
 
         // Extract product codes from comment
-        const productCodes = extractProductCodes(pending.comment || '');
+        const productCodes = extractProductCodes(pending.comment_text || '');
         console.log(`  Product codes: [${productCodes.join(', ')}]`);
 
         if (productCodes.length === 0) {
           console.log(`  ⚠️ No product codes found in comment`);
+          
+          // Mark as processed with error
+          await supabase
+            .from('pending_live_orders')
+            .update({ 
+              processed: true, 
+              processed_at: new Date().toISOString(),
+              error_message: 'No product codes found in comment'
+            })
+            .eq('id', pending.id);
+          
           continue;
         }
 
@@ -226,9 +235,9 @@ export function useProcessPendingOrders() {
               live_product_id: matchedProduct.id,
               live_session_id: matchedProduct.live_session_id,
               live_phase_id: matchedProduct.live_phase_id,
-              comment_text: pending.comment,
-              customer_name: pending.name,
-              facebook_user_id: pending.facebook_user_id,
+              comment_text: pending.comment_text,
+              customer_name: pending.customer_name,
+              facebook_user_id: null,
               is_oversell: isOversell,
             } as any)
             .select()
@@ -253,6 +262,16 @@ export function useProcessPendingOrders() {
           console.log(`  ⚠️ No matching product found for codes: [${productCodes.join(', ')}]`);
           errorCount++;
         }
+
+        // Mark pending order as processed
+        await supabase
+          .from('pending_live_orders')
+          .update({ 
+            processed: true, 
+            processed_at: new Date().toISOString(),
+            error_message: matchedProduct ? null : `No matching products found for codes: ${productCodes.join(', ')}`
+          })
+          .eq('id', pending.id);
       }
 
       console.log(`\n[useProcessPendingOrders] ✅ Processing complete:`);

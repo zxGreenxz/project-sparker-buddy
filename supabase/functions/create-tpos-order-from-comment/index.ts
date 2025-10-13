@@ -369,6 +369,31 @@ serve(async (req) => {
     const data = await response.json();
     console.log("TPOS response:", data);
 
+    // Save to pending_live_orders (queue table for background processing)
+    try {
+      const { error: pendingError } = await supabase
+        .from('pending_live_orders')
+        .upsert({
+          id: data.Id,
+          facebook_comment_id: comment.id,
+          comment_text: comment.message,
+          customer_name: comment.from.name,
+          session_index: data.SessionIndex?.toString() || null,
+          created_at: convertFacebookTimeToISO(comment.created_time),
+          processed: false,
+        }, {
+          onConflict: 'facebook_comment_id'
+        });
+
+      if (pendingError) {
+        console.error('Error saving to pending_live_orders:', pendingError);
+      } else {
+        console.log('Successfully saved to pending_live_orders queue');
+      }
+    } catch (pendingDbError) {
+      console.error('Exception saving to pending_live_orders:', pendingDbError);
+    }
+
     // Save to facebook_pending_orders table
     try {
       // Check for existing order with the same comment_id
