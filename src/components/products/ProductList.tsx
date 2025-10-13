@@ -113,51 +113,31 @@ export function ProductList({ products, isLoading, onRefetch, supplierFilter, is
   const handleDelete = async () => {
     if (!deletingProduct) return;
 
-    if (isAdmin) {
-      try {
-        const { error } = await supabase.rpc('admin_force_delete_product', { p_product_id: deletingProduct.id });
-        if (error) throw error;
-        
-        toastHook({
-          title: "Thành công",
-          description: "Đã xóa sản phẩm và các dữ liệu liên quan",
-        });
-        onRefetch();
+    const { error } = await supabase
+      .from("products")
+      .delete()
+      .eq("id", deletingProduct.id);
 
-      } catch (error: any) {
-        toastHook({
-          title: "Lỗi",
-          description: `Không thể xóa sản phẩm: ${error.message}`,
-          variant: "destructive",
-        });
+    if (error) {
+      let errorMessage = "Không thể xóa sản phẩm";
+      
+      if (error.code === "23503" || error.message.includes("violates foreign key constraint")) {
+        errorMessage = `Không thể xóa sản phẩm "${deletingProduct.product_name}" vì đang được sử dụng trong đơn đặt hàng. Vui lòng xóa các đơn hàng liên quan trước.`;
+      } else if (error.message) {
+        errorMessage = `Không thể xóa sản phẩm: ${error.message}`;
       }
+      
+      toastHook({
+        title: "Lỗi",
+        description: errorMessage,
+        variant: "destructive",
+      });
     } else {
-      const { error } = await supabase
-        .from("products")
-        .delete()
-        .eq("id", deletingProduct.id);
-
-      if (error) {
-        let errorMessage = "Không thể xóa sản phẩm";
-        
-        if (error.code === "23503" || error.message.includes("violates foreign key constraint")) {
-          errorMessage = `Không thể xóa sản phẩm "${deletingProduct.product_name}" vì đang được sử dụng trong đơn đặt hàng. Vui lòng xóa các đơn hàng liên quan trước.`;
-        } else if (error.message) {
-          errorMessage = `Không thể xóa sản phẩm: ${error.message}`;
-        }
-        
-        toastHook({
-          title: "Lỗi",
-          description: errorMessage,
-          variant: "destructive",
-        });
-      } else {
-        toastHook({
-          title: "Thành công",
-          description: "Đã xóa sản phẩm",
-        });
-        onRefetch();
-      }
+      toastHook({
+        title: "Thành công",
+        description: "Đã xóa sản phẩm",
+      });
+      onRefetch();
     }
     setDeletingProduct(null);
   };
@@ -165,61 +145,22 @@ export function ProductList({ products, isLoading, onRefetch, supplierFilter, is
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
 
-    if (isAdmin) {
-      try {
-        const idsToDelete = Array.from(selectedIds);
-        // Using Promise.all to run deletes in parallel
-        const promises = idsToDelete.map(id => supabase.rpc('admin_force_delete_product', { p_product_id: id }));
-        const results = await Promise.all(promises);
-        
-        const errors = results.filter(res => res.error);
-        
-        if (errors.length > 0) {
-          throw new Error(`${errors.length} sản phẩm không thể xóa. Lỗi đầu tiên: ${errors[0].error.message}`);
-        }
-        
-        toastHook({
-          title: "Thành công",
-          description: `Đã xóa ${selectedIds.size} sản phẩm và các dữ liệu liên quan`,
-        });
-        setSelectedIds(new Set());
-        onRefetch();
+    const idsToDelete = Array.from(selectedIds);
+    const { error } = await supabase.from("products").delete().in("id", idsToDelete);
 
-      } catch (error: any) {
-        toastHook({
-          title: "Lỗi",
-          description: error.message,
-          variant: "destructive",
-        });
-      }
+    if (error) {
+      toastHook({
+        title: "Lỗi",
+        description: `Không thể xóa sản phẩm: ${error.message}`,
+        variant: "destructive",
+      });
     } else {
-      const { error } = await supabase
-        .from("products")
-        .delete()
-        .in("id", Array.from(selectedIds));
-
-      if (error) {
-        let errorMessage = "Không thể xóa sản phẩm đã chọn";
-        
-        if (error.code === "23503" || error.message.includes("violates foreign key constraint")) {
-          errorMessage = `Một hoặc nhiều sản phẩm đang được sử dụng trong đơn đặt hàng. Vui lòng xóa các đơn hàng liên quan trước hoặc bỏ chọn các sản phẩm đó.`;
-        } else if (error.message) {
-          errorMessage = `Không thể xóa sản phẩm: ${error.message}`;
-        }
-        
-        toastHook({
-          title: "Lỗi",
-          description: errorMessage,
-          variant: "destructive",
-        });
-      } else {
-        toastHook({
-          title: "Thành công",
-          description: `Đã xóa ${selectedIds.size} sản phẩm`,
-        });
-        setSelectedIds(new Set());
-        onRefetch();
-      }
+      toastHook({
+        title: "Thành công",
+        description: `Đã xóa ${idsToDelete.length} sản phẩm`,
+      });
+      setSelectedIds(new Set());
+      onRefetch();
     }
     setShowBulkDeleteDialog(false);
   };
