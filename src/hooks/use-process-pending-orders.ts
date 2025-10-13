@@ -1,3 +1,10 @@
+// ============================================================
+// NOTE: This hook is now DEPRECATED and disabled by default
+// Database trigger 'trigger_auto_create_live_orders' handles
+// live_orders creation automatically in real-time
+// See: auto_create_live_orders_trigger.sql
+// ============================================================
+
 import { useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -294,16 +301,20 @@ export function useProcessPendingOrders() {
     }
   }, [queryClient]);
 
-  // Auto-process on mount and every 30 seconds
-  useEffect(() => {
-    processPendingOrders();
-
-    const interval = setInterval(() => {
-      processPendingOrders();
-    }, 30000); // 30 seconds
-
-    return () => clearInterval(interval);
-  }, [processPendingOrders]);
+  // ============================================================
+  // DISABLED: Database trigger now handles this automatically
+  // Uncomment below to re-enable as backup mechanism
+  // ============================================================
+  
+  // useEffect(() => {
+  //   processPendingOrders();
+  //   
+  //   const interval = setInterval(() => {
+  //     processPendingOrders();
+  //   }, 30000);
+  //
+  //   return () => clearInterval(interval);
+  // }, [processPendingOrders]);
 
   return { processPendingOrders };
 }
