@@ -20,6 +20,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { Video, MessageCircle, Heart, RefreshCw, Pause, Play, Search, Loader2, Facebook, ChevronDown, Copy, Maximize, Minimize } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
 import type { FacebookVideo, FacebookComment, CommentWithStatus, TPOSOrder } from "@/types/facebook";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -90,8 +91,6 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
   
   // State for manual product selection
   const [selectedProductsMap, setSelectedProductsMap] = useState<Map<string, any>>(new Map());
-  const [isSelectProductDialogOpen, setIsSelectProductDialogOpen] = useState(false);
-  const [currentSelectingCommentId, setCurrentSelectingCommentId] = useState<string | null>(null);
 
   // Fetch Facebook pages from database
   const { data: facebookPages } = useQuery({
@@ -342,21 +341,12 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
   };
 
   // Handle manual product selection
-  const handleOpenSelectProduct = (commentId: string) => {
-    setCurrentSelectingCommentId(commentId);
-    setIsSelectProductDialogOpen(true);
-  };
-
-  const handleSelectProduct = (product: any) => {
-    if (currentSelectingCommentId) {
-      setSelectedProductsMap(prev => {
-        const newMap = new Map(prev);
-        newMap.set(currentSelectingCommentId, product);
-        return newMap;
-      });
-    }
-    setIsSelectProductDialogOpen(false);
-    setCurrentSelectingCommentId(null);
+  const handleSelectProduct = (commentId: string, product: any) => {
+    setSelectedProductsMap(prev => {
+      const newMap = new Map(prev);
+      newMap.set(commentId, product);
+      return newMap;
+    });
   };
 
   const fetchPartnerStatusBatch = useCallback(async (
@@ -1121,51 +1111,90 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
                                   </div>
                                   
                                   <div className="mt-1.5 space-y-2">
-                                    <div 
-                                      className="flex items-center gap-2 cursor-pointer hover:bg-accent/50 p-2 rounded-md transition-colors"
-                                      onClick={() => handleOpenSelectProduct(comment.id)}
-                                    >
-                                      <span className="text-sm font-medium text-muted-foreground">Chọn sản phẩm:</span>
-                                      {(() => {
-                                        const selectedProduct = selectedProductsMap.get(comment.id);
-                                        
-                                        if (!selectedProduct) {
-                                          return (
-                                            <Badge variant="outline" className="text-xs">
-                                              Nhấn để chọn sản phẩm
-                                            </Badge>
-                                          );
-                                        }
-                                        
-                                        if (!selectedProduct.productInfo) {
-                                          return (
-                                            <Badge variant="secondary" className="text-xs">
-                                              {selectedProduct.code} - Không tìm thấy
-                                            </Badge>
-                                          );
-                                        }
-                                        
-                                        return (
-                                          <div className="flex items-center gap-2 flex-1">
-                                            {selectedProduct.productInfo.image_url && (
-                                              <img 
-                                                src={selectedProduct.productInfo.image_url} 
-                                                alt={selectedProduct.productInfo.name}
-                                                className="w-8 h-8 rounded object-cover"
-                                              />
-                                            )}
-                                            <div className="flex-1 min-w-0">
-                                              <p className="text-sm font-medium truncate">
-                                                {selectedProduct.productInfo.name}
-                                              </p>
-                                              <p className="text-xs text-muted-foreground font-mono">
-                                                {selectedProduct.code}
-                                              </p>
-                                            </div>
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <div className="flex items-center gap-2 cursor-pointer hover:bg-accent/50 p-2 rounded-md transition-colors">
+                                          <span className="text-sm font-medium text-muted-foreground">Chọn sản phẩm:</span>
+                                          {(() => {
+                                            const selectedProduct = selectedProductsMap.get(comment.id);
+                                            
+                                            if (!selectedProduct) {
+                                              return (
+                                                <Badge variant="outline" className="text-xs">
+                                                  Nhấn để chọn sản phẩm
+                                                </Badge>
+                                              );
+                                            }
+                                            
+                                            if (!selectedProduct.productInfo) {
+                                              return (
+                                                <Badge variant="secondary" className="text-xs">
+                                                  {selectedProduct.code} - Không tìm thấy
+                                                </Badge>
+                                              );
+                                            }
+                                            
+                                            return (
+                                              <div className="flex items-center gap-2 flex-1">
+                                                {selectedProduct.productInfo.image_url && (
+                                                  <img 
+                                                    src={selectedProduct.productInfo.image_url} 
+                                                    alt={selectedProduct.productInfo.name}
+                                                    className="w-8 h-8 rounded object-cover"
+                                                  />
+                                                )}
+                                                <div className="flex-1 min-w-0">
+                                                  <p className="text-sm font-medium truncate">
+                                                    {selectedProduct.productInfo.name}
+                                                  </p>
+                                                  <p className="text-xs text-muted-foreground font-mono">
+                                                    {selectedProduct.code}
+                                                  </p>
+                                                </div>
+                                              </div>
+                                            );
+                                          })()}
+                                        </div>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent className="w-80 max-h-[400px] overflow-y-auto bg-background z-50">
+                                        <DropdownMenuLabel>Sản phẩm đã quét</DropdownMenuLabel>
+                                        <DropdownMenuSeparator />
+                                        {scannedBarcodes.length === 0 ? (
+                                          <div className="p-4 text-center text-sm text-muted-foreground">
+                                            Chưa có sản phẩm nào được quét
                                           </div>
-                                        );
-                                      })()}
-                                    </div>
+                                        ) : (
+                                          scannedBarcodes.map((barcode, index) => (
+                                            <DropdownMenuItem 
+                                              key={index}
+                                              className="cursor-pointer p-3"
+                                              onClick={() => handleSelectProduct(comment.id, barcode)}
+                                            >
+                                              <div className="flex items-center gap-3 w-full">
+                                                {barcode.productInfo?.image_url && (
+                                                  <img 
+                                                    src={barcode.productInfo.image_url} 
+                                                    alt={barcode.productInfo.name}
+                                                    className="w-12 h-12 rounded object-cover flex-shrink-0"
+                                                  />
+                                                )}
+                                                <div className="flex-1 min-w-0">
+                                                  <p className="font-medium truncate text-sm">
+                                                    {barcode.productInfo?.name || barcode.code}
+                                                  </p>
+                                                  <p className="text-xs text-muted-foreground font-mono">
+                                                    {barcode.code}
+                                                  </p>
+                                                  <p className="text-xs text-muted-foreground">
+                                                    {format(new Date(barcode.timestamp), 'HH:mm:ss')}
+                                                  </p>
+                                                </div>
+                                              </div>
+                                            </DropdownMenuItem>
+                                          ))
+                                        )}
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
                                     
                                     <p className="text-xs text-muted-foreground italic border-l-2 pl-2">
                                       "{comment.message}"
@@ -1359,59 +1388,6 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Select Product Dialog */}
-      <Dialog open={isSelectProductDialogOpen} onOpenChange={setIsSelectProductDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle>Chọn sản phẩm đã quét</DialogTitle>
-            <DialogDescription>
-              Danh sách các sản phẩm đã được quét barcode
-            </DialogDescription>
-          </DialogHeader>
-          
-          <ScrollArea className="h-[400px] pr-4">
-            {scannedBarcodes.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8">
-                <p className="text-muted-foreground text-sm">Chưa có sản phẩm nào được quét</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {scannedBarcodes.map((barcode, index) => (
-                  <Card 
-                    key={index}
-                    className="cursor-pointer hover:bg-accent/50 transition-colors"
-                    onClick={() => handleSelectProduct(barcode)}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-3">
-                        {barcode.productInfo?.image_url && (
-                          <img 
-                            src={barcode.productInfo.image_url} 
-                            alt={barcode.productInfo.name}
-                            className="w-16 h-16 rounded object-cover"
-                          />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">
-                            {barcode.productInfo?.name || barcode.code}
-                          </p>
-                          <p className="text-xs text-muted-foreground font-mono">
-                            {barcode.code}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Quét lúc: {format(new Date(barcode.timestamp), 'dd/MM/yyyy HH:mm:ss')}
-                          </p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
 
     </div>
   );
