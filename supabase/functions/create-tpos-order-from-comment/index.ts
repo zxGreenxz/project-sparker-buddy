@@ -349,6 +349,9 @@ serve(async (req) => {
       const productCodes = extractProductCodes(comment.message);
       const sessionIndex = data.SessionIndex;
       
+      console.log('============ MATCHING DEBUG START ============');
+      console.log(`Comment ID: ${comment.id}`);
+      console.log(`Post ID: ${video.id}`);
       console.log(`Raw comment message: "${comment.message}"`);
       console.log(`Extracted product codes: [${productCodes.join(', ')}]`);
       console.log(`SessionIndex from TPOS: ${sessionIndex}`);
@@ -358,6 +361,8 @@ serve(async (req) => {
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
         
+        console.log(`Querying live_products from last 7 days (since ${sevenDaysAgo.toISOString()})...`);
+        
         const { data: liveProducts, error: liveProductsError } = await supabase
           .from('live_products')
           .select('id, live_session_id, live_phase_id, variant, prepared_quantity, sold_quantity, created_at')
@@ -366,75 +371,120 @@ serve(async (req) => {
           .order('created_at', { ascending: false });
         
         if (liveProductsError) {
-          console.error('Error querying live_products:', liveProductsError);
+          console.error('❌ Error querying live_products:', liveProductsError);
         } else if (liveProducts && liveProducts.length > 0) {
-          console.log(`Found ${liveProducts.length} live products with variants (last 7 days)`);
+          console.log(`✓ Found ${liveProducts.length} live products with variants`);
+          
+          // Log all variants for debugging
+          console.log('All variants in database:');
+          liveProducts.forEach((p, idx) => {
+            const code = getVariantCode(p.variant);
+            console.log(`  [${idx + 1}] ID: ${p.id}, Variant: "${p.variant}", Code: "${code}"`);
+          });
           
           // Try to match each extracted product code
           let matchedProduct = null;
           let matchedCode = '';
           
+          console.log('\nStarting matching process...');
           for (const productCode of productCodes) {
+            console.log(`\nTrying to match code: "${productCode}"`);
             matchedProduct = liveProducts.find(product => {
               const variantCode = getVariantCode(product.variant);
               const normalized = variantCode.toUpperCase().trim();
-              console.log(`Comparing "${productCode}" with variant "${product.variant}" (code: "${normalized}")`);
-              return normalized === productCode;
+              const isMatch = normalized === productCode;
+              console.log(`  Compare: "${productCode}" vs "${normalized}" from variant "${product.variant}" → ${isMatch ? '✓ MATCH' : '✗ no match'}`);
+              return isMatch;
             });
             
             if (matchedProduct) {
               matchedCode = productCode;
+              console.log(`✓ Found match with code: "${matchedCode}"`);
               break;
+            } else {
+              console.log(`✗ No match found for code: "${productCode}"`);
             }
           }
           
           if (matchedProduct) {
-            console.log(`Found matching product: ${matchedProduct.id}, variant: ${matchedProduct.variant}`);
+            console.log(`\n✓ SUCCESS: Found matching product!`);
+            console.log(`  Product ID: ${matchedProduct.id}`);
+            console.log(`  Variant: "${matchedProduct.variant}"`);
+            console.log(`  Matched Code: "${matchedCode}"`);
+            console.log(`  Session ID: ${matchedProduct.live_session_id}`);
+            console.log(`  Phase ID: ${matchedProduct.live_phase_id}`);
+            console.log(`  Current sold: ${matchedProduct.sold_quantity || 0}/${matchedProduct.prepared_quantity || 0}`);
             
             // Check if oversell
             const isOversell = (matchedProduct.sold_quantity || 0) >= (matchedProduct.prepared_quantity || 0);
+            console.log(`  Is oversell: ${isOversell}`);
+            
+            // Prepare order data
+            const orderData = {
+              live_product_id: matchedProduct.id,
+              live_session_id: matchedProduct.live_session_id,
+              live_phase_id: matchedProduct.live_phase_id,
+              order_code: sessionIndex.toString(),
+              facebook_comment_id: comment.id,
+              quantity: 1,
+              is_oversell: isOversell,
+            };
+            
+            console.log('\nInserting into live_orders with data:', JSON.stringify(orderData, null, 2));
             
             // Insert into live_orders
-            const { error: liveOrderError } = await supabase
+            const { data: insertedOrder, error: liveOrderError } = await supabase
               .from('live_orders')
-              .insert({
-                live_product_id: matchedProduct.id,
-                live_session_id: matchedProduct.live_session_id,
-                live_phase_id: matchedProduct.live_phase_id,
-                order_code: sessionIndex.toString(),
-                facebook_comment_id: comment.id,
-                quantity: 1,
-                is_oversell: isOversell,
-              });
+              .insert(orderData)
+              .select()
+              .single();
             
             if (liveOrderError) {
-              console.error('Error inserting live_order:', liveOrderError);
+              console.error('❌ Error inserting live_order:', liveOrderError);
+              console.error('Error details:', JSON.stringify(liveOrderError, null, 2));
             } else {
-              console.log('Successfully created live_order');
+              console.log('✓ Successfully created live_order:', insertedOrder);
               
               // Update sold_quantity
-              const { error: updateError } = await supabase
+              const newSoldQuantity = (matchedProduct.sold_quantity || 0) + 1;
+              console.log(`\nUpdating sold_quantity: ${matchedProduct.sold_quantity || 0} → ${newSoldQuantity}`);
+              
+              const { data: updatedProduct, error: updateError } = await supabase
                 .from('live_products')
                 .update({ 
-                  sold_quantity: (matchedProduct.sold_quantity || 0) + 1 
+                  sold_quantity: newSoldQuantity
                 })
-                .eq('id', matchedProduct.id);
+                .eq('id', matchedProduct.id)
+                .select()
+                .single();
               
               if (updateError) {
-                console.error('Error updating sold_quantity:', updateError);
+                console.error('❌ Error updating sold_quantity:', updateError);
+                console.error('Error details:', JSON.stringify(updateError, null, 2));
               } else {
-                console.log('Successfully updated sold_quantity');
+                console.log('✓ Successfully updated sold_quantity:', updatedProduct);
               }
             }
           } else {
-            console.log(`No matching product found for codes: [${productCodes.join(', ')}]`);
+            console.log(`\n✗ NO MATCH: No matching product found for codes: [${productCodes.join(', ')}]`);
           }
+        } else {
+          console.log('✗ No live products found with variants in the last 7 days');
         }
       } else {
-        console.log('No product codes extracted or SessionIndex missing, skipping live_products matching');
+        if (productCodes.length === 0) {
+          console.log('✗ No product codes extracted from comment message');
+        }
+        if (!sessionIndex) {
+          console.log('✗ SessionIndex missing from TPOS response');
+        }
       }
+      console.log('============ MATCHING DEBUG END ============\n');
     } catch (liveProductError) {
-      console.error('Error in live_products matching logic:', liveProductError);
+      console.error('❌ FATAL ERROR in live_products matching logic:', liveProductError);
+      if (liveProductError instanceof Error) {
+        console.error('Error stack:', liveProductError.stack);
+      }
       // Don't fail the whole request if this optional feature fails
     }
 
