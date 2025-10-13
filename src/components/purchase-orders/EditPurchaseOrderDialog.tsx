@@ -656,51 +656,11 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
       return order.id;
     },
     onSuccess: () => {
-      // Optimistic update: Update only the edited order in cache
-      queryClient.setQueryData(["purchase-orders"], (oldData: any) => {
-        if (!oldData || !order?.id) return oldData;
-        
-        return oldData.map((po: any) => {
-          if (po.id === order.id) {
-            // Calculate new totals (multiply by 1000 to match database VND units)
-            const totalAmount = items.reduce((sum, item) => {
-              return sum + (Number(item.quantity) * Number(item._tempUnitPrice) * 1000);
-            }, 0);
-            const finalAmount = totalAmount - (Number(discountAmount) * 1000);
-            
-            // Sort items by position for consistent display
-            const sortedItems = [...items].sort((a, b) => {
-              const posA = a.position || 999999;
-              const posB = b.position || 999999;
-              return posA - posB;
-            });
-            
-            return {
-              ...po,
-              supplier_name: supplierName.trim().toUpperCase(),
-              order_date: orderDate,
-              invoice_number: invoiceNumber.trim().toUpperCase(),
-              notes: notes.trim().toUpperCase(),
-              invoice_images: invoiceImages,
-              discount_amount: Number(discountAmount) * 1000,
-              total_amount: totalAmount,
-              final_amount: finalAmount,
-              items: sortedItems.map(item => ({
-                ...item,
-                purchase_order_id: order.id,
-                product: item.product,
-                _tempUnitPrice: Number(item._tempUnitPrice) * 1000,
-                _tempSellingPrice: Number(item._tempSellingPrice) * 1000,
-                _tempTotalPrice: Number(item.quantity) * Number(item._tempUnitPrice) * 1000
-              }))
-            };
-          }
-          return po;
-        });
-      });
-      
-      // Invalidate stats and products queries to ensure consistency
+      // Invalidate queries to refetch fresh data from database
+      queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["purchaseOrderItems", order?.id] });
       queryClient.invalidateQueries({ queryKey: ["purchase-order-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["products-select"] });
       
       toast({
