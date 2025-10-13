@@ -106,9 +106,25 @@ serve(async (req) => {
         });
 
       if (upsertError) {
-        console.error('Error upserting comments:', upsertError);
+        console.error('Error upserting comments to facebook_comments_archive:', {
+          error: upsertError,
+          message: upsertError.message,
+          details: upsertError.details,
+          hint: upsertError.hint,
+          code: upsertError.code
+        });
+        // Return error to client so they know table needs to be created
+        return new Response(
+          JSON.stringify({ 
+            error: 'Database error - table may not exist',
+            message: upsertError.message,
+            hint: 'Please run the facebook_comments_archive_setup.sql script first',
+            details: upsertError.details
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       } else {
-        console.log(`Successfully upserted ${upsertData.length} comments`);
+        console.log(`✅ Successfully upserted ${upsertData.length} comments to facebook_comments_archive`);
       }
     }
     // ========== END NEW ==========
