@@ -286,7 +286,7 @@ export default function LiveProducts() {
   const [productSearch, setProductSearch] = useState("");
   
   const queryClient = useQueryClient();
-  const { enabledPages } = useBarcodeScanner();
+  const { enabledPages, addScannedBarcode } = useBarcodeScanner();
 
   // New mutation for updating prepared_quantity
   const updatePreparedQuantityMutation = useMutation({
@@ -473,6 +473,18 @@ export default function LiveProducts() {
           toast.error(`Không tìm thấy sản phẩm: ${code}`);
           return;
         }
+
+        // Add to BarcodeScannerContext for display in FacebookComments
+        addScannedBarcode({
+          code: scannedProduct.product_code,
+          timestamp: new Date().toISOString(),
+          productInfo: {
+            id: scannedProduct.id,
+            name: scannedProduct.product_name,
+            image_url: getProductImageUrl(scannedProduct.product_images, scannedProduct.tpos_image_url),
+            product_code: scannedProduct.product_code,
+          }
+        });
 
         let productsToAdd = [];
 
