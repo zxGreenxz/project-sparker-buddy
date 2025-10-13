@@ -1315,11 +1315,21 @@ export default function LiveProducts() {
       
       // 8. Perform batch update to Supabase
       if (updates.length > 0) {
-        const { error } = await supabase
-          .from('live_orders')
-          .upsert(updates, { onConflict: 'id' });
-        
-        if (error) throw error;
+        // Update each order individually
+        for (const update of updates) {
+          const { error } = await supabase
+            .from('live_orders')
+            .update({
+              tpos_order_id: update.tpos_order_id,
+              code_tpos_order_id: update.code_tpos_order_id,
+            })
+            .eq('id', update.id);
+          
+          if (error) {
+            console.error('Error updating order:', update.id, error);
+            throw error;
+          }
+        }
       }
       
       // 9. Update result state and show toast
