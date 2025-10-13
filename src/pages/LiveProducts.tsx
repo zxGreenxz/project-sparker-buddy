@@ -21,6 +21,7 @@ import { TPOSActionsCollapsible } from "@/components/live-products/TPOSActionsCo
 import { useBarcodeScanner } from "@/contexts/BarcodeScannerContext";
 import { useCommentsSidebar } from "@/contexts/CommentsSidebarContext";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useDebounce } from "@/hooks/use-debounce";
 import { cn } from "@/lib/utils";
 import { 
   Plus, 
@@ -310,6 +311,7 @@ export default function LiveProducts() {
   
   // Search state for products tab
   const [productSearch, setProductSearch] = useState("");
+  const debouncedProductSearch = useDebounce(productSearch, 300);
   
   const queryClient = useQueryClient();
   const { enabledPages, addScannedBarcode } = useBarcodeScanner();
@@ -479,6 +481,19 @@ export default function LiveProducts() {
     allLiveProducts.filter(p => p.product_type === 'hang_le'), 
     [allLiveProducts]
   );
+
+  // Memoized filtered products for better performance
+  const filteredProductsHangDat = useMemo(() => {
+    return filterProductsBySearch(productsHangDat, debouncedProductSearch);
+  }, [productsHangDat, debouncedProductSearch]);
+
+  const filteredProductsHangLe = useMemo(() => {
+    return filterProductsBySearch(productsHangLe, debouncedProductSearch);
+  }, [productsHangLe, debouncedProductSearch]);
+
+  const filteredLiveProducts = useMemo(() => {
+    return filterProductsBySearch(liveProducts, debouncedProductSearch);
+  }, [liveProducts, debouncedProductSearch]);
 
   // Barcode scanner listener - chỉ hoạt động khi enabledPages bao gồm 'live-products'
   useEffect(() => {
@@ -1707,8 +1722,8 @@ export default function LiveProducts() {
                         </TableHeader>
                         <TableBody>
                           {(() => {
-                            // Filter products based on search - only show hang_dat
-                            const filteredProducts = filterProductsBySearch(productsHangDat, productSearch);
+                            // Use memoized filtered products
+                            const filteredProducts = filteredProductsHangDat;
 
                             // Group products by base_product_code (or unique key for manual products)
                             const productGroups = filteredProducts.reduce((groups, product) => {
@@ -2065,8 +2080,8 @@ export default function LiveProducts() {
                     </TableHeader>
                     <TableBody>
                       {(() => {
-                        // Filter products based on search
-                        const filteredProducts = filterProductsBySearch(liveProducts, productSearch);
+                        // Use memoized filtered products
+                        const filteredProducts = filteredLiveProducts;
 
                         // Sort by created_at (newest first)
                         const sortedProducts = [...filteredProducts].sort((a, b) => {
@@ -2306,7 +2321,7 @@ export default function LiveProducts() {
                       </TableHeader>
                       <TableBody>
                         {(() => {
-                          const filteredHangLe = filterProductsBySearch(productsHangLe, productSearch);
+                          const filteredHangLe = filteredProductsHangLe;
 
                           if (filteredHangLe.length === 0) {
                             return (
