@@ -94,6 +94,20 @@ export function useProcessPendingOrders() {
 
       console.log(`[useProcessPendingOrders] 📊 Found ${liveProducts?.length || 0} live products with variants`);
 
+      // 🐛 DEBUG: Log all variants and their split results
+      console.log('\n🐛 ===== DEBUG: ALL VARIANTS SPLIT ANALYSIS =====');
+      liveProducts?.forEach((product, index) => {
+        const splitResult = product.variant?.split(' - ') || [];
+        console.log(`${index + 1}. Product: ${product.product_code}`);
+        console.log(`   Raw variant: "${product.variant}"`);
+        console.log(`   split(" - "):`, splitResult);
+        console.log(`   [0]: "${splitResult[0]}"`);
+        console.log(`   [1]: "${splitResult[1] || 'undefined'}"`);
+        console.log(`   parseVariant().code: "${parseVariant(product.variant).code}"`);
+        console.log('---');
+      });
+      console.log('🐛 ===== END DEBUG =====\n');
+
       // 3. Process each pending order
       let processedCount = 0;
       let errorCount = 0;
@@ -116,6 +130,13 @@ export function useProcessPendingOrders() {
               console.log(`    Skipping "${product.product_code}" - no variant (old data)`);
               return false;
             }
+
+            // 🐛 DEBUG: Raw split result
+            const splitResult = product.variant.split(' - ');
+            console.log(`    🐛 [DEBUG] variant="${product.variant}"`);
+            console.log(`    🐛 [DEBUG] split(" - ")=`, splitResult);
+            console.log(`    🐛 [DEBUG] split(" - ")[0]="${splitResult[0]}"`);
+            console.log(`    🐛 [DEBUG] split(" - ")[1]="${splitResult[1]}"`);
 
             const variantCode = parseVariant(product.variant).code;
             
