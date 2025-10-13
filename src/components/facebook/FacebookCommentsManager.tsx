@@ -94,39 +94,6 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
   
   // State for confirming order creation without products
   const [confirmNoProductCommentId, setConfirmNoProductCommentId] = useState<string | null>(null);
-  
-  // Live Session/Phase selection for creating live_orders
-  const [selectedLiveSession, setSelectedLiveSession] = useState<string>("");
-  const [selectedLivePhase, setSelectedLivePhase] = useState<string>("");
-
-  // Fetch live sessions for session/phase selection
-  const { data: liveSessions = [] } = useQuery({
-    queryKey: ["live-sessions"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("live_sessions")
-        .select("*")
-        .order("session_date", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  // Fetch live phases for selected session
-  const { data: livePhases = [] } = useQuery({
-    queryKey: ["live-phases", selectedLiveSession],
-    queryFn: async () => {
-      if (!selectedLiveSession) return [];
-      const { data, error } = await supabase
-        .from("live_phases")
-        .select("*")
-        .eq("live_session_id", selectedLiveSession)
-        .order("phase_date", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!selectedLiveSession,
-  });
 
   // Fetch Facebook pages from database
   const { data: facebookPages } = useQuery({
@@ -158,8 +125,7 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("User not authenticated");
 
-      // Step 1: Create TPOS order
-      const tposResponse = await fetch(
+      const response = await fetch(
         `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/create-tpos-order-from-comment`,
         {
           method: 'POST',
@@ -171,73 +137,21 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
         }
       );
 
-      if (!tposResponse.ok) {
-        const errorData = await tposResponse.json();
-        throw new Error(JSON.stringify(errorData));
+      const responseData = await response.json();
+      if (!response.ok) {
+        throw new Error(JSON.stringify(responseData));
       }
 
-      const tposData = await tposResponse.json();
-      
-      // Step 2: Create live_orders with SessionIndex mapping (if products selected and session/phase configured)
-      const selectedProducts = selectedProductsMap.get(comment.id) || [];
-      
-      if (selectedProducts.length > 0 && selectedLiveSession && selectedLivePhase) {
-        try {
-          const liveOrdersResponse = await fetch(
-            `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/create-live-orders-from-comment`,
-            {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${session.access_token}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                comment,
-                video,
-                tposResponse: tposData.response,
-                selectedProducts,
-                phaseId: selectedLivePhase,
-                sessionId: selectedLiveSession,
-              }),
-            }
-          );
-
-          const liveOrdersData = await liveOrdersResponse.json();
-          
-          if (!liveOrdersResponse.ok) {
-            console.error('Failed to create live_orders:', liveOrdersData.error);
-          }
-          
-          return { tpos: tposData, liveOrders: liveOrdersData };
-        } catch (liveOrderError) {
-          console.error('Error creating live_orders:', liveOrderError);
-          return { tpos: tposData };
-        }
-      }
-      
-      return { tpos: tposData };
+      return responseData;
     },
     onMutate: (variables) => {
       setPendingCommentIds(prev => new Set(prev).add(variables.comment.id));
     },
     onSuccess: (data) => {
-      if (data.liveOrders?.success) {
-        const { SessionIndex } = data.tpos.response;
-        toast({
-          title: "Đã tạo đơn hàng Live!",
-          description: `Đã tạo ${data.liveOrders.ordersCreated} đơn hàng #${SessionIndex}`,
-        });
-      } else {
-        toast({
-          title: "Tạo đơn hàng thành công!",
-          description: `Đơn hàng ${data.tpos.response.Code} đã được tạo.`,
-        });
-      }
-      
-      queryClient.invalidateQueries({ queryKey: ['facebook-comments', pageId, selectedVideo?.objectId] });
-      queryClient.invalidateQueries({ queryKey: ['tpos-orders', selectedVideo?.objectId] });
-      queryClient.invalidateQueries({ queryKey: ['live-orders'] });
-      queryClient.invalidateQueries({ queryKey: ['live-products'] });
+      toast({
+        title: "Tạo đơn hàng thành công!",
+        description: `Đơn hàng ${data.response.Code} đã được tạo.`,
+      });
     },
     onError: (error: any) => {
       let errorData;
@@ -259,6 +173,8 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
         next.delete(variables.comment.id);
         return next;
       });
+      queryClient.invalidateQueries({ queryKey: ["tpos-orders", selectedVideo?.objectId] });
+      queryClient.invalidateQueries({ queryKey: ['facebook-comments', pageId, selectedVideo?.objectId] });
     },
   });
 
@@ -857,71 +773,6 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
             </CardDescription>
           </CardHeader>
             <CardContent className={cn("space-y-4", isMobile && "space-y-3")}>
-              {/* Live Session/Phase Selection */}
-              <div className="space-y-3 p-3 bg-muted/30 rounded-lg border">
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className={isMobile ? "text-xs" : ""}>
-                    Tùy chọn
-                  </Badge>
-                  <span className={cn("font-medium", isMobile ? "text-xs" : "text-sm")}>
-                    Live Session (tạo live_orders)
-                  </span>
-                </div>
-                <div className={cn(
-                  "grid gap-3",
-                  isMobile ? "grid-cols-1" : "grid-cols-2"
-                )}>
-                  <div>
-                    <label className={cn("font-medium mb-1 block", isMobile ? "text-xs" : "text-sm")}>
-                      Session
-                    </label>
-                    <Select value={selectedLiveSession} onValueChange={setSelectedLiveSession}>
-                      <SelectTrigger className={isMobile ? "h-9 text-xs" : ""}>
-                        <SelectValue placeholder="Chọn session..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {liveSessions.map((session: any) => (
-                          <SelectItem key={session.id} value={session.id}>
-                            {session.session_name || session.supplier_name} - {session.session_date}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div>
-                    <label className={cn("font-medium mb-1 block", isMobile ? "text-xs" : "text-sm")}>
-                      Phase
-                    </label>
-                    <Select 
-                      value={selectedLivePhase} 
-                      onValueChange={setSelectedLivePhase}
-                      disabled={!selectedLiveSession}
-                    >
-                      <SelectTrigger className={isMobile ? "h-9 text-xs" : ""}>
-                        <SelectValue placeholder="Chọn phase..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {livePhases.map((phase: any) => (
-                          <SelectItem key={phase.id} value={phase.id}>
-                            {phase.phase_type} - {phase.phase_date}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                {selectedLiveSession && selectedLivePhase && (
-                  <div className={cn(
-                    "flex items-center gap-2 text-green-600 dark:text-green-400",
-                    isMobile ? "text-xs" : "text-sm"
-                  )}>
-                    <Check className="h-4 w-4" />
-                    <span>Đơn hàng sẽ được tạo trong live_orders với SessionIndex mapping</span>
-                  </div>
-                )}
-              </div>
-              
               {selectedPage && selectedPage.crm_team_id && (
                 <div className={cn(
                   "p-3 bg-muted rounded-md space-y-1",

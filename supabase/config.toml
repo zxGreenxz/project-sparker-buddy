@@ -1,8 +1,5 @@
 project_id = "xneoovjmwhzzphwlwojc"
 
-[functions.create-live-orders-from-comment]
-verify_jwt = false
-
 [functions.fetch-facebook-orders]
 verify_jwt = false
 
