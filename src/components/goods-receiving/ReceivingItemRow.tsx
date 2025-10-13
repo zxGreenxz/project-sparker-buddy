@@ -67,7 +67,7 @@ export function ReceivingItemRow({ item, index = 0, onQuantityChange, isConfirme
             <img 
               src={item.product_images[0]} 
               alt={item.product_name}
-              className="w-20 h-20 object-cover rounded border flex-shrink-0 cursor-pointer transition-transform duration-200 hover:scale-[14] hover:z-50 relative origin-left"
+              className="w-20 h-20 object-cover rounded border flex-shrink-0 cursor-pointer transition-transform duration-200 hover:scale-[12] hover:z-50 relative origin-right"
             />
           ) : (
             <div className="w-20 h-20 bg-muted rounded border flex items-center justify-center flex-shrink-0">
@@ -130,7 +130,7 @@ export function ReceivingItemRow({ item, index = 0, onQuantityChange, isConfirme
             <img 
               src={item.product_images[0]} 
               alt={item.product_name}
-              className="w-10 h-10 object-cover rounded border flex-shrink-0 cursor-pointer transition-transform duration-200 hover:scale-[14] hover:z-50 relative origin-left"
+              className="w-10 h-10 object-cover rounded border flex-shrink-0 cursor-pointer transition-transform duration-200 hover:scale-[12] hover:z-50 relative origin-right"
             />
           ) : (
             <div className="w-10 h-10 bg-muted rounded border flex items-center justify-center flex-shrink-0">
