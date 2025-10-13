@@ -98,6 +98,7 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
   // Refs for realtime checking
   const lastKnownCountRef = useRef<number>(0);
   const isCheckingNewCommentsRef = useRef(false);
+  const deletedCountRef = useRef<number>(0); // Track deleted comments by TPOS
 
   // Fetch Facebook pages from database
   const { data: facebookPages } = useQuery({
@@ -406,11 +407,32 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
         const currentDbCount = dbCount || 0;
         const tposCount = selectedVideo.countComment || 0;
         
-        console.log(`[Realtime Check] Video: ${selectedVideo.objectId}, DB: ${currentDbCount}, TPOS: ${tposCount}, Last: ${lastKnownCountRef.current}`);
+        console.log(`[Realtime Check] Video: ${selectedVideo.objectId}`);
+        console.log(`  DB: ${currentDbCount}, TPOS: ${tposCount}, Deleted: ${deletedCountRef.current}, Last TPOS: ${lastKnownCountRef.current}`);
         
-        // 2. If TPOS has more comments than DB → Fetch new comments
-        if (tposCount > currentDbCount) {
-          console.log(`[Realtime Check] New comments detected! Fetching...`);
+        // 2. Check if TPOS deleted comments
+        if (lastKnownCountRef.current > 0 && tposCount < lastKnownCountRef.current) {
+          const deletedThisTime = lastKnownCountRef.current - tposCount;
+          deletedCountRef.current += deletedThisTime;
+          
+          console.log(`[Realtime Check] TPOS deleted ${deletedThisTime} comments (Total deleted: ${deletedCountRef.current})`);
+          
+          toast({
+            title: "TPOS đã xóa comment",
+            description: `${deletedThisTime} comment bị xóa (Tổng: ${deletedCountRef.current})`,
+            variant: "destructive",
+          });
+        }
+        
+        // 3. Calculate expected DB count: TPOS count + deleted count
+        const expectedDbCount = tposCount + deletedCountRef.current;
+        
+        console.log(`  Expected DB count: ${tposCount} + ${deletedCountRef.current} = ${expectedDbCount}`);
+        
+        // 4. If DB has fewer comments than expected → Fetch new comments
+        if (currentDbCount < expectedDbCount) {
+          const newCommentsCount = expectedDbCount - currentDbCount;
+          console.log(`[Realtime Check] Need to fetch ${newCommentsCount} new comments`);
           
           const { data: { session } } = await supabase.auth.getSession();
           
@@ -430,20 +452,13 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
           
           toast({
             title: "Comment mới",
-            description: `Có ${tposCount - currentDbCount} comment mới`,
+            description: `Có ${newCommentsCount} comment mới`,
           });
+        } else if (currentDbCount === expectedDbCount) {
+          console.log(`[Realtime Check] DB in sync: ${currentDbCount} = ${expectedDbCount}`);
         }
         
-        // 3. If TPOS count decreased → Comments were deleted
-        if (tposCount < lastKnownCountRef.current && lastKnownCountRef.current > 0) {
-          console.log(`[Realtime Check] Comments deleted on TPOS! Was: ${lastKnownCountRef.current}, Now: ${tposCount}`);
-          toast({
-            title: "Cảnh báo",
-            description: `TPOS đã xóa ${lastKnownCountRef.current - tposCount} comment`,
-            variant: "destructive",
-          });
-        }
-        
+        // 5. Update last known TPOS count
         lastKnownCountRef.current = tposCount;
       } catch (error) {
         console.error('[Realtime Check] Error:', error);
@@ -844,8 +859,9 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
     allCommentIdsRef.current = new Set();
     setNewCommentIds(new Set());
     setSearchQuery("");
-    // Reset realtime check
+    // Reset realtime check counters
     lastKnownCountRef.current = video.countComment || 0;
+    deletedCountRef.current = 0; // Reset deleted count for new video
   };
 
   const handleShowInfo = (orderInfo: TPOSOrder | undefined) => {

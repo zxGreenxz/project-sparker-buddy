@@ -18,6 +18,7 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
   const [hasError, setHasError] = useState(false);
   const lastKnownCountRef = useRef<number>(0);
   const isCheckingNewCommentsRef = useRef(false);
+  const deletedCountRef = useRef<number>(0); // Track deleted comments
 
   // Realtime check for new comments (only when live)
   useEffect(() => {
@@ -40,13 +41,25 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
         const currentDbCount = dbCount || 0;
         const tposCount = selectedVideo.countComment || 0;
         
-        console.log(`[Realtime Check] DB: ${currentDbCount}, TPOS: ${tposCount}, Last: ${lastKnownCountRef.current}`);
+        console.log(`[Realtime Hook] Video: ${videoId}`);
+        console.log(`  DB: ${currentDbCount}, TPOS: ${tposCount}, Deleted: ${deletedCountRef.current}, Last TPOS: ${lastKnownCountRef.current}`);
         
-        // 2. If TPOS has more comments than DB → Fetch new comments
-        if (tposCount > currentDbCount) {
-          console.log(`[Realtime Check] New comments detected! Fetching...`);
+        // 2. Check if TPOS deleted comments
+        if (lastKnownCountRef.current > 0 && tposCount < lastKnownCountRef.current) {
+          const deletedThisTime = lastKnownCountRef.current - tposCount;
+          deletedCountRef.current += deletedThisTime;
+          console.log(`[Realtime Hook] TPOS deleted ${deletedThisTime} comments (Total deleted: ${deletedCountRef.current})`);
+        }
+        
+        // 3. Calculate expected DB count: TPOS count + deleted count
+        const expectedDbCount = tposCount + deletedCountRef.current;
+        console.log(`  Expected DB count: ${tposCount} + ${deletedCountRef.current} = ${expectedDbCount}`);
+        
+        // 4. If DB has fewer comments than expected → Fetch new comments
+        if (currentDbCount < expectedDbCount) {
+          const newCommentsCount = expectedDbCount - currentDbCount;
+          console.log(`[Realtime Hook] Fetching ${newCommentsCount} new comments`);
           
-          // Trigger edge function to fetch and save new comments
           const { data: { session } } = await supabase.auth.getSession();
           
           await fetch(
@@ -59,25 +72,25 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
             }
           );
           
-          // Invalidate query to reload from DB
           queryClient.invalidateQueries({ queryKey: ['facebook-comments', pageId, videoId] });
-        }
-        
-        // 3. If TPOS has fewer comments → Comments were deleted
-        if (tposCount < lastKnownCountRef.current && lastKnownCountRef.current > 0) {
-          console.log(`[Realtime Check] Comments deleted on TPOS! Was: ${lastKnownCountRef.current}, Now: ${tposCount}`);
-          // Note: We keep deleted comments in DB (they won't be removed)
+        } else if (currentDbCount === expectedDbCount) {
+          console.log(`[Realtime Hook] DB in sync: ${currentDbCount} = ${expectedDbCount}`);
         }
         
         lastKnownCountRef.current = tposCount;
       } catch (error) {
-        console.error('[Realtime Check] Error:', error);
+        console.error('[Realtime Hook] Error:', error);
       } finally {
         isCheckingNewCommentsRef.current = false;
       }
     };
 
     // Initial check
+    if (lastKnownCountRef.current === 0) {
+      lastKnownCountRef.current = selectedVideo.countComment || 0;
+      deletedCountRef.current = 0;
+    }
+    
     checkForNewComments();
     
     // Check every 10 seconds when live
