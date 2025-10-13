@@ -82,8 +82,8 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
   const [showOnlyWithOrders, setShowOnlyWithOrders] = useState(false);
   const [hideNames, setHideNames] = useState<string[]>(["Nhi Judy House"]);
 
-  // New state for confirmation dialog
-  const [confirmCreateOrderComment, setConfirmCreateOrderComment] = useState<CommentWithStatus | null>(null);
+  // State for confirming duplicate order creation
+  const [confirmDuplicateOrderCommentId, setConfirmDuplicateOrderCommentId] = useState<string | null>(null);
   
   // State for fullscreen mode on mobile
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -189,9 +189,9 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
       message: getCommentWithProductCodes(comment.id, comment.message)
     };
     
-    // If comment already has order, confirm creation
+    // If comment already has order, show inline confirmation
     if (comment.orderInfo) {
-      setConfirmCreateOrderComment(modifiedComment);
+      setConfirmDuplicateOrderCommentId(comment.id);
       return;
     }
     
@@ -201,17 +201,26 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
       return;
     }
     
-    // Create order directly if has products
+    // Create order directly if has products and no existing order
     if (selectedVideo) {
       createOrderMutation.mutate({ comment: modifiedComment, video: selectedVideo });
     }
   };
 
-  const confirmCreateOrder = () => {
-    if (confirmCreateOrderComment && selectedVideo) {
-      createOrderMutation.mutate({ comment: confirmCreateOrderComment, video: selectedVideo });
-    }
-    setConfirmCreateOrderComment(null);
+  const handleConfirmDuplicateOrder = (comment: CommentWithStatus) => {
+    if (!selectedVideo) return;
+    
+    const modifiedComment = {
+      ...comment,
+      message: getCommentWithProductCodes(comment.id, comment.message)
+    };
+    
+    createOrderMutation.mutate({ comment: modifiedComment, video: selectedVideo });
+    setConfirmDuplicateOrderCommentId(null);
+  };
+
+  const handleCancelDuplicateOrder = () => {
+    setConfirmDuplicateOrderCommentId(null);
   };
 
   const handleConfirmNoProduct = (comment: CommentWithStatus) => {
@@ -1327,6 +1336,33 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
                                     </div>
                                   )}
                                   
+                                  {/* Inline confirmation for duplicate order */}
+                                  {confirmDuplicateOrderCommentId === comment.id && (
+                                    <div className="mb-3 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-md">
+                                      <p className="text-sm text-orange-800 dark:text-orange-200 mb-2">
+                                        ⚠️ Bình luận này đã có đơn hàng. Tạo thêm đơn mới?
+                                      </p>
+                                      <div className="flex gap-2">
+                                        <Button 
+                                          size="sm" 
+                                          variant="default"
+                                          className="h-7 text-xs"
+                                          onClick={() => handleConfirmDuplicateOrder(comment)}
+                                        >
+                                          Tạo đơn mới
+                                        </Button>
+                                        <Button 
+                                          size="sm" 
+                                          variant="outline"
+                                          className="h-7 text-xs"
+                                          onClick={handleCancelDuplicateOrder}
+                                        >
+                                          Hủy
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  )}
+                                  
                                   <div className="flex items-center gap-2 mt-3 flex-wrap">
                                     <Button 
                                       size="sm" 
@@ -1486,20 +1522,6 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={!!confirmCreateOrderComment} onOpenChange={() => setConfirmCreateOrderComment(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Xác nhận tạo đơn hàng mới</AlertDialogTitle>
-            <AlertDialogDescription>
-              Bình luận này đã có đơn hàng. Bạn có chắc chắn muốn tạo thêm một đơn hàng mới không?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Hủy</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmCreateOrder}>Tạo đơn mới</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
     </div>
   );
