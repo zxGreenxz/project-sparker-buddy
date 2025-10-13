@@ -135,11 +135,8 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
       comment: CommentWithStatus; 
       selectedProducts: Array<{ code: string; name?: string }> 
     }) => {
-      // 1. Extract sessionIndex from comment message
-      const sessionIndex = extractSessionIndex(comment.message);
-      if (!sessionIndex) {
-        throw new Error("Không tìm thấy mã đơn (A1, B2...) trong comment");
-      }
+      // 1. Generate temporary order code (will be updated with TPOS SessionIndex later)
+      const tempOrderCode = `TEMP_${Date.now()}_${comment.id.slice(-6)}`;
 
       // 2. Get active live session & phase
       // @ts-ignore - Bypass Supabase type complexity
@@ -207,11 +204,11 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
         const newSoldQuantity = (matchedProduct.sold_quantity || 0) + 1;
         const isOversell = newSoldQuantity > matchedProduct.prepared_quantity;
 
-        // Insert into live_orders
+        // Insert into live_orders with temporary order code
         const { error: orderError } = await supabase
           .from('live_orders')
           .insert({
-            order_code: sessionIndex,
+            order_code: tempOrderCode,
             facebook_comment_id: comment.id,
             live_session_id: activeSession.id,
             live_phase_id: activePhase.id,
@@ -231,17 +228,6 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
         if (updateError) throw updateError;
 
         ordersCreated.push({ matchedProduct, isOversell });
-
-        // Prepare bill data
-        billDataList.push({
-          sessionIndex,
-          phone: comment.orderInfo?.Telephone || 'Chưa có SĐT',
-          customerName: comment.from?.name || 'Khách hàng',
-          productCode: matchedProduct.product_code,
-          productName: matchedProduct.product_name,
-          comment: comment.message,
-          createdTime: comment.created_time,
-        });
       }
 
       // Call edge function to create TPOS order
@@ -265,12 +251,17 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
         // Don't throw - we still want to save locally even if TPOS fails
       }
 
-      // If TPOS order created successfully, update live_orders with tpos_order_id
+      // If TPOS order created successfully, update live_orders with tpos_order_id AND real order_code
       if (tposResponse?.response?.Id) {
+        const realOrderCode = tposResponse.response.SessionIndex || tempOrderCode;
+        
         const { error: updateTPOSIdError } = await supabase
           .from('live_orders')
-          .update({ tpos_order_id: tposResponse.response.Id })
-          .eq('order_code', sessionIndex)
+          .update({ 
+            tpos_order_id: tposResponse.response.Id,
+            order_code: realOrderCode
+          })
+          .eq('order_code', tempOrderCode)
           .eq('live_session_id', activeSession.id);
         
         if (updateTPOSIdError) {
@@ -278,10 +269,24 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
         }
       }
 
+      // Prepare bill data with REAL data from TPOS response
+      for (const { matchedProduct, isOversell } of ordersCreated) {
+        billDataList.push({
+          sessionIndex: tposResponse?.response?.SessionIndex || tempOrderCode,
+          phone: tposResponse?.response?.Telephone || 'Chưa có SĐT',
+          customerName: tposResponse?.response?.Name || comment.from?.name || 'Khách hàng',
+          productCode: matchedProduct.product_code,
+          productName: matchedProduct.product_name,
+          comment: comment.message,
+          createdTime: comment.created_time,
+        });
+      }
+
       return { 
         ordersCreated, 
         billDataList, 
-        sessionIndex, 
+        sessionIndex: tposResponse?.response?.SessionIndex || tempOrderCode,
+        tposOrderCode: tposResponse?.response?.Code || null,
         tposOrderId: tposResponse?.response?.Id || null,
         tposError 
       };
