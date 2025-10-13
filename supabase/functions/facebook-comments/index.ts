@@ -17,7 +17,7 @@ serve(async (req) => {
     const postId = url.searchParams.get('postId');
     const limit = url.searchParams.get('limit') || '100';
     const after = url.searchParams.get('after');
-    const order = url.searchParams.get('order') || 'reverse_chronological'; // Accept order param
+    const order = url.searchParams.get('order') || 'reverse_chronological';
 
     if (!pageId || !postId) {
       return new Response(
@@ -28,7 +28,7 @@ serve(async (req) => {
 
     const bearerToken = Deno.env.get('FACEBOOK_BEARER_TOKEN');
     if (!bearerToken) {
-      console.error('FACEBOOK_BEARER_TOKEN not configured');
+      console.error('❌ FACEBOOK_BEARER_TOKEN not configured');
       return new Response(
         JSON.stringify({ error: 'Bearer token not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -41,43 +41,34 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    let data: any = null;
-    let isFromDatabase = false;
-    let isObjectDeleted = false;
-
-    // Try to fetch from TPOS API first
+    // ========== STEP 1: Try TPOS API first ==========
     try {
       let tposUrl = `https://tomato.tpos.vn/api/facebook-graph/comment?pageid=${pageId}&facebook_type=Page&postId=${postId}&limit=${limit}&order=${order}`;
       if (after) {
         tposUrl += `&after=${after}`;
       }
 
-      console.log(`Fetching comments from TPOS API: ${tposUrl}`);
+      console.log(`🔄 Fetching from TPOS API: postId=${postId}, limit=${limit}`);
 
-      const response = await fetch(
-        tposUrl,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${bearerToken}`,
-            'Content-Type': 'application/json',
-            'accept': 'application/json, text/javascript, */*; q=0.01',
-            'tposappversion': '5.9.10.1',
-            'x-requested-with': 'XMLHttpRequest',
-          },
-        }
-      );
+      const response = await fetch(tposUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${bearerToken}`,
+          'Content-Type': 'application/json',
+          'accept': 'application/json, text/javascript, */*; q=0.01',
+          'tposappversion': '5.9.10.1',
+          'x-requested-with': 'XMLHttpRequest',
+        },
+      });
 
+      // ========== STEP 2A: Handle deleted post (400 error) ==========
       if (!response.ok) {
         const errorText = await response.text();
-        console.warn('⚠️ TPOS API error:', response.status, errorText);
+        console.warn(`⚠️ TPOS API error: ${response.status} - ${errorText}`);
         
-        // Check if error is "Object with ID does not exist" (post/comment deleted)
         if (response.status === 400 && errorText.includes('Object with ID')) {
-          console.log(`🗑️ Post ${postId} deleted by TPOS/Facebook - marking all comments as deleted`);
-          isObjectDeleted = true;
+          console.log(`🗑️ Post ${postId} deleted - marking all comments as deleted`);
           
-          // Mark all existing non-deleted comments for this post as deleted
           const { error: updateError } = await supabaseClient
             .from('facebook_comments_archive')
             .update({ 
@@ -90,25 +81,31 @@ serve(async (req) => {
           if (updateError) {
             console.error('❌ Error marking comments as deleted:', updateError);
           } else {
-            console.log(`✅ Marked all non-deleted comments for post ${postId} as deleted`);
+            console.log(`✅ Marked all comments for post ${postId} as deleted`);
           }
+          
+          return new Response(
+            JSON.stringify({ 
+              data: [], 
+              paging: {}, 
+              source: 'deleted' 
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
         }
         
         throw new Error(`TPOS API failed: ${response.status}`);
       }
 
-      data = await response.json();
-      console.log('✅ TPOS API response:', {
-        hasData: !!data,
-        isArray: Array.isArray(data),
-        dataLength: data?.data?.length || (Array.isArray(data) ? data.length : 0),
-        hasPaging: !!data?.paging,
-      });
-      
-      // Save comments to database (TPOS API successful)
+      // ========== STEP 2B: TPOS success - Parse and save to DB ==========
+      const data = await response.json();
       const comments = data?.data || [];
+      
+      console.log(`✅ TPOS API returned ${comments.length} comments`);
+      
+      // ALWAYS save to database when TPOS API is successful
       if (comments.length > 0) {
-        console.log(`💾 Saving ${comments.length} comments to database`);
+        console.log(`💾 Saving ${comments.length} comments to DB...`);
         
         const upsertData = comments.map((comment: any) => ({
           facebook_comment_id: comment.id,
@@ -118,7 +115,7 @@ serve(async (req) => {
           comment_message: comment.message || '',
           comment_created_time: comment.created_time,
           like_count: comment.like_count || 0,
-          is_deleted: false, // TPOS API successful = not deleted
+          is_deleted: false,
           last_fetched_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         }));
@@ -131,88 +128,14 @@ serve(async (req) => {
           });
 
         if (upsertError) {
-          console.warn('⚠️ Could not save comments:', upsertError.message);
+          console.error('❌ DB save error:', upsertError.message);
         } else {
-          console.log(`✅ Successfully saved ${upsertData.length} comments to database`);
+          console.log(`✅ Saved ${upsertData.length} comments to DB`);
         }
       }
       
-    } catch (tposError) {
-      console.log('🔄 TPOS API unavailable, falling back to database...');
-      
-      // Fallback to database if object was deleted or TPOS failed
-      if (isObjectDeleted) {
-        console.log(`🗑️ Post ${postId} is deleted - returning empty result`);
-        return new Response(
-          JSON.stringify({ 
-            data: [], 
-            paging: {}, 
-            source: 'database_deleted' 
-          }),
-          { 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }, 
-            status: 200 
-          }
-        );
-      }
-      
-      // Fallback: Query non-deleted comments from database
-      try {
-        const { data: dbComments, error: dbError } = await supabaseClient
-          .from('facebook_comments_archive')
-          .select('*')
-          .eq('facebook_post_id', postId)
-          .eq('is_deleted', false) // Only fetch non-deleted comments
-          .order('comment_created_time', { ascending: order === 'chronological' })
-          .limit(parseInt(limit));
-
-        if (dbError) {
-          console.error('❌ Database query failed:', dbError);
-          return new Response(
-            JSON.stringify({ 
-              error: 'Both TPOS API and database unavailable',
-              details: tposError instanceof Error ? tposError.message : 'Unknown'
-            }),
-            { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Transform database format to TPOS API format
-        data = {
-          data: dbComments.map(comment => ({
-            id: comment.facebook_comment_id,
-            message: comment.comment_message,
-            from: {
-              name: comment.facebook_user_name,
-              id: comment.facebook_user_id
-            },
-            created_time: comment.comment_created_time,
-            like_count: comment.like_count
-          })),
-          paging: { cursors: {} }
-        };
-
-        isFromDatabase = true;
-        console.log(`✅ Retrieved ${dbComments.length} non-deleted comments from database`);
-      } catch (fallbackError) {
-        console.error('❌ Fallback failed:', fallbackError);
-        return new Response(
-          JSON.stringify({ 
-            error: 'Failed to retrieve comments from any source',
-            details: fallbackError instanceof Error ? fallbackError.message : 'Unknown'
-          }),
-          { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-    }
-    
-    let responsePayload;
-
-    if (Array.isArray(data)) {
-      responsePayload = { data: data, paging: { cursors: {} } };
-    } else if (data && data.data) {
-      responsePayload = data;
-      // Robustly handle paging: if cursors.after is missing, try to parse from `next` URL
+      // Extract paging cursor from response
+      let responsePayload = data;
       if (responsePayload.paging && !responsePayload.paging.cursors?.after && responsePayload.paging.next) {
         try {
           const nextUrl = new URL(responsePayload.paging.next);
@@ -222,28 +145,73 @@ serve(async (req) => {
               responsePayload.paging.cursors = {};
             }
             responsePayload.paging.cursors.after = afterCursor;
-            console.log(`Extracted 'after' cursor from next URL: ${afterCursor}`);
+            console.log(`📍 Extracted cursor: ${afterCursor}`);
           }
         } catch (e) {
-          const errorMsg = e instanceof Error ? e.message : String(e);
-          console.warn("Could not parse 'next' URL in paging object:", errorMsg);
+          console.warn("Could not parse paging URL:", e instanceof Error ? e.message : String(e));
         }
       }
-    } else {
-      responsePayload = { data: [], paging: { cursors: {} } };
+
+      return new Response(
+        JSON.stringify({
+          ...responsePayload,
+          source: 'tpos_api'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+      
+    } catch (tposError) {
+      // ========== STEP 3: TPOS failed - Fallback to DB (read-only) ==========
+      console.log(`🔄 TPOS unavailable, reading from DB...`);
+      console.error('TPOS error:', tposError instanceof Error ? tposError.message : String(tposError));
+      
+      const { data: dbComments, error: dbError } = await supabaseClient
+        .from('facebook_comments_archive')
+        .select('*')
+        .eq('facebook_post_id', postId)
+        .eq('is_deleted', false)
+        .order('comment_created_time', { ascending: order === 'chronological' })
+        .limit(parseInt(limit));
+
+      if (dbError) {
+        console.error('❌ DB query failed:', dbError);
+        return new Response(
+          JSON.stringify({ 
+            error: 'Both TPOS API and database unavailable',
+            details: dbError.message
+          }),
+          { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Transform DB format to TPOS format
+      const transformedData = {
+        data: (dbComments || []).map(comment => ({
+          id: comment.facebook_comment_id,
+          message: comment.comment_message,
+          from: {
+            name: comment.facebook_user_name,
+            id: comment.facebook_user_id
+          },
+          created_time: comment.comment_created_time,
+          like_count: comment.like_count
+        })),
+        paging: { cursors: {} }
+      };
+
+      console.log(`✅ Retrieved ${dbComments?.length || 0} comments from DB`);
+
+      return new Response(
+        JSON.stringify({
+          ...transformedData,
+          source: 'database'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
-
-    console.log(`Successfully fetched ${responsePayload.data?.length || 0} comments from ${isFromDatabase ? 'database' : 'TPOS API'}`);
-
-    return new Response(
-      JSON.stringify({
-        ...responsePayload,
-        source: isFromDatabase ? 'database' : 'tpos_api'
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    
   } catch (error) {
-    console.error('Error in facebook-comments function:', error);
+    console.error('❌ Edge function error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
       JSON.stringify({ error: errorMessage }),
