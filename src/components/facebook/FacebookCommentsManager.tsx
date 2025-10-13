@@ -210,13 +210,26 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
   const handleConfirmDuplicateOrder = (comment: CommentWithStatus) => {
     if (!selectedVideo) return;
     
+    // Check if products are selected
+    const selectedProducts = selectedProductsMap.get(comment.id) || [];
+    const hasProducts = selectedProducts.length > 0;
+    
+    // Close duplicate order confirmation
+    setConfirmDuplicateOrderCommentId(null);
+    
+    // If no products selected, show inline confirmation for no products
+    if (!hasProducts) {
+      setConfirmNoProductCommentId(comment.id);
+      return;
+    }
+    
+    // Create order if has products
     const modifiedComment = {
       ...comment,
       message: getCommentWithProductCodes(comment.id, comment.message)
     };
     
     createOrderMutation.mutate({ comment: modifiedComment, video: selectedVideo });
-    setConfirmDuplicateOrderCommentId(null);
   };
 
   const handleCancelDuplicateOrder = () => {
