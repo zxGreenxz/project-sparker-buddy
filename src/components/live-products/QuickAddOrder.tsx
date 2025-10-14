@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -390,61 +390,6 @@ ${billData.comment ? `${billData.comment}\n` : ''}${new Date(billData.createdTim
     },
   });
 
-  const decrementCountMutation = useMutation({
-    mutationFn: async (commentId: string) => {
-      // Lấy order_count hiện tại
-      const { data: currentOrder, error: fetchError } = await supabase
-        .from('facebook_pending_orders')
-        .select('order_count, id')
-        .eq('facebook_comment_id', commentId)
-        .single();
-      
-      if (fetchError) throw fetchError;
-      if (!currentOrder) throw new Error('Comment not found');
-      
-      const currentCount = currentOrder.order_count || 1;
-      const newCount = Math.max(0, currentCount - 1);
-      
-      // Update order_count
-      const { error: updateError } = await supabase
-        .from('facebook_pending_orders')
-        .update({ order_count: newCount })
-        .eq('facebook_comment_id', commentId);
-      
-      if (updateError) throw updateError;
-      
-      return { commentId, newCount };
-    },
-    onSuccess: ({ newCount }) => {
-      // Invalidate và refetch ngay để UI update tức thì
-      queryClient.invalidateQueries({ 
-        queryKey: ['facebook-pending-orders', phaseData?.phase_date] 
-      });
-      queryClient.refetchQueries({ 
-        queryKey: ['facebook-pending-orders', phaseData?.phase_date] 
-      });
-      
-      toast({
-        title: "Đã giảm số lượng",
-        description: newCount === 0 
-          ? "Comment đã hết và bị ẩn khỏi danh sách" 
-          : `Còn lại ${newCount} lần sử dụng`,
-      });
-    },
-    onError: (error) => {
-      console.error('Error decrementing count:', error);
-      toast({
-        title: "Lỗi",
-        description: "Không thể giảm số lượng. Vui lòng thử lại.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handleDecrementCount = (e: React.MouseEvent, commentId: string) => {
-    e.stopPropagation();
-    decrementCountMutation.mutate(commentId);
-  };
 
   const handleSelectComment = (sessionIndex: string, commentId: string) => {
     addOrderMutation.mutate({ sessionIndex, commentId });
@@ -545,16 +490,6 @@ ${billData.comment ? `${billData.comment}\n` : ''}${new Date(billData.createdTim
                             <span className="rounded bg-muted px-2 py-0.5">
                               còn {comment.remaining}/{comment.total}
                             </span>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
-                              onClick={(e) => handleDecrementCount(e, comment.facebook_comment_id)}
-                              disabled={decrementCountMutation.isPending}
-                              title="Giảm số lượng"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
                           </div>
                         </div>
                         {comment.comment && (
