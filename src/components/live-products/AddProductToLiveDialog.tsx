@@ -416,10 +416,35 @@ export function AddProductToLiveDialog({ open, onOpenChange, phaseId, sessionId,
         .insert(insertData);
       
       if (error) throw error;
+      
+      return insertData;
     },
-    onSuccess: () => {
+    onSuccess: async (insertData) => {
       queryClient.invalidateQueries({ queryKey: ["live-products", phaseId] });
-      toast.success("Đã thêm sản phẩm vào phiên live thành công");
+      
+      // Tạo toast message với format mới
+      const baseProductCode = insertData[0]?.base_product_code || insertData[0]?.product_code.split('X')[0];
+      const baseProductName = insertData[0]?.product_name.split('(')[0].trim();
+      const allVariantCodes = insertData.map(p => p.product_code).join(", ");
+      
+      const message = `Đã thêm ${baseProductCode} ${baseProductName} (${allVariantCodes})`;
+      toast.success(message);
+      
+      // Broadcast message to all users
+      const { data: currentUserData } = await supabase.auth.getUser();
+      const currentUserId = currentUserData.user?.id;
+      
+      const broadcastChannel = supabase.channel(`live-session-${sessionId}`);
+      await broadcastChannel.send({
+        type: 'broadcast',
+        event: 'barcode-scanned',
+        payload: {
+          message: message,
+          scannedBy: currentUserId,
+          timestamp: new Date().toISOString()
+        }
+      });
+      
       form.reset();
       setImageUrl("");
       onOpenChange(false);
