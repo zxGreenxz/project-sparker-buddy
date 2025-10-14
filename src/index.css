@@ -126,9 +126,10 @@
   }
   
   .img-zoom-right:hover {
-    transform: scale(8.5);
+    transform: translateX(calc(100% + 8px)) scale(8.5);
     transform-origin: left center;
     z-index: 50;
+    pointer-events: none;
   }
   
   .img-zoom-right-lg {
@@ -136,9 +137,10 @@
   }
   
   .img-zoom-right-lg:hover {
-    transform: scale(12);
+    transform: translateX(calc(100% + 8px)) scale(12);
     transform-origin: left center;
     z-index: 50;
+    pointer-events: none;
   }
   
   .img-zoom-right-md {
@@ -146,8 +148,9 @@
   }
   
   .img-zoom-right-md:hover {
-    transform: scale(6);
+    transform: translateX(calc(100% + 8px)) scale(6);
     transform-origin: left center;
     z-index: 50;
+    pointer-events: none;
   }
 }
