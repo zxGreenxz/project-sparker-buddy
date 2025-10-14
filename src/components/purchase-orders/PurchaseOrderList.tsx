@@ -462,7 +462,12 @@ export function PurchaseOrderList({
                         className="font-medium border-r" 
                         rowSpan={flatItem.itemCount}
                       >
-                        {flatItem.supplier_name || "Chưa cập nhật"}
+                        <div className="flex flex-col gap-1">
+                          <div>{flatItem.supplier_name || "Chưa cập nhật"}</div>
+                          <div className="text-xs text-muted-foreground">
+                            Tổng SL: {(flatItem.items || []).reduce((sum, item) => sum + (item.quantity || 0), 0)}
+                          </div>
+                        </div>
                       </TableCell>
                       <TableCell 
                         className={`overflow-visible border-r ${

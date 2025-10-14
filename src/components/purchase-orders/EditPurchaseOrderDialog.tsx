@@ -938,6 +938,15 @@ export function EditPurchaseOrderDialog({ order, open, onOpenChange }: EditPurch
                       </TableCell>
                     </TableRow>
                   ))}
+                  <TableRow className="bg-muted/50">
+                    <TableCell colSpan={3} className="text-right font-semibold">
+                      Tổng số lượng:
+                    </TableCell>
+                    <TableCell className="text-center font-bold">
+                      {items.reduce((sum, item) => sum + (item.quantity || 0), 0)}
+                    </TableCell>
+                    <TableCell colSpan={7}></TableCell>
+                  </TableRow>
                 </TableBody>
               </Table>
             </div>
