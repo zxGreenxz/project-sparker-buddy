@@ -1183,11 +1183,14 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
                                     {comment.partnerStatus && comment.partnerStatus !== 'Khách lạ' && comment.partnerStatus !== 'Cần thêm TT' && (
                                       <Badge 
                                         variant={
-                                          comment.partnerStatus === 'Bình thường' || comment.partnerStatus === 'Thân thiết' || comment.partnerStatus === 'Vip' || comment.partnerStatus === 'VIP' ? 'default' :
                                           comment.partnerStatus === 'Cảnh báo' ? 'secondary' :
-                                          'destructive'
+                                          comment.partnerStatus === 'Bom hàng' || comment.partnerStatus === 'Nguy hiểm' ? 'destructive' :
+                                          'default'
                                         }
-                                        className="text-xs"
+                                        className={cn(
+                                          "text-xs",
+                                          comment.partnerStatus === 'Bình thường' && "bg-blue-400 hover:bg-blue-400 text-white"
+                                        )}
                                       >
                                         {comment.partnerStatus}
                                       </Badge>
