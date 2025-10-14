@@ -94,10 +94,9 @@ export function UploadTPOSDialog({ open, onOpenChange, sessionId, onUploadComple
   };
 
   /**
-   * Resolve Product ID cho TPOS với 3 cấp độ fallback:
-   * 1. productid_bienthe (ưu tiên cao nhất)
-   * 2. tpos_product_id (nếu không có variant)
-   * 3. Tìm trên TPOS bằng DefaultCode = product_code
+   * Resolve Product ID cho TPOS
+   * LUÔN LUÔN tìm trên TPOS bằng DefaultCode = product_code
+   * KHÔNG dùng cache từ DB (productid_bienthe, tpos_product_id)
    */
   const resolveProductId = async (
     product: { 
@@ -109,27 +108,9 @@ export function UploadTPOSDialog({ open, onOpenChange, sessionId, onUploadComple
     token: string
   ): Promise<{ productId: number; source: string }> => {
     
-    // CASE 1: Có productid_bienthe → dùng luôn
-    if (product.productid_bienthe) {
-      console.log(`✅ ${product.product_code}: Dùng productid_bienthe=${product.productid_bienthe}`);
-      return { 
-        productId: product.productid_bienthe, 
-        source: 'productid_bienthe' 
-      };
-    }
+    console.log(`🔍 ${product.product_code}: Searching TPOS by DefaultCode...`);
     
-    // CASE 2: Có tpos_product_id và KHÔNG có variant → dùng base product
-    if (product.tpos_product_id && !product.variant) {
-      console.log(`✅ ${product.product_code}: Dùng tpos_product_id=${product.tpos_product_id} (base product)`);
-      return { 
-        productId: product.tpos_product_id, 
-        source: 'tpos_product_id (base)' 
-      };
-    }
-    
-    // CASE 3: Tìm trên TPOS bằng DefaultCode
-    console.log(`🔍 ${product.product_code}: Searching TPOS...`);
-    
+    // LUÔN LUÔN tìm trên TPOS
     const searchUrl = `https://tomato.tpos.vn/odata/Product/ODataService.GetViewV2?$filter=DefaultCode eq '${product.product_code}'&$select=Id,DefaultCode,Name&$top=1`;
     
     const searchResponse = await fetch(searchUrl, {
@@ -144,30 +125,15 @@ export function UploadTPOSDialog({ open, onOpenChange, sessionId, onUploadComple
     const searchData = await searchResponse.json();
     
     if (!searchData.value || searchData.value.length === 0) {
-      throw new Error(`Sản phẩm ${product.product_code} không tồn tại trên TPOS. Vui lòng tạo sản phẩm hoặc chạy đồng bộ mã biến thể trước.`);
+      throw new Error(`Sản phẩm ${product.product_code} không tồn tại trên TPOS. Vui lòng tạo sản phẩm trên TPOS trước.`);
     }
     
     const tposProduct = searchData.value[0];
-    console.log(`✅ ${product.product_code}: Found on TPOS - ${tposProduct.Name} (Id: ${tposProduct.Id})`);
-    
-    // Auto-update vào DB để lần sau không cần search
-    const updateFields: any = { tpos_product_id: tposProduct.Id };
-    
-    // Nếu không có variant → cũng update productid_bienthe
-    if (!product.variant) {
-      updateFields.productid_bienthe = tposProduct.Id;
-    }
-    
-    await supabase
-      .from('products')
-      .update(updateFields)
-      .eq('product_code', product.product_code);
-    
-    console.log(`✅ ${product.product_code}: Auto-updated DB with TPOS Id`);
+    console.log(`✅ ${product.product_code}: Found ProductId=${tposProduct.Id} (${tposProduct.Name})`);
     
     return { 
       productId: tposProduct.Id, 
-      source: 'TPOS search (DefaultCode)' 
+      source: 'TPOS Search (DefaultCode)' 
     };
   };
 
