@@ -23,28 +23,6 @@ interface UploadResult {
   error?: string;
 }
 
-/**
- * Format date for TPOS API with Vietnam timezone (GMT+7)
- * @param dateStr - Date string in YYYY-MM-DD format
- * @param isEndDate - Whether this is end date (23:59:59) or start date (00:00:00)
- * @returns ISO string in UTC format suitable for TPOS API
- */
-function formatDateForTPOSAPI(dateStr: string, isEndDate: boolean = false): string {
-  const date = new Date(dateStr);
-  
-  if (isEndDate) {
-    // Set to 23:59:59 GMT+7 = 16:59:59 UTC
-    date.setHours(16, 59, 59, 0);
-  } else {
-    // Set to 00:00:00 GMT+7 = 17:00:00 UTC previous day
-    date.setHours(17, 0, 0, 0);
-    date.setDate(date.getDate() - 1);
-  }
-  
-  // Format as ISO string without milliseconds
-  return date.toISOString().replace(/\.\d{3}Z$/, 'Z');
-}
-
 // Search for a product in TPOS
 async function searchTPOSProduct(productCode: string, bearerToken: string) {
   const url = `https://tomato.tpos.vn/odata/Product/ODataService.GetView?$filter=DefaultCode eq '${productCode}'&$top=1`;
@@ -74,16 +52,7 @@ async function fetchTPOSOrders(
   sessionIndex: number,
   bearerToken: string
 ) {
-  // Format dates for TPOS API with GMT+7 timezone
-  const startDateTime = formatDateForTPOSAPI(startDate, false);
-  const endDateTime = formatDateForTPOSAPI(endDate, true);
-  
-  console.log('📅 Start Date (input):', startDate);
-  console.log('📅 Start Date (formatted for TPOS):', startDateTime);
-  console.log('📅 End Date (input):', endDate);
-  console.log('📅 End Date (formatted for TPOS):', endDateTime);
-  
-  const filterQuery = `DateCreated ge ${startDateTime} and DateCreated le ${endDateTime} and SessionIndex eq ${sessionIndex}`;
+  const filterQuery = `DateCreated ge ${startDate} and DateCreated le ${endDate} and SessionIndex eq ${sessionIndex}`;
   const url = `https://tomato.tpos.vn/odata/SaleOnline_Order/ODataService.GetView?$filter=${encodeURIComponent(filterQuery)}&$orderby=DateCreated desc&$top=50`;
 
   const response = await fetch(url, {
