@@ -99,12 +99,25 @@ export function UploadLiveOrdersToTPOSDialog({
           uploadStatus: order.upload_status,
         };
       }
-      acc[order.order_code].products.push({
-        product_code: order.product_code,
-        product_name: order.product_name,
-        quantity: order.quantity,
-        variant: order.variant,
-      });
+      
+      // Tìm sản phẩm đã tồn tại trong mảng products
+      const existingProduct = acc[order.order_code].products.find(
+        p => p.product_code === order.product_code
+      );
+      
+      if (existingProduct) {
+        // Nếu đã tồn tại, cộng dồn số lượng
+        existingProduct.quantity += order.quantity;
+      } else {
+        // Nếu chưa tồn tại, thêm mới
+        acc[order.order_code].products.push({
+          product_code: order.product_code,
+          product_name: order.product_name,
+          quantity: order.quantity,
+          variant: order.variant,
+        });
+      }
+      
       acc[order.order_code].totalQuantity += order.quantity;
       return acc;
     }, {} as Record<string, GroupedOrder>);
