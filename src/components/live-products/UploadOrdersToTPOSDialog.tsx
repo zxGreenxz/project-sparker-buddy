@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -63,14 +64,12 @@ export function UploadOrdersToTPOSDialog({
   const [isFetchingOrders, setIsFetchingOrders] = useState(false);
   const [tposOrders, setTPOSOrders] = useState<TPOSOrder[]>([]);
   
-  // Step 2: Select TPOS Order
-  const [selectedTPOSOrder, setSelectedTPOSOrder] = useState<TPOSOrder | null>(null);
+  // Step 2: Select multiple TPOS Orders
+  const [selectedTPOSOrders, setSelectedTPOSOrders] = useState<Set<string>>(new Set());
   
-  // Step 3 & 4: Order detail and update
-  const [isFetchingDetail, setIsFetchingDetail] = useState(false);
-  const [orderDetail, setOrderDetail] = useState<TPOSOrderDetail | null>(null);
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [updateResult, setUpdateResult] = useState<any>(null);
+  // Step 3 & 4: Upload progress and results
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<Map<string, { status: 'pending' | 'uploading' | 'success' | 'failed'; message: string }>>(new Map());
 
   // Fetch session info
   const { data: sessionData } = useQuery({
@@ -123,9 +122,8 @@ export function UploadOrdersToTPOSDialog({
     if (!open) {
       setCurrentStep(1);
       setTPOSOrders([]);
-      setSelectedTPOSOrder(null);
-      setOrderDetail(null);
-      setUpdateResult(null);
+      setSelectedTPOSOrders(new Set());
+      setUploadProgress(new Map());
     }
   }, [open]);
 
@@ -178,166 +176,172 @@ export function UploadOrdersToTPOSDialog({
     }
   };
 
-  // Step 2: User selects a TPOS order
-  const handleSelectTPOSOrder = (order: TPOSOrder) => {
-    setSelectedTPOSOrder(order);
-  };
-
-  const handleContinue = async () => {
-    if (!selectedTPOSOrder) {
-      toast.error("Vui lòng chọn đơn hàng TPOS");
-      return;
-    }
-
-    setIsFetchingDetail(true);
-    
-    try {
-      const token = await getActiveTPOSToken();
-      if (!token) {
-        throw new Error("Chưa có TPOS Bearer Token");
-      }
-      
-      const url = `https://tomato.tpos.vn/odata/SaleOnline_Order(${selectedTPOSOrder.Id})?$expand=Details,Partner,User,CRMTeam`;
-      
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: getTPOSHeaders(token),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      setOrderDetail(data);
-      
-      toast.success(`Đã tải chi tiết đơn #${data.Code}`);
-      
-      setCurrentStep(3);
-    } catch (error: any) {
-      console.error("Fetch detail error:", error);
-      toast.error(`Lỗi lấy chi tiết đơn: ${error.message}`);
-    } finally {
-      setIsFetchingDetail(false);
+  // Step 2: Handle selection
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedTPOSOrders(new Set(tposOrders.map(o => o.Id)));
+    } else {
+      setSelectedTPOSOrders(new Set());
     }
   };
 
-  // Step 4: Update TPOS order with products
-  const handleUpdateOrder = async () => {
-    if (!orderDetail || orders.length === 0) {
-      toast.error("Không có sản phẩm để upload");
+  const handleSelectOrder = (orderId: string, checked: boolean) => {
+    const newSelected = new Set(selectedTPOSOrders);
+    if (checked) {
+      newSelected.add(orderId);
+    } else {
+      newSelected.delete(orderId);
+    }
+    setSelectedTPOSOrders(newSelected);
+  };
+
+  // Step 3: Upload all selected orders
+  const handleUploadSelected = async () => {
+    if (selectedTPOSOrders.size === 0) {
+      toast.error("Vui lòng chọn ít nhất 1 đơn hàng");
       return;
     }
 
-    setIsUpdating(true);
-    setUpdateResult(null);
+    setIsUploading(true);
+    setCurrentStep(3);
     
-    try {
-      const token = await getActiveTPOSToken();
-      if (!token) {
-        throw new Error("Chưa có TPOS Bearer Token");
-      }
-      
-      // Search for each product on TPOS
-      const productPromises = orders.map(async (order) => {
-        const searchUrl = `https://tomato.tpos.vn/odata/Product/ODataService.GetView?$filter=DefaultCode eq '${order.product_code}'&$top=1`;
-        const response = await fetch(searchUrl, {
+    const newProgress = new Map<string, { status: 'pending' | 'uploading' | 'success' | 'failed'; message: string }>();
+    
+    // Initialize progress
+    selectedTPOSOrders.forEach(orderId => {
+      newProgress.set(orderId, { status: 'pending', message: 'Đang chờ...' });
+    });
+    setUploadProgress(newProgress);
+
+    let successCount = 0;
+    let failedCount = 0;
+
+    // Upload each selected order
+    for (const orderId of Array.from(selectedTPOSOrders)) {
+      const tposOrder = tposOrders.find(o => o.Id === orderId);
+      if (!tposOrder) continue;
+
+      // Update status
+      newProgress.set(orderId, { status: 'uploading', message: 'Đang upload...' });
+      setUploadProgress(new Map(newProgress));
+
+      try {
+        const token = await getActiveTPOSToken();
+        if (!token) throw new Error("Chưa có TPOS Bearer Token");
+
+        // 1. Fetch order detail
+        const detailUrl = `https://tomato.tpos.vn/odata/SaleOnline_Order(${orderId})?$expand=Details,Partner,User,CRMTeam`;
+        const detailResponse = await fetch(detailUrl, {
           headers: getTPOSHeaders(token),
         });
         
-        if (!response.ok) {
-          throw new Error(`Không tìm thấy sản phẩm ${order.product_code}`);
-        }
-        
-        const data = await response.json();
-        if (!data.value || data.value.length === 0) {
-          throw new Error(`Không tìm thấy sản phẩm ${order.product_code} trong TPOS`);
-        }
-        
-        return {
-          tposProduct: data.value[0],
-          quantity: order.quantity,
-          dbOrderId: order.id,
-        };
-      });
-      
-      const products = await Promise.all(productPromises);
-      
-      // Create new Details array
-      const newDetails = products.map(({ tposProduct, quantity }) => ({
-        ProductId: tposProduct.Id,
-        ProductName: tposProduct.Name,
-        ProductNameGet: tposProduct.NameGet,
-        Quantity: quantity,
-        Price: tposProduct.ListPrice || tposProduct.PriceVariant || 0,
-        UOMId: 1,
-        UOMName: "Cái",
-        Factor: 1,
-        ProductWeight: 0,
-      }));
-      
-      // Update order on TPOS
-      const updateUrl = `https://tomato.tpos.vn/odata/SaleOnline_Order(${orderDetail.Id})`;
-      const payload = {
-        ...orderDetail,
-        Details: newDetails,
-      };
-      
-      const updateResponse = await fetch(updateUrl, {
-        method: 'PUT',
-        headers: getTPOSHeaders(token),
-        body: JSON.stringify(payload),
-      });
-      
-      if (!updateResponse.ok) {
-        const errorText = await updateResponse.text();
-        throw new Error(`Lỗi cập nhật: ${updateResponse.status} - ${errorText}`);
-      }
-      
-      // Update database - mark orders as uploaded
-      const { error: dbError } = await supabase
-        .from('live_orders')
-        .update({
-          tpos_order_id: selectedTPOSOrder.Id,
-          code_tpos_order_id: selectedTPOSOrder.Code,
-          upload_status: 'success',
-          uploaded_at: new Date().toISOString(),
-        })
-        .in('id', products.map(p => p.dbOrderId));
+        if (!detailResponse.ok) throw new Error(`Lỗi lấy chi tiết đơn`);
+        const orderDetail = await detailResponse.json();
 
-      if (dbError) {
-        console.error('DB update error:', dbError);
+        // 2. Search for products
+        const productPromises = orders.map(async (order) => {
+          const searchUrl = `https://tomato.tpos.vn/odata/Product/ODataService.GetView?$filter=DefaultCode eq '${order.product_code}'&$top=1`;
+          const response = await fetch(searchUrl, {
+            headers: getTPOSHeaders(token),
+          });
+          
+          if (!response.ok) throw new Error(`Không tìm thấy SP ${order.product_code}`);
+          
+          const data = await response.json();
+          if (!data.value || data.value.length === 0) {
+            throw new Error(`Không tìm thấy ${order.product_code} trong TPOS`);
+          }
+          
+          return {
+            tposProduct: data.value[0],
+            quantity: order.quantity,
+            dbOrderId: order.id,
+          };
+        });
+        
+        const products = await Promise.all(productPromises);
+
+        // 3. Create new Details
+        const newDetails = products.map(({ tposProduct, quantity }) => ({
+          ProductId: tposProduct.Id,
+          ProductName: tposProduct.Name,
+          ProductNameGet: tposProduct.NameGet,
+          Quantity: quantity,
+          Price: tposProduct.ListPrice || tposProduct.PriceVariant || 0,
+          UOMId: 1,
+          UOMName: "Cái",
+          Factor: 1,
+          ProductWeight: 0,
+        }));
+
+        // 4. Update TPOS order
+        const updateUrl = `https://tomato.tpos.vn/odata/SaleOnline_Order(${orderId})`;
+        const updateResponse = await fetch(updateUrl, {
+          method: 'PUT',
+          headers: getTPOSHeaders(token),
+          body: JSON.stringify({
+            ...orderDetail,
+            Details: newDetails,
+          }),
+        });
+        
+        if (!updateResponse.ok) {
+          const errorText = await updateResponse.text();
+          throw new Error(`Lỗi cập nhật: ${updateResponse.status}`);
+        }
+
+        // 5. Update database
+        await supabase
+          .from('live_orders')
+          .update({
+            tpos_order_id: orderId,
+            code_tpos_order_id: tposOrder.Code,
+            upload_status: 'success',
+            uploaded_at: new Date().toISOString(),
+          })
+          .in('id', products.map(p => p.dbOrderId));
+
+        newProgress.set(orderId, { 
+          status: 'success', 
+          message: `Thành công - #${tposOrder.Code}` 
+        });
+        successCount++;
+
+      } catch (error: any) {
+        console.error(`Upload error for ${orderId}:`, error);
+        newProgress.set(orderId, { 
+          status: 'failed', 
+          message: error.message 
+        });
+        failedCount++;
       }
-      
-      setUpdateResult({
-        success: true,
-        productsAdded: newDetails.length,
-        orderCode: orderDetail.Code,
-      });
-      
-      toast.success(`✅ Đã cập nhật ${newDetails.length} sản phẩm vào đơn #${orderDetail.Code}`);
-      
-      setCurrentStep(4);
-    } catch (error: any) {
-      console.error("Update error:", error);
-      toast.error(`Lỗi cập nhật: ${error.message}`);
-      setUpdateResult({
-        success: false,
-        error: error.message,
-      });
-    } finally {
-      setIsUpdating(false);
+
+      setUploadProgress(new Map(newProgress));
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+
+    setIsUploading(false);
+    setCurrentStep(4);
+
+    // Summary toast
+    if (successCount > 0 && failedCount === 0) {
+      toast.success(`✅ Upload thành công ${successCount} đơn hàng`);
+    } else if (successCount > 0 && failedCount > 0) {
+      toast.warning(`Thành công: ${successCount}, Thất bại: ${failedCount}`);
+    } else {
+      toast.error(`❌ Upload thất bại ${failedCount} đơn hàng`);
     }
   };
 
   const resetTool = () => {
     setCurrentStep(1);
     setTPOSOrders([]);
-    setSelectedTPOSOrder(null);
-    setOrderDetail(null);
-    setUpdateResult(null);
+    setSelectedTPOSOrders(new Set());
+    setUploadProgress(new Map());
     handleFetchTPOSOrders();
   };
+
+  const allSelected = tposOrders.length > 0 && selectedTPOSOrders.size === tposOrders.length;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -424,111 +428,189 @@ export function UploadOrdersToTPOSDialog({
             </Card>
           )}
 
-          {/* Step 2: Select TPOS Order */}
+          {/* Step 2: Select TPOS Orders */}
           {currentStep === 2 && (
             <Card>
               <CardContent className="pt-6">
                 <h3 className="text-lg font-semibold mb-4">
                   🛍️ Bước 2: Chọn đơn hàng TPOS ({tposOrders.length})
                 </h3>
-                <div className="max-h-96 overflow-y-auto space-y-3">
-                  {tposOrders.length === 0 ? (
-                    <p className="text-muted-foreground text-center py-8">
-                      Không tìm thấy đơn hàng TPOS nào
-                    </p>
-                  ) : (
-                    tposOrders.map((order) => (
-                      <div
-                        key={order.Id}
-                        onClick={() => handleSelectTPOSOrder(order)}
-                        className={cn(
-                          "p-4 border-2 rounded-lg cursor-pointer transition",
-                          selectedTPOSOrder?.Id === order.Id
-                            ? "border-primary bg-primary/5"
-                            : "border-border hover:border-primary/50"
-                        )}
-                      >
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="font-bold">#{order.Code}</p>
-                            <p className="text-sm text-muted-foreground">{order.Name}</p>
-                            <p className="text-sm text-muted-foreground">{order.Telephone}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-bold text-primary">
-                              {order.TotalAmount?.toLocaleString('vi-VN')}₫
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              SL: {order.TotalQuantity}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Step 3: Show products to upload */}
-          {currentStep === 3 && orderDetail && (
-            <Card>
-              <CardContent className="pt-6">
-                <h3 className="text-lg font-semibold mb-2">
-                  📦 Bước 3: Sản phẩm sẽ upload
-                </h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Đơn TPOS: #{orderDetail.Code} - {orderDetail.Name}
-                </p>
                 
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Mã SP</TableHead>
-                      <TableHead>Tên sản phẩm</TableHead>
+                      <TableHead className="w-12">
+                        <Checkbox
+                          checked={allSelected}
+                          onCheckedChange={handleSelectAll}
+                        />
+                      </TableHead>
+                      <TableHead>Mã đơn</TableHead>
+                      <TableHead>Khách hàng</TableHead>
+                      <TableHead>Điện thoại</TableHead>
+                      <TableHead className="text-right">Tổng tiền</TableHead>
                       <TableHead className="text-right">Số lượng</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {orders.map((order, index) => (
-                      <TableRow key={index}>
-                        <TableCell className="font-mono">{order.product_code}</TableCell>
-                        <TableCell>{order.product_name}</TableCell>
-                        <TableCell className="text-right font-medium">{order.quantity}</TableCell>
+                    {tposOrders.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                          Không tìm thấy đơn hàng TPOS nào
+                        </TableCell>
                       </TableRow>
-                    ))}
+                    ) : (
+                      tposOrders.map((order) => (
+                        <TableRow key={order.Id}>
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedTPOSOrders.has(order.Id)}
+                              onCheckedChange={(checked) => handleSelectOrder(order.Id, checked as boolean)}
+                            />
+                          </TableCell>
+                          <TableCell className="font-bold">#{order.Code}</TableCell>
+                          <TableCell>{order.Name}</TableCell>
+                          <TableCell>{order.Telephone}</TableCell>
+                          <TableCell className="text-right font-medium text-primary">
+                            {order.TotalAmount?.toLocaleString('vi-VN')}₫
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {order.TotalQuantity}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </CardContent>
             </Card>
           )}
 
-          {/* Step 4: Update Result */}
-          {currentStep === 4 && updateResult && (
+          {/* Step 3: Upload Progress */}
+          {currentStep === 3 && (
             <Card>
               <CardContent className="pt-6">
-                {updateResult.success ? (
-                  <div className="text-center py-8">
-                    <CheckCircle2 className="h-16 w-16 text-green-600 mx-auto mb-4" />
-                    <h3 className="text-2xl font-bold text-green-600 mb-2">
-                      ✅ Cập nhật thành công!
-                    </h3>
-                    <p className="text-muted-foreground mb-4">
-                      Đã cập nhật {updateResult.productsAdded} sản phẩm vào đơn #{updateResult.orderCode}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <XCircle className="h-16 w-16 text-red-600 mx-auto mb-4" />
-                    <h3 className="text-2xl font-bold text-red-600 mb-2">
-                      ❌ Cập nhật thất bại
-                    </h3>
-                    <p className="text-muted-foreground mb-4">
-                      {updateResult.error}
-                    </p>
-                  </div>
-                )}
+                <h3 className="text-lg font-semibold mb-4">
+                  📤 Bước 3: Đang upload ({selectedTPOSOrders.size} đơn)
+                </h3>
+                
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Mã đơn TPOS</TableHead>
+                      <TableHead>Trạng thái</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {Array.from(selectedTPOSOrders).map((orderId) => {
+                      const order = tposOrders.find(o => o.Id === orderId);
+                      const progress = uploadProgress.get(orderId);
+                      
+                      return (
+                        <TableRow key={orderId}>
+                          <TableCell className="font-medium">
+                            #{order?.Code || orderId}
+                          </TableCell>
+                          <TableCell>
+                            {progress && (
+                              <div className="flex items-center gap-2">
+                                {progress.status === 'uploading' && (
+                                  <>
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    <span className="text-sm">{progress.message}</span>
+                                  </>
+                                )}
+                                {progress.status === 'success' && (
+                                  <>
+                                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                    <span className="text-sm text-green-600">{progress.message}</span>
+                                  </>
+                                )}
+                                {progress.status === 'failed' && (
+                                  <>
+                                    <XCircle className="h-4 w-4 text-red-600" />
+                                    <span className="text-sm text-red-600">{progress.message}</span>
+                                  </>
+                                )}
+                                {progress.status === 'pending' && (
+                                  <span className="text-sm text-muted-foreground">{progress.message}</span>
+                                )}
+                              </div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Step 4: Summary Results */}
+          {currentStep === 4 && (
+            <Card>
+              <CardContent className="pt-6">
+                <div className="text-center py-8">
+                  {Array.from(uploadProgress.values()).every(p => p.status === 'success') ? (
+                    <>
+                      <CheckCircle2 className="h-16 w-16 text-green-600 mx-auto mb-4" />
+                      <h3 className="text-2xl font-bold text-green-600 mb-2">
+                        ✅ Upload thành công!
+                      </h3>
+                      <p className="text-muted-foreground">
+                        Đã upload thành công {selectedTPOSOrders.size} đơn hàng
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="h-16 w-16 text-yellow-600 mx-auto mb-4" />
+                      <h3 className="text-2xl font-bold mb-2">
+                        Upload hoàn tất
+                      </h3>
+                      <p className="text-muted-foreground">
+                        Thành công: {Array.from(uploadProgress.values()).filter(p => p.status === 'success').length} / 
+                        Thất bại: {Array.from(uploadProgress.values()).filter(p => p.status === 'failed').length}
+                      </p>
+                    </>
+                  )}
+                </div>
+
+                {/* Show detailed results */}
+                <Table className="mt-4">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Mã đơn</TableHead>
+                      <TableHead>Kết quả</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {Array.from(uploadProgress.entries()).map(([orderId, progress]) => {
+                      const order = tposOrders.find(o => o.Id === orderId);
+                      return (
+                        <TableRow key={orderId}>
+                          <TableCell>#{order?.Code || orderId}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              {progress.status === 'success' && (
+                                <>
+                                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                  <span className="text-green-600">{progress.message}</span>
+                                </>
+                              )}
+                              {progress.status === 'failed' && (
+                                <>
+                                  <XCircle className="h-4 w-4 text-red-600" />
+                                  <span className="text-red-600">{progress.message}</span>
+                                </>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
           )}
@@ -537,46 +619,24 @@ export function UploadOrdersToTPOSDialog({
         <DialogFooter>
           <div className="flex items-center justify-between w-full">
             <div className="text-sm text-muted-foreground">
-              {currentStep === 3 && `${orders.length} sản phẩm sẽ được upload`}
+              {currentStep === 2 && `Đã chọn: ${selectedTPOSOrders.size}/${tposOrders.length} đơn`}
+              {currentStep === 3 && `Đang upload ${selectedTPOSOrders.size} đơn hàng...`}
             </div>
             <div className="flex gap-2">
               <Button
                 variant="outline"
                 onClick={() => onOpenChange(false)}
-                disabled={isFetchingOrders || isFetchingDetail || isUpdating}
+                disabled={isFetchingOrders || isUploading}
               >
                 Đóng
               </Button>
               
               {currentStep === 2 && (
                 <Button
-                  onClick={handleContinue}
-                  disabled={!selectedTPOSOrder || isFetchingDetail}
+                  onClick={handleUploadSelected}
+                  disabled={selectedTPOSOrders.size === 0}
                 >
-                  {isFetchingDetail ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Đang tải...
-                    </>
-                  ) : (
-                    "Tiếp tục"
-                  )}
-                </Button>
-              )}
-              
-              {currentStep === 3 && (
-                <Button
-                  onClick={handleUpdateOrder}
-                  disabled={isUpdating || orders.length === 0}
-                >
-                  {isUpdating ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Đang cập nhật...
-                    </>
-                  ) : (
-                    "Cập nhật đơn TPOS"
-                  )}
+                  Upload {selectedTPOSOrders.size} đơn đã chọn
                 </Button>
               )}
               
