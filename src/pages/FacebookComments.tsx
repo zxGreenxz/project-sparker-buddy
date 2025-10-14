@@ -5,6 +5,10 @@ import { useCommentsSidebar } from "@/contexts/CommentsSidebarContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
+
 const FacebookComments = () => {
   const { isCommentsOpen, setIsCommentsOpen } = useCommentsSidebar();
   const isMobile = useIsMobile();
@@ -21,10 +25,13 @@ const FacebookComments = () => {
         {/* Header */}
         <div className="flex items-center gap-3">
           <div className="bg-primary/10 p-3 rounded-lg">
-            <MessageSquare className={cn(
-              "text-primary",
-              isMobile ? "h-5 w-5" : "h-6 w-6"
-            )} />
+            <MessageSquare 
+              className={cn(
+                "text-primary",
+                isMobile ? "h-5 w-5" : "h-6 w-6"
+              )}
+              aria-hidden="true"
+            />
           </div>
           <div>
             <h1 className={cn(
@@ -47,9 +54,12 @@ const FacebookComments = () => {
       </div>
 
       {/* Comments Sidebar */}
-      <CommentsSidebar isOpen={isCommentsOpen} onClose={() => setIsCommentsOpen(false)}>
+      <CommentsSidebar 
+        isOpen={isCommentsOpen} 
+        onClose={() => setIsCommentsOpen(false)}
+      >
         <div className="p-4 text-center text-muted-foreground">
-          Select a video from Facebook Comments Manager to view comments here
+          Chọn video từ Facebook Comments Manager để xem comments ở đây
         </div>
       </CommentsSidebar>
     </div>
