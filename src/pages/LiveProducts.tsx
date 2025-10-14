@@ -1554,8 +1554,8 @@ export default function LiveProducts() {
                           <TableRow>
                             <TableHead>Mã SP</TableHead>
                             <TableHead>Tên sản phẩm</TableHead>
+                            <TableHead>Biến Thể</TableHead>
                             <TableHead>Hình ảnh</TableHead>
-                            <TableHead>BT</TableHead>
                             <TableHead className="text-center w-24">Tạo order</TableHead>
                             <TableHead className="text-center">SL chuẩn bị</TableHead>
                             <TableHead className="text-center">SL đã bán</TableHead>
@@ -1633,33 +1633,37 @@ export default function LiveProducts() {
                                       >
                                         {group.product_code}
                                       </TableCell>
-                                      <TableCell 
-                                        rowSpan={group.products.length}
-                                        className="align-top border-r"
-                                      >
-                                        {group.product_name}
-                                      </TableCell>
-                                      <TableCell 
-                                        rowSpan={group.products.length}
-                                        className="align-top border-r"
-                                      >
-                                        {product.image_url ? (
-                                          <img 
-                                            src={product.image_url} 
-                                            alt={group.product_name}
-                                            className="w-12 h-12 object-cover rounded cursor-pointer transition-transform duration-200 hover:scale-[14] hover:z-50 relative origin-left"
-                                          />
-                                        ) : (
-                                          <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
-                                            <Package className="h-6 w-6 text-muted-foreground" />
-                                          </div>
-                                        )}
-                                      </TableCell>
+                                       <TableCell 
+                                         rowSpan={group.products.length}
+                                         className="align-top border-r"
+                                       >
+                                         {group.product_name}
+                                       </TableCell>
                                      </>
-                                  )}
-                                  <TableCell className="text-muted-foreground">
-                                    {getVariantName(product.variant)}
-                                  </TableCell>
+                                   )}
+                                   <TableCell className="text-muted-foreground">
+                                     {getVariantName(product.variant)}
+                                   </TableCell>
+                                   {productIndex === 0 && (
+                                     <>
+                                       <TableCell 
+                                         rowSpan={group.products.length}
+                                         className="align-top border-r"
+                                       >
+                                         {product.image_url ? (
+                                           <img 
+                                             src={product.image_url} 
+                                             alt={group.product_name}
+                                             className="w-12 h-12 object-cover rounded cursor-pointer transition-transform duration-200 hover:scale-[14] hover:z-50 relative origin-left"
+                                           />
+                                         ) : (
+                                           <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
+                                             <Package className="h-6 w-6 text-muted-foreground" />
+                                           </div>
+                                         )}
+                                       </TableCell>
+                                      </>
+                                   )}
                                   <TableCell className="text-center">
                                     <div className="flex flex-col items-center gap-1">
                                       <Button
@@ -1912,8 +1916,8 @@ export default function LiveProducts() {
                       <TableRow>
                         <TableHead>Mã SP</TableHead>
                         <TableHead>Tên sản phẩm</TableHead>
+                        <TableHead>Biến Thể</TableHead>
                         <TableHead>Hình ảnh</TableHead>
-                        <TableHead>BT</TableHead>
                         <TableHead className="text-center">Tạo order</TableHead>
                         <TableHead className="text-center">SL chuẩn bị</TableHead>
                         <TableHead className="text-center">SL đã bán</TableHead>
@@ -1937,6 +1941,9 @@ export default function LiveProducts() {
                           <TableRow key={product.id}>
                             <TableCell className="font-medium">{product.product_code}</TableCell>
                             <TableCell>{product.product_name}</TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {getVariantName(product.variant)}
+                            </TableCell>
                             <TableCell>
                               {product.image_url ? (
                                 <img 
@@ -1949,9 +1956,6 @@ export default function LiveProducts() {
                                   <Package className="h-6 w-6 text-muted-foreground" />
                                 </div>
                               )}
-                            </TableCell>
-                            <TableCell className="text-muted-foreground">
-                              {getVariantName(product.variant)}
                             </TableCell>
                             <TableCell className="text-center">
                               <div className="flex flex-col items-center gap-1">
