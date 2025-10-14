@@ -16,7 +16,6 @@ import { EditOrderItemDialog } from "@/components/live-products/EditOrderItemDia
 import { QuickAddOrder } from "@/components/live-products/QuickAddOrder";
 import { UploadLiveOrdersToTPOSDialog } from "@/components/live-products/UploadLiveOrdersToTPOSDialog";
 import { LiveSessionStats } from "@/components/live-products/LiveSessionStats";
-import { FullScreenProductView } from "@/components/live-products/FullScreenProductView";
 import { LiveSupplierStats } from "@/components/live-products/LiveSupplierStats";
 
 import { useBarcodeScanner } from "@/contexts/BarcodeScannerContext";
@@ -38,7 +37,6 @@ import {
   Copy,
   AlertTriangle,
   RefreshCw,
-  Maximize2,
   Download,
   CheckCircle,
   Store,
@@ -307,7 +305,6 @@ export default function LiveProducts() {
     quantity: number;
     orders?: OrderWithProduct[];
   } | null>(null);
-  const [isFullScreenProductViewOpen, setIsFullScreenProductViewOpen] = useState(false);
   const [isUploadLiveOrdersOpen, setIsUploadLiveOrdersOpen] = useState(false);
   
   // Search state for products tab
@@ -1497,16 +1494,6 @@ export default function LiveProducts() {
                       </>
                     )}
                     <Button
-                      variant="default"
-                      size="sm"
-                      onClick={() => setIsFullScreenProductViewOpen(true)}
-                      disabled={liveProducts.length === 0}
-                      className="flex items-center gap-2"
-                    >
-                      <Maximize2 className="h-4 w-4" />
-                      Xem toàn màn hình
-                    </Button>
-                    <Button
                       variant="outline"
                       size="sm"
                       onClick={handleRefreshProducts}
@@ -1918,14 +1905,6 @@ export default function LiveProducts() {
                     title="Làm mới"
                   >
                     <RefreshCw className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setIsFullScreenProductViewOpen(true)}
-                    title="Toàn màn hình"
-                  >
-                    <Maximize2 className="h-4 w-4" />
                   </Button>
                 </div>
 
@@ -2644,15 +2623,6 @@ export default function LiveProducts() {
         onOpenChange={setIsEditOrderItemOpen}
         orderItem={editingOrderItem}
         phaseId={selectedPhase}
-      />
-
-      <FullScreenProductView
-        open={isFullScreenProductViewOpen}
-        onOpenChange={setIsFullScreenProductViewOpen}
-        products={liveProducts}
-        orders={ordersWithProducts}
-        selectedPhase={selectedPhase}
-        selectedSession={selectedSession}
       />
 
       <UploadLiveOrdersToTPOSDialog
