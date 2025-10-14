@@ -442,60 +442,103 @@ export function UploadOrdersToTPOSDialog({
 
           {/* Step 2: Select TPOS Orders */}
           {currentStep === 2 && (
-            <Card>
-              <CardContent className="pt-6">
-                <h3 className="text-lg font-semibold mb-4">
-                  🛍️ Bước 2: Chọn đơn hàng TPOS ({tposOrders.length})
-                </h3>
-                
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-12">
-                        <Checkbox
-                          checked={allSelected}
-                          onCheckedChange={handleSelectAll}
-                        />
-                      </TableHead>
-                      <TableHead>Mã đơn</TableHead>
-                      <TableHead>Khách hàng</TableHead>
-                      <TableHead>Điện thoại</TableHead>
-                      <TableHead className="text-right">Tổng tiền</TableHead>
-                      <TableHead className="text-right">Số lượng</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {tposOrders.length === 0 ? (
+            <div className="space-y-4">
+              {/* Đơn hàng từ Live Orders */}
+              <Card>
+                <CardContent className="pt-6">
+                  <h3 className="text-lg font-semibold mb-4">
+                    📋 Đơn hàng từ Live Orders ({orders.length} sản phẩm)
+                  </h3>
+                  
+                  <Table>
+                    <TableHeader>
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                          Không tìm thấy đơn hàng TPOS nào
-                        </TableCell>
+                        <TableHead>Mã đơn</TableHead>
+                        <TableHead>Mã SP</TableHead>
+                        <TableHead>Tên sản phẩm</TableHead>
+                        <TableHead className="text-right">Số lượng</TableHead>
                       </TableRow>
-                    ) : (
-                      tposOrders.map((order) => (
-                        <TableRow key={order.Id}>
-                          <TableCell>
-                            <Checkbox
-                              checked={selectedTPOSOrders.has(order.Id)}
-                              onCheckedChange={(checked) => handleSelectOrder(order.Id, checked as boolean)}
-                            />
-                          </TableCell>
-                          <TableCell className="font-bold">#{order.Code}</TableCell>
-                          <TableCell>{order.Name}</TableCell>
-                          <TableCell>{order.Telephone}</TableCell>
-                          <TableCell className="text-right font-medium text-primary">
-                            {order.TotalAmount?.toLocaleString('vi-VN')}₫
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {order.TotalQuantity}
+                    </TableHeader>
+                    <TableBody>
+                      {orders.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                            Không có đơn hàng nào
                           </TableCell>
                         </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+                      ) : (
+                        orders.map((order) => (
+                          <TableRow key={order.id}>
+                            <TableCell className="font-bold">#{order.order_code}</TableCell>
+                            <TableCell className="font-medium text-primary">{order.product_code}</TableCell>
+                            <TableCell>{order.product_name}</TableCell>
+                            <TableCell className="text-right">
+                              {order.quantity}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+
+              {/* Đơn hàng TPOS để chọn */}
+              <Card>
+                <CardContent className="pt-6">
+                  <h3 className="text-lg font-semibold mb-4">
+                    🛍️ Bước 2: Chọn đơn hàng TPOS ({tposOrders.length})
+                  </h3>
+                  
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-12">
+                          <Checkbox
+                            checked={allSelected}
+                            onCheckedChange={handleSelectAll}
+                          />
+                        </TableHead>
+                        <TableHead>Mã đơn</TableHead>
+                        <TableHead>Khách hàng</TableHead>
+                        <TableHead>Điện thoại</TableHead>
+                        <TableHead className="text-right">Tổng tiền</TableHead>
+                        <TableHead className="text-right">Số lượng</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {tposOrders.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                            Không tìm thấy đơn hàng TPOS nào
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        tposOrders.map((order) => (
+                          <TableRow key={order.Id}>
+                            <TableCell>
+                              <Checkbox
+                                checked={selectedTPOSOrders.has(order.Id)}
+                                onCheckedChange={(checked) => handleSelectOrder(order.Id, checked as boolean)}
+                              />
+                            </TableCell>
+                            <TableCell className="font-bold">#{order.Code}</TableCell>
+                            <TableCell>{order.Name}</TableCell>
+                            <TableCell>{order.Telephone}</TableCell>
+                            <TableCell className="text-right font-medium text-primary">
+                              {order.TotalAmount?.toLocaleString('vi-VN')}₫
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {order.TotalQuantity}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </div>
           )}
 
           {/* Step 3: Upload Progress */}
