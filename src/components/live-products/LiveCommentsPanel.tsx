@@ -622,12 +622,9 @@ export function LiveCommentsPanel({
                             </Badge>
                           )}
                           
-                          {/* Phone Number Badge */}
-                          {comment.orderInfo?.Telephone && (
-                            <Badge className={cn(
-                              "bg-slate-700 text-white font-semibold",
-                              isMobile ? "text-[9px] px-1 py-0" : "text-[10px] px-1.5 py-0"
-                            )}>
+                          {/* Phone Number Badge - Hidden on mobile */}
+                          {!isMobile && comment.orderInfo?.Telephone && (
+                            <Badge className="bg-slate-700 text-white font-semibold text-[10px] px-1.5 py-0">
                               {comment.orderInfo.Telephone}
                             </Badge>
                           )}
@@ -646,7 +643,7 @@ export function LiveCommentsPanel({
 
                       {/* Comment Message */}
                       <p className={cn(
-                        "text-foreground break-words",
+                        "text-foreground break-words font-semibold",
                         isMobile ? "text-xs" : "text-sm"
                       )}>
                         {comment.message || "(Không có nội dung)"}
