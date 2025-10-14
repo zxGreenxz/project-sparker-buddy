@@ -10,7 +10,6 @@ import { OrderBillNotification } from './OrderBillNotification';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 
 interface QuickAddOrderProps {
   productId: string;
@@ -138,24 +137,18 @@ export function QuickAddOrder({ productId, phaseId, sessionId, availableQuantity
     return countMap;
   }, [existingOrders]);
 
-  // Group by sessionIndex + name; include all comments with remaining > 0
-  const groupedOrders = React.useMemo(() => {
-    const groups = new Map<
-      string,
-      {
-        sessionIndex: string;
-        name: string | null;
-        latestTime: number;
-        comments: {
-          id: string;
-          comment: string | null;
-          facebook_comment_id: string;
-          created_time: string;
-          remaining: number;
-          total: number;
-        }[];
-      }
-    >();
+  // Flatten all comments with remaining > 0, sorted by created_time (newest first)
+  const flatComments = React.useMemo(() => {
+    const comments: {
+      id: string;
+      sessionIndex: string;
+      name: string | null;
+      comment: string | null;
+      facebook_comment_id: string;
+      created_time: string;
+      remaining: number;
+      total: number;
+    }[] = [];
 
     pendingOrders.forEach((order) => {
       if (!order.session_index || !order.facebook_comment_id) return;
@@ -164,39 +157,26 @@ export function QuickAddOrder({ productId, phaseId, sessionId, availableQuantity
       const total = order.order_count || 1;
       const remaining = total - used;
 
-      if (remaining <= 0) return; // hide consumed comments
+      if (remaining <= 0) return; // skip consumed comments
 
-      const key = order.session_index;
-      const existing = groups.get(key);
-      const item = {
+      comments.push({
         id: order.id,
+        sessionIndex: order.session_index,
+        name: order.name,
         comment: order.comment,
-        facebook_comment_id: order.facebook_comment_id!,
+        facebook_comment_id: order.facebook_comment_id,
         created_time: order.created_time,
         remaining,
         total,
-      };
-
-      if (!existing) {
-        groups.set(key, {
-          sessionIndex: order.session_index,
-          name: order.name,
-          latestTime: new Date(order.created_time).getTime(),
-          comments: [item],
-        });
-      } else {
-        existing.comments.push(item);
-        existing.latestTime = Math.max(existing.latestTime, new Date(order.created_time).getTime());
-      }
+      });
     });
 
-    // Only keep groups that have comments left
-    const result = Array.from(groups.values()).filter((g) => g.comments.length > 0);
+    // Sort by created_time descending (newest first)
+    comments.sort((a, b) => 
+      new Date(b.created_time).getTime() - new Date(a.created_time).getTime()
+    );
 
-    // Sort groups by latest activity (newest first)
-    result.sort((a, b) => b.latestTime - a.latestTime);
-
-    return result;
+    return comments;
   }, [pendingOrders, commentUsageCount]);
 
   const addOrderMutation = useMutation({
@@ -386,9 +366,9 @@ export function QuickAddOrder({ productId, phaseId, sessionId, availableQuantity
       return;
     }
 
-    // Find group by sessionIndex and pick the first remaining comment
-    const group = groupedOrders.find(g => g.sessionIndex === trimmedValue);
-    if (!group || group.comments.length === 0) {
+    // Find first comment matching sessionIndex
+    const matchedComment = flatComments.find(c => c.sessionIndex === trimmedValue);
+    if (!matchedComment) {
       toast({
         title: "Không tìm thấy",
         description: `Mã "${trimmedValue}" không có comment khả dụng hoặc đã dùng hết`,
@@ -397,8 +377,7 @@ export function QuickAddOrder({ productId, phaseId, sessionId, availableQuantity
       return;
     }
 
-    const firstComment = group.comments[0];
-    handleSelectComment(group.sessionIndex, firstComment.facebook_comment_id);
+    handleSelectComment(matchedComment.sessionIndex, matchedComment.facebook_comment_id);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -445,54 +424,31 @@ export function QuickAddOrder({ productId, phaseId, sessionId, availableQuantity
               <CommandEmpty>Không thấy mã phù hợp.</CommandEmpty>
               <CommandGroup>
                 <ScrollArea className="h-[280px]">
-                  {groupedOrders
-                    .filter(group =>
+                  {flatComments
+                    .filter(comment =>
                       !inputValue ||
-                      group.sessionIndex?.includes(inputValue) ||
-                      (group.name || '').toLowerCase().includes(inputValue.toLowerCase())
+                      comment.sessionIndex?.includes(inputValue) ||
+                      (comment.name || '').toLowerCase().includes(inputValue.toLowerCase()) ||
+                      (comment.comment || '').toLowerCase().includes(inputValue.toLowerCase())
                     )
-                    .map(group => (
-                      <HoverCard key={group.sessionIndex} openDelay={100} closeDelay={100}>
-                        <HoverCardTrigger asChild>
-                          <CommandItem
-                            className="cursor-default flex items-center gap-2"
-                            onSelect={() => setInputValue(group.sessionIndex)}
-                          >
-                            <span className="font-medium shrink-0">{group.sessionIndex}</span>
-                            <span className="shrink-0">-</span>
-                            <span className="font-bold truncate">{group.name || '(không có tên)'}</span>
-                          </CommandItem>
-                        </HoverCardTrigger>
-                        <HoverCardContent side="left" className="w-[500px] p-3 bg-popover">
-                          <div className="text-sm font-semibold mb-2">
-                            Chọn comment cho #{group.sessionIndex} - {group.name || 'Không tên'}
-                          </div>
-                          <ScrollArea className="h-[200px] pr-1">
-                            <div className="space-y-2">
-                              {group.comments.map(c => (
-                                <div
-                                  key={c.id}
-                                  className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 hover:bg-accent hover:text-accent-foreground cursor-pointer"
-                                  onClick={() => handleSelectComment(group.sessionIndex, c.facebook_comment_id)}
-                                >
-                                  <div className="flex-1 truncate">
-                                    {c.comment || '(không có comment)'}
-                                  </div>
-                                  <div className="flex items-center gap-2 shrink-0 text-xs text-muted-foreground">
-                                    <span>{new Date(c.created_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
-                                    <span className="rounded bg-muted px-2 py-0.5">
-                                      còn {c.remaining}/{c.total}
-                                    </span>
-                                  </div>
-                                </div>
-                              ))}
-                              {group.comments.length === 0 && (
-                                <div className="text-sm text-muted-foreground">Hết comment khả dụng</div>
-                              )}
-                            </div>
-                          </ScrollArea>
-                        </HoverCardContent>
-                      </HoverCard>
+                    .map(comment => (
+                      <CommandItem
+                        key={comment.id}
+                        className="cursor-pointer flex items-center justify-between gap-2"
+                        onSelect={() => handleSelectComment(comment.sessionIndex, comment.facebook_comment_id)}
+                      >
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <span className="font-medium shrink-0">#{comment.sessionIndex}</span>
+                          <span className="shrink-0">-</span>
+                          <span className="font-bold truncate">{comment.name || '(không tên)'}</span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 text-xs text-muted-foreground">
+                          <span>{new Date(comment.created_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
+                          <span className="rounded bg-muted px-2 py-0.5">
+                            còn {comment.remaining}/{comment.total}
+                          </span>
+                        </div>
+                      </CommandItem>
                     ))}
                 </ScrollArea>
               </CommandGroup>
