@@ -31,6 +31,7 @@ type PendingOrder = {
   facebook_user_id: string | null;
   facebook_post_id: string | null;
   order_count: number;
+  tpos_order_id: string | null;
 };
 
 export function QuickAddOrder({ productId, phaseId, sessionId, availableQuantity }: QuickAddOrderProps) {
@@ -78,7 +79,7 @@ export function QuickAddOrder({ productId, phaseId, sessionId, availableQuantity
       
       const { data, error } = await supabase
         .from('facebook_pending_orders')
-        .select('*, order_count')
+        .select('*, order_count, tpos_order_id')
         .gte('created_time', `${phaseData.phase_date}T00:00:00`)
         .lt('created_time', `${phaseData.phase_date}T23:59:59`)
         .order('created_time', { ascending: false });
@@ -231,10 +232,22 @@ export function QuickAddOrder({ productId, phaseId, sessionId, availableQuantity
 
       if (orderError) throw orderError;
 
-      // Update sold quantity
+      // Update sold quantity and TPOS order fields
+      const updateData: any = { sold_quantity: newSoldQuantity };
+      
+      // Add TPOS order fields if available from pending order
+      if (pendingOrder) {
+        if (pendingOrder.code) {
+          updateData.tpos_order_id = pendingOrder.code;
+        }
+        if (pendingOrder.tpos_order_id) {
+          updateData.code_tpos_order_id = pendingOrder.tpos_order_id;
+        }
+      }
+      
       const { error: updateError } = await supabase
         .from('live_products')
-        .update({ sold_quantity: newSoldQuantity })
+        .update(updateData)
         .eq('id', productId);
 
       if (updateError) throw updateError;
