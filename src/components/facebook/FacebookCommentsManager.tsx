@@ -1167,10 +1167,10 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
                               <div className="flex items-start gap-3">
                                 <div className="relative flex-shrink-0">
                                   <div className={cn(
-                                    "w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm",
+                                    "w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm",
                                     comment.orderInfo?.SessionIndex 
-                                      ? "bg-green-500 text-red-600" 
-                                      : "bg-gradient-to-br from-primary to-primary/60 text-white"
+                                      ? "bg-red-500" 
+                                      : "bg-gradient-to-br from-primary to-primary/60"
                                   )}>
                                     {comment.orderInfo?.SessionIndex 
                                       ? comment.orderInfo.SessionIndex 
