@@ -503,20 +503,8 @@ export function AddProductToLiveDialog({ open, onOpenChange, phaseId, sessionId,
               control={form.control}
               name="product_code"
               render={({ field }) => (
-                <FormItem>
-                  <div className="flex items-center justify-between">
-                    <FormLabel>Mã sản phẩm (để trống sẽ tự tạo mã N/A)</FormLabel>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setIsSelectProductOpen(true)}
-                      className="h-7 text-xs"
-                    >
-                      <Warehouse className="w-3 h-3 mr-1" />
-                      Chọn từ Kho SP
-                    </Button>
-                  </div>
+              <FormItem>
+                  <FormLabel>Mã sản phẩm (để trống sẽ tự tạo mã N/A)</FormLabel>
                   <FormControl>
                     <div className="relative">
                       <Input 
@@ -850,12 +838,6 @@ export function AddProductToLiveDialog({ open, onOpenChange, phaseId, sessionId,
           </form>
         </Form>
       </DialogContent>
-
-      <SelectProductDialog
-        open={isSelectProductOpen}
-        onOpenChange={setIsSelectProductOpen}
-        onSelect={handleSelectProduct}
-      />
     </Dialog>
   );
 }
