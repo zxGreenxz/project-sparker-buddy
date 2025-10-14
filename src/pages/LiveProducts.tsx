@@ -57,7 +57,7 @@ import type { FacebookVideo } from "@/types/facebook";
 import { toast } from "sonner";
 import { generateOrderImage } from "@/lib/order-image-generator";
 import { getProductImageUrl } from "@/lib/tpos-image-loader";
-import { formatVariant } from "@/lib/variant-utils";
+import { formatVariant, getVariantName } from "@/lib/variant-utils";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { getTPOSHeaders, getActiveTPOSToken } from "@/lib/tpos-config";
@@ -2198,7 +2198,7 @@ export default function LiveProducts() {
                                     </div>
                                   )}
                                 </TableCell>
-                                <TableCell>{product.variant || ""}</TableCell>
+                                <TableCell>{getVariantName(product.variant)}</TableCell>
                                 <TableCell className="text-center">{product.prepared_quantity}</TableCell>
                                 <TableCell className="text-center">{product.sold_quantity}</TableCell>
                                 <TableCell>
