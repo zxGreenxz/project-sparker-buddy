@@ -126,7 +126,7 @@
   }
   
   .img-zoom-right:hover {
-    transform: translateX(100%) scale(8.5);
+    transform: scale(8.5);
     transform-origin: left center;
     z-index: 50;
   }
@@ -136,7 +136,7 @@
   }
   
   .img-zoom-right-lg:hover {
-    transform: translateX(100%) scale(12);
+    transform: scale(12);
     transform-origin: left center;
     z-index: 50;
   }
@@ -146,7 +146,7 @@
   }
   
   .img-zoom-right-md:hover {
-    transform: translateX(100%) scale(6);
+    transform: scale(6);
     transform-origin: left center;
     z-index: 50;
   }
