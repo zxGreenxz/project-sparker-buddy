@@ -1167,10 +1167,10 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
                               <div className="flex items-start gap-3">
                                 <div className="relative flex-shrink-0">
                                   <div className={cn(
-                                    "w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm",
+                                    "w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm",
                                     comment.orderInfo?.SessionIndex 
-                                      ? "bg-red-500" 
-                                      : "bg-gradient-to-br from-primary to-primary/60"
+                                      ? "bg-green-500 text-red-600" 
+                                      : "bg-gradient-to-br from-primary to-primary/60 text-white"
                                   )}>
                                     {comment.orderInfo?.SessionIndex 
                                       ? comment.orderInfo.SessionIndex 
@@ -1179,7 +1179,7 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
                                 </div>
                                   <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="font-semibold text-lg">{comment.from?.name}</span>
+                                    <span className="font-semibold text-sm">{comment.from?.name}</span>
                                     {comment.partnerStatus && comment.partnerStatus !== 'Khách lạ' && comment.partnerStatus !== 'Cần thêm TT' && (
                                       <Badge 
                                         variant={
@@ -1213,7 +1213,7 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
                                     </span>
                                   </div>
                                   
-                                  <p className="text-lg font-semibold whitespace-pre-wrap break-words mt-1.5">
+                                  <p className="text-sm font-semibold whitespace-pre-wrap break-words mt-1.5">
                                     {comment.message}
                                   </p>
                                   
