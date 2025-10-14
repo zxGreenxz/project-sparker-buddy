@@ -2155,7 +2155,6 @@ export default function LiveProducts() {
                           <TableHead>Mã SP</TableHead>
                           <TableHead>Tên sản phẩm</TableHead>
                           <TableHead>Hình ảnh</TableHead>
-                          <TableHead>Biến thể</TableHead>
                           <TableHead className="text-center">SL chuẩn bị</TableHead>
                           <TableHead className="text-center">SL đã bán</TableHead>
                           <TableHead>Mã đơn hàng</TableHead>
@@ -2169,7 +2168,7 @@ export default function LiveProducts() {
                           if (filteredHangLe.length === 0) {
                             return (
                               <TableRow>
-                                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                                   {productSearch.trim() ? "Không tìm thấy sản phẩm" : "Chưa có hàng lẻ"}
                                 </TableCell>
                               </TableRow>
@@ -2198,7 +2197,7 @@ export default function LiveProducts() {
                                     </div>
                                   )}
                                 </TableCell>
-                                <TableCell>{getVariantName(product.variant)}</TableCell>
+                                
                                 <TableCell className="text-center">{product.prepared_quantity}</TableCell>
                                 <TableCell className="text-center">{product.sold_quantity}</TableCell>
                                 <TableCell>
