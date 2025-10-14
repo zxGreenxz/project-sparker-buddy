@@ -162,24 +162,25 @@ export function AddProductToLiveDialog({ open, onOpenChange, phaseId, sessionId,
     
     console.log('[Auto-detect] Base prefix:', basePrefix);
     
+    // Query all products that start with the base prefix
     const { data: matchingProducts, error } = await supabase
       .from("products")
       .select("*")
-      .or(`product_name.ilike.${basePrefix} (%),product_name.ilike.${basePrefix}-%)`);
+      .ilike("product_name", `${basePrefix}%`);
     
     if (error) {
       console.error('[Auto-detect] Error fetching products:', error);
       throw error;
     }
     
-    // Filter locally to ensure exact base prefix match
+    // Filter locally to ensure exact base prefix match and valid format
     const filtered = (matchingProducts || []).filter(p => {
       const pPrefix = extractBaseNamePrefix(p.product_name);
       return pPrefix === basePrefix;
     });
     
     console.log('[Auto-detect] Found', filtered.length, 'matching products');
-    return filtered;
+    return filtered.length > 1 ? filtered : null;
   };
 
   // Reset state when dialog closes
