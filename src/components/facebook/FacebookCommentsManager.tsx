@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Video, MessageCircle, Heart, RefreshCw, Pause, Play, Search, Loader2, Facebook, ChevronDown, Copy, Maximize, Minimize, X, Plus, Check } from "lucide-react";
+import { Video, MessageCircle, Heart, RefreshCw, Pause, Play, Search, Loader2, Facebook, ChevronDown, Copy, Maximize, Minimize } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
@@ -28,8 +28,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
-import { useBarcodeScanner } from "@/contexts/BarcodeScannerContext";
-import { ScannedBarcodesPanel } from "./ScannedBarcodesPanel";
 
 // Helper: Debounce function
 function debounce<T extends (...args: any[]) => any>(
@@ -50,7 +48,6 @@ interface FacebookCommentsManagerProps {
 export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsManagerProps = {}) {
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
-  const { enabledPages, addScannedBarcode, scannedBarcodes } = useBarcodeScanner();
   const [pageId, setPageId] = useState(() => {
     return localStorage.getItem('liveProducts_commentsPageId') || "";
   });
@@ -88,12 +85,6 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
   // State for fullscreen mode on mobile
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [pendingCommentIds, setPendingCommentIds] = useState<Set<string>>(new Set());
-  
-  // State for manual product selection
-  const [selectedProductsMap, setSelectedProductsMap] = useState<Map<string, any>>(new Map());
-  
-  // State for confirming order creation without products
-  const [confirmNoProductCommentId, setConfirmNoProductCommentId] = useState<string | null>(null);
   
   // Refs for realtime checking
   const lastKnownCountRef = useRef<number>(0);
@@ -184,77 +175,27 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
   });
 
   const handleCreateOrderClick = (comment: CommentWithStatus) => {
-    // Check if products are selected
-    const selectedProducts = selectedProductsMap.get(comment.id) || [];
-    const hasProducts = selectedProducts.length > 0;
-    
-    // Create a modified comment with product codes in the message
-    const modifiedComment = {
-      ...comment,
-      message: getCommentWithProductCodes(comment.id, comment.message)
-    };
-    
     // If comment already has order, show inline confirmation
     if (comment.orderInfo) {
       setConfirmDuplicateOrderCommentId(comment.id);
       return;
     }
     
-    // If no products selected, show inline confirmation
-    if (!hasProducts) {
-      setConfirmNoProductCommentId(comment.id);
-      return;
-    }
-    
-    // Create order directly if has products and no existing order
+    // Create order directly
     if (selectedVideo) {
-      createOrderMutation.mutate({ comment: modifiedComment, video: selectedVideo });
+      createOrderMutation.mutate({ comment, video: selectedVideo });
     }
   };
 
   const handleConfirmDuplicateOrder = (comment: CommentWithStatus) => {
     if (!selectedVideo) return;
     
-    // Check if products are selected
-    const selectedProducts = selectedProductsMap.get(comment.id) || [];
-    const hasProducts = selectedProducts.length > 0;
-    
-    // Close duplicate order confirmation
     setConfirmDuplicateOrderCommentId(null);
-    
-    // If no products selected, show inline confirmation for no products
-    if (!hasProducts) {
-      setConfirmNoProductCommentId(comment.id);
-      return;
-    }
-    
-    // Create order if has products
-    const modifiedComment = {
-      ...comment,
-      message: getCommentWithProductCodes(comment.id, comment.message)
-    };
-    
-    createOrderMutation.mutate({ comment: modifiedComment, video: selectedVideo });
+    createOrderMutation.mutate({ comment, video: selectedVideo });
   };
 
   const handleCancelDuplicateOrder = () => {
     setConfirmDuplicateOrderCommentId(null);
-  };
-
-  const handleConfirmNoProduct = (comment: CommentWithStatus) => {
-    if (!selectedVideo) return;
-    
-    const modifiedComment = {
-      ...comment,
-      message: getCommentWithProductCodes(comment.id, comment.message)
-    };
-    
-    createOrderMutation.mutate({ comment: modifiedComment, video: selectedVideo });
-    setConfirmNoProductCommentId(null);
-  };
-
-  const handleCancelNoProduct = () => {
-    setConfirmNoProductCommentId(null);
   };
 
   // Fetch videos
@@ -545,64 +486,6 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
     return 'Bình thường';
   };
 
-  // Handle manual product selection - SUPPORT MULTIPLE PRODUCTS
-  const handleSelectProduct = (commentId: string, product: any) => {
-    setSelectedProductsMap(prev => {
-      const newMap = new Map(prev);
-      const existingProducts = newMap.get(commentId) || [];
-      
-      // Check if product already exists (based on code)
-      const alreadyExists = existingProducts.some((p: any) => p.code === product.code);
-      
-      if (!alreadyExists) {
-        newMap.set(commentId, [...existingProducts, product]);
-      }
-      
-      return newMap;
-    });
-  };
-
-  // Handle removing a selected product
-  const handleRemoveProduct = (commentId: string, productCode: string) => {
-    setSelectedProductsMap(prev => {
-      const newMap = new Map(prev);
-      const existingProducts = newMap.get(commentId) || [];
-      const filteredProducts = existingProducts.filter((p: any) => p.code !== productCode);
-      
-      if (filteredProducts.length === 0) {
-        newMap.delete(commentId);
-      } else {
-        newMap.set(commentId, filteredProducts);
-      }
-      
-      return newMap;
-    });
-  };
-
-  // Generate comment text with product codes
-  const getCommentWithProductCodes = (commentId: string, originalMessage: string) => {
-    const selectedProducts = selectedProductsMap.get(commentId) || [];
-    
-    console.log(`[Frontend] getCommentWithProductCodes for comment ${commentId}:`);
-    console.log(`  Selected products:`, selectedProducts);
-    
-    if (selectedProducts.length === 0) {
-      console.log(`  → No products selected, returning original message`);
-      return originalMessage;
-    }
-    
-    // Format: (CODE1 - CODE2 - CODE3)
-    const productCodes = selectedProducts
-      .map((p: any) => p.code)
-      .join(' - ');
-    
-    const result = `(${productCodes}) ${originalMessage}`;
-    
-    console.log(`  → Product codes: [${selectedProducts.map((p: any) => p.code).join(', ')}]`);
-    console.log(`  → Modified message: "${result}"`);
-    
-    return result;
-  };
 
   const fetchPartnerStatusBatch = useCallback(async (
     commentsToProcess: FacebookComment[], 
@@ -792,49 +675,6 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
     allCommentIdsRef.current = currentIds;
   }, [comments, toast]);
 
-  // Handle barcode scanning
-  useEffect(() => {
-    if (!enabledPages.includes('facebook-comments')) return;
-    
-    const handleBarcodeScan = async (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const code = customEvent.detail.code;
-      
-      // Search product in database
-      const { data: products } = await supabase
-        .from('products')
-        .select('id, product_name, product_images, tpos_image_url, product_code')
-        .eq('product_code', code)
-        .limit(1);
-      
-      const product = products?.[0];
-      
-      // Get the first available image
-      const imageUrl = product?.product_images?.[0] || product?.tpos_image_url || undefined;
-      
-      addScannedBarcode({
-        code,
-        timestamp: new Date().toISOString(),
-        productInfo: product ? {
-          id: product.id,
-          name: product.product_name,
-          image_url: imageUrl,
-          product_code: product.product_code,
-        } : undefined,
-      });
-      
-      toast({
-        title: product ? "✅ Đã quét barcode" : "⚠️ Không tìm thấy sản phẩm",
-        description: product ? product.product_name : `Barcode: ${code}`,
-      });
-    };
-    
-    window.addEventListener('barcode-scanned', handleBarcodeScan);
-    
-    return () => {
-      window.removeEventListener('barcode-scanned', handleBarcodeScan);
-    };
-  }, [enabledPages, addScannedBarcode, toast]);
 
   const handleLoadVideos = async () => {
     if (!pageId) {
@@ -914,9 +754,6 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
     <div className="h-full flex flex-col overflow-hidden">
       <div className={cn("flex-1 overflow-auto", isMobile ? "p-2" : "p-4")}>
         <div className="space-y-4">
-          {/* Scanned Barcodes Panel */}
-          {enabledPages.includes('facebook-comments') && <ScannedBarcodesPanel />}
-          
           {/* Video List - now full width */}
           {!selectedVideo && (
           <Card className="border-0 shadow-sm">
@@ -1383,142 +1220,9 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
                                     </span>
                                   </div>
                                   
-                                  <div className="mt-1.5 space-y-2">
-                                    {/* Selected Products Display */}
-                                    {(() => {
-                                      const selectedProducts = selectedProductsMap.get(comment.id) || [];
-                                      
-                                      if (selectedProducts.length > 0) {
-                                        return (
-                                          <div className="flex flex-wrap gap-2 mb-2">
-                                            {selectedProducts.map((product: any, idx: number) => (
-                                              <div 
-                                                key={idx}
-                                                className="flex items-center gap-2 bg-primary/10 rounded-md p-2 pr-1"
-                                              >
-                                                {product.productInfo?.image_url && (
-                                                  <img 
-                                                    src={product.productInfo.image_url} 
-                                                    alt={product.productInfo.name}
-                                                    className="w-6 h-6 rounded object-cover"
-                                                  />
-                                                )}
-                                                <span className="text-xs font-mono font-medium">
-                                                  {product.code}
-                                                </span>
-                                                <Button
-                                                  size="sm"
-                                                  variant="ghost"
-                                                  className="h-5 w-5 p-0 hover:bg-destructive hover:text-destructive-foreground"
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleRemoveProduct(comment.id, product.code);
-                                                  }}
-                                                >
-                                                  <X className="h-3 w-3" />
-                                                </Button>
-                                              </div>
-                                            ))}
-                                          </div>
-                                        );
-                                      }
-                                      
-                                      return null;
-                                    })()}
-                                    
-                                    {/* Dropdown to add more products */}
-                                    <DropdownMenu>
-                                      <DropdownMenuTrigger asChild>
-                                        <Button 
-                                          variant="outline" 
-                                          size="sm" 
-                                          className="h-8 text-xs w-full justify-start"
-                                        >
-                                          <Plus className="h-4 w-4 mr-2" />
-                                          Chọn sản phẩm
-                                        </Button>
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent className="w-80 max-h-[400px] overflow-y-auto bg-background z-50">
-                                        <DropdownMenuLabel>Sản phẩm đã quét</DropdownMenuLabel>
-                                        <DropdownMenuSeparator />
-                                        {scannedBarcodes.length === 0 ? (
-                                          <div className="p-4 text-center text-sm text-muted-foreground">
-                                            Chưa có sản phẩm nào được quét
-                                          </div>
-                                        ) : (
-                                          scannedBarcodes.map((barcode, index) => {
-                                            const selectedProducts = selectedProductsMap.get(comment.id) || [];
-                                            const isSelected = selectedProducts.some((p: any) => p.code === barcode.code);
-                                            
-                                            return (
-                                              <DropdownMenuItem 
-                                                key={index}
-                                                className={cn(
-                                                  "cursor-pointer p-3",
-                                                  isSelected && "bg-primary/10"
-                                                )}
-                                                onClick={() => handleSelectProduct(comment.id, barcode)}
-                                              >
-                                                <div className="flex items-center gap-3 w-full">
-                                                  {isSelected && <Check className="h-4 w-4 text-primary flex-shrink-0" />}
-                                                  {barcode.productInfo?.image_url && (
-                                                    <img 
-                                                      src={barcode.productInfo.image_url} 
-                                                      alt={barcode.productInfo.name}
-                                                      className="w-12 h-12 rounded object-cover flex-shrink-0"
-                                                    />
-                                                  )}
-                                                  <div className="flex-1 min-w-0">
-                                                    <p className="font-medium truncate text-sm">
-                                                      {barcode.productInfo?.name || barcode.code}
-                                                    </p>
-                                                    <p className="text-xs text-muted-foreground font-mono">
-                                                      {barcode.code}
-                                                    </p>
-                                                    <p className="text-xs text-muted-foreground">
-                                                      {format(new Date(barcode.timestamp), 'HH:mm:ss')}
-                                                    </p>
-                                                  </div>
-                                                </div>
-                                              </DropdownMenuItem>
-                                            );
-                                          })
-                                        )}
-                                      </DropdownMenuContent>
-                                    </DropdownMenu>
-                                    
-                                    {/* Original comment with product codes */}
-                                    <p className="text-xs text-muted-foreground italic border-l-2 pl-2">
-                                      "{getCommentWithProductCodes(comment.id, comment.message)}"
-                                    </p>
-                                  </div>
-                                  
-                                  {/* Inline confirmation for no products */}
-                                  {confirmNoProductCommentId === comment.id && (
-                                    <div className="mb-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
-                                      <p className="text-sm text-yellow-800 dark:text-yellow-200 mb-2">
-                                        ⚠️ Chưa chọn sản phẩm. Bỏ qua chọn sản phẩm?
-                                      </p>
-                                      <div className="flex gap-2">
-                                        <Button 
-                                          size="sm" 
-                                          variant="default"
-                                          className="h-7 text-xs"
-                                          onClick={() => handleConfirmNoProduct(comment)}
-                                        >
-                                          Bỏ qua
-                                        </Button>
-                                        <Button 
-                                          size="sm" 
-                                          variant="outline"
-                                          className="h-7 text-xs"
-                                          onClick={handleCancelNoProduct}
-                                        >
-                                          Hủy
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  )}
+                                  <p className="text-sm whitespace-pre-wrap break-words mt-1.5">
+                                    {comment.message}
+                                  </p>
                                   
                                   {/* Inline confirmation for duplicate order */}
                                   {confirmDuplicateOrderCommentId === comment.id && (
