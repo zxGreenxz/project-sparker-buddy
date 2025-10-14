@@ -482,6 +482,7 @@ ${billData.comment ? `${billData.comment}\n` : ''}${new Date(billData.createdTim
           sideOffset={4}
           onOpenAutoFocus={(e) => e.preventDefault()}
           onCloseAutoFocus={(e) => e.preventDefault()}
+          onMouseLeave={() => setIsOpen(false)}
           onPointerDownOutside={(e) => {
             const target = e.target as HTMLElement;
             if (target.closest('[role="combobox"]') || target.closest('input[type="text"]')) {
