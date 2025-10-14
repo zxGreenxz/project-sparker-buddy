@@ -494,8 +494,8 @@ ${billData.comment ? `${billData.comment}\n` : ''}${new Date(billData.createdTim
                             <span className="rounded bg-muted px-2 py-0.5">
                               {comment.remaining}
                             </span>
-                            <Button variant="ghost" size="icon" onClick={e => handleHideComment(e, comment.facebook_comment_id)} title="Ẩn comment" className="max-h-80 max-w-80 text-muted-foreground hover:text-destructive hover:bg-destructive/10">
-                              <EyeOff className="h-4 w-4" />
+                            <Button variant="ghost" size="icon" onClick={e => handleHideComment(e, comment.facebook_comment_id)} title="Ẩn comment" className="h-10 w-20 text-muted-foreground hover:text-white hover:bg-destructive transition-colors">
+                              <EyeOff className="h-5 w-5" />
                             </Button>
                           </div>
                         </div>
