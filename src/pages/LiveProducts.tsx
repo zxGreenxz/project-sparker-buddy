@@ -2198,7 +2198,7 @@ export default function LiveProducts() {
                                     </div>
                                   )}
                                 </TableCell>
-                                <TableCell>{product.variant || "-"}</TableCell>
+                                <TableCell>{product.variant || ""}</TableCell>
                                 <TableCell className="text-center">{product.prepared_quantity}</TableCell>
                                 <TableCell className="text-center">{product.sold_quantity}</TableCell>
                                 <TableCell>
