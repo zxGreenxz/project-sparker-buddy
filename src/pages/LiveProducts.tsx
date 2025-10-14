@@ -18,7 +18,7 @@ import { QuickAddOrder } from "@/components/live-products/QuickAddOrder";
 import { LiveSessionStats } from "@/components/live-products/LiveSessionStats";
 import { FullScreenProductView } from "@/components/live-products/FullScreenProductView";
 import { LiveSupplierStats } from "@/components/live-products/LiveSupplierStats";
-import { TPOSActionsCollapsible } from "@/components/live-products/TPOSActionsCollapsible";
+
 import { useBarcodeScanner } from "@/contexts/BarcodeScannerContext";
 import { useCommentsSidebar } from "@/contexts/CommentsSidebarContext";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -61,9 +61,6 @@ import { formatVariant } from "@/lib/variant-utils";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { getTPOSHeaders, getActiveTPOSToken } from "@/lib/tpos-config";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import type { DateRange } from "react-day-picker";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -294,22 +291,7 @@ export default function LiveProducts() {
     orders?: OrderWithProduct[];
   } | null>(null);
   const [isFullScreenProductViewOpen, setIsFullScreenProductViewOpen] = useState(false);
-  const [isSyncingTpos, setIsSyncingTpos] = useState(false);
   const [isUploadTPOSOpen, setIsUploadTPOSOpen] = useState(false);
-  const [tposSyncResult, setTposSyncResult] = useState<{
-    matched: number;
-    notFound: number;
-    errors: number;
-  } | null>(null);
-  
-  // States for Product ID sync
-  const [isSyncingProductIds, setIsSyncingProductIds] = useState(false);
-  const [productIdSyncResult, setProductIdSyncResult] = useState<{
-    matched: number;
-    notFound: number;
-    errors: number;
-  } | null>(null);
-  const [maxRecordsToFetch, setMaxRecordsToFetch] = useState("4000");
   
   // Search state for products tab
   const [productSearch, setProductSearch] = useState("");
@@ -317,14 +299,6 @@ export default function LiveProducts() {
   
   const queryClient = useQueryClient();
   const { enabledPages, addScannedBarcode } = useBarcodeScanner();
-
-  const [tposSyncDateRange, setTposSyncDateRange] = useState<DateRange | undefined>(() => {
-    const endDate = new Date();
-    endDate.setDate(endDate.getDate() + 1);
-    const startDate = new Date();
-    startDate.setDate(endDate.getDate() - 3); // 4-day range ending tomorrow
-    return { from: startDate, to: endDate };
-  });
 
   // New mutation for updating prepared_quantity
   const updatePreparedQuantityMutation = useMutation({
@@ -1295,144 +1269,6 @@ export default function LiveProducts() {
     }
   });
 
-  const handleSyncTposOrders = async (): Promise<boolean> => {
-    setIsSyncingTpos(true);
-    setTposSyncResult(null);
-    
-    try {
-      // 1. Use date range from state
-      if (!tposSyncDateRange?.from || !tposSyncDateRange?.to) {
-        toast.error("Vui lòng chọn khoảng thời gian để đồng bộ.");
-        setIsSyncingTpos(false);
-        return false;
-      }
-
-      const startDate = new Date(tposSyncDateRange.from);
-      const endDate = new Date(tposSyncDateRange.to);
-      
-      // Set time to start and end of day
-      startDate.setHours(0, 0, 0, 0);
-      endDate.setHours(23, 59, 59, 999);
-
-      const startDateStr = startDate.toISOString();
-      const endDateStr = endDate.toISOString();
-      
-      // 2. Construct URL with date range
-      const topValue = 200; // Default as per previous logic
-      const url = `https://tomato.tpos.vn/odata/SaleOnline_Order/ODataService.GetView?$top=${topValue}&$orderby=DateCreated desc&$filter=(DateCreated ge ${startDateStr} and DateCreated le ${endDateStr})&$count=true`;
-      
-      console.log('[TPOS Sync] Fetching from URL:', url);
-      
-      // 3. Get TPOS token
-      const token = await getActiveTPOSToken();
-      if (!token) {
-        toast.error("Chưa có TPOS Bearer Token. Vui lòng cập nhật trong Cài đặt.");
-        setIsSyncingTpos(false);
-        return false;
-      }
-      
-      // 4. Fetch from TPOS
-      const response = await fetch(url, {
-        headers: getTPOSHeaders(token)
-      });
-      
-      if (!response.ok) throw new Error("Failed to fetch TPOS orders");
-      
-      const data = await response.json();
-      console.log('[TPOS Sync] Response data:', data);
-      
-      // 5. Create mapping: SessionIndex -> {Id, Code}
-      const tposMap = new Map<string, { id: string; code: string }>();
-      data.value?.forEach((order: any) => {
-        if (order.SessionIndex && order.Id && order.Code) {
-          const sessionIndexStr = String(order.SessionIndex).trim();
-          tposMap.set(sessionIndexStr, {
-            id: order.Id,
-            code: order.Code
-          });
-        }
-      });
-      
-      console.log('[TPOS Sync] Total TPOS mappings:', tposMap.size);
-      
-      // 6. Get local orders that need syncing
-      const ordersToSync = ordersWithProducts.filter(o => !o.tpos_order_id && o.order_code);
-      if (ordersToSync.length === 0) {
-        toast.info("Không có đơn hàng nào cần đồng bộ.");
-        setIsSyncingTpos(false);
-        return true; // Still success, just nothing to do
-      }
-      
-      console.log(`[TPOS Sync] Found ${ordersToSync.length} local orders to sync.`);
-      
-      // 7. Match and prepare updates
-      let matched = 0;
-      let notFound = 0;
-      const updates: { id: string; tpos_order_id: string; code_tpos_order_id: string }[] = [];
-
-      for (const order of ordersToSync) {
-        const normalizedOrderCode = String(order.order_code).trim();
-        const tposData = tposMap.get(normalizedOrderCode);
-        
-        if (tposData) {
-          updates.push({
-            id: order.id,
-            tpos_order_id: tposData.code,
-            code_tpos_order_id: tposData.id,
-          });
-          matched++;
-        } else {
-          notFound++;
-        }
-      }
-      
-      console.log(`[TPOS Sync] Matched: ${matched}, Not Found: ${notFound}`);
-      
-      // 8. Perform batch update to Supabase
-      if (updates.length > 0) {
-        // Update each order individually
-        for (const update of updates) {
-          const { error } = await supabase
-            .from('live_orders')
-            .update({
-              tpos_order_id: update.tpos_order_id,
-              code_tpos_order_id: update.code_tpos_order_id,
-            })
-            .eq('id', update.id);
-          
-          if (error) {
-            console.error('Error updating order:', update.id, error);
-            throw error;
-          }
-        }
-      }
-      
-      // 9. Update result state and show toast
-      setTposSyncResult({ matched, notFound, errors: 0 });
-      toast.success(`Đồng bộ hoàn tất: ${matched} đơn được cập nhật, ${notFound} không tìm thấy.`);
-      
-      // 10. Invalidate queries
-      queryClient.invalidateQueries({ queryKey: ['live-orders', selectedPhase, selectedSession] });
-      queryClient.invalidateQueries({ queryKey: ['orders-with-products', selectedPhase, selectedSession] });
-      
-      setIsSyncingTpos(false);
-      return true;
-      
-    } catch (error) {
-      console.error("Error syncing TPOS orders:", error);
-      toast.error("Không thể lấy dữ liệu từ TPOS. " + (error instanceof Error ? error.message : ""));
-      setTposSyncResult({ matched: 0, notFound: 0, errors: 1 });
-      setIsSyncingTpos(false);
-      return false;
-    }
-  };
-
-  const handleSyncAndUpload = async () => {
-    const syncSuccess = await handleSyncTposOrders();
-    if (syncSuccess) {
-      setIsUploadTPOSOpen(true);
-    }
-  };
 
   const handleEditProduct = (product: LiveProduct) => {
     setEditingProduct({
@@ -1457,36 +1293,6 @@ export default function LiveProducts() {
     queryClient.invalidateQueries({ queryKey: ["live-orders", selectedPhase, selectedSession] });
     queryClient.invalidateQueries({ queryKey: ["orders-with-products", selectedPhase, selectedSession] });
     toast.success("Đã làm mới danh sách sản phẩm");
-  };
-  
-  const handleSyncProductIds = async () => {
-    if (!window.confirm("Đồng bộ mã biến thể cho các sản phẩm chưa có productid_bienthe?\n\nQuá trình này có thể mất vài phút tùy theo số lượng records.")) {
-      return;
-    }
-    
-    setIsSyncingProductIds(true);
-    setProductIdSyncResult(null);
-    
-    try {
-      const { syncTPOSProductIds } = await import("@/lib/tpos-api");
-      const maxRecords = parseInt(maxRecordsToFetch);
-      
-      const result = await syncTPOSProductIds(maxRecords);
-      
-      setProductIdSyncResult({
-        matched: result.matched,
-        notFound: result.notFound,
-        errors: result.errors
-      });
-      
-      toast.success(`Đã cập nhật ${result.matched} sản phẩm${result.notFound > 0 ? `, ${result.notFound} không tìm thấy` : ''}`);
-      
-    } catch (error) {
-      console.error("Error syncing product IDs:", error);
-      toast.error("Không thể đồng bộ mã biến thể từ TPOS");
-    } finally {
-      setIsSyncingProductIds(false);
-    }
   };
 
   const getPhaseDisplayName = (phase: LivePhase) => {
@@ -2477,19 +2283,6 @@ export default function LiveProducts() {
             </TabsContent>
 
             <TabsContent value="orders" className="space-y-4">
-              <TPOSActionsCollapsible
-                hasOrders={ordersWithProducts.length > 0}
-                handleSyncAndUpload={handleSyncAndUpload}
-                isSyncingTpos={isSyncingTpos}
-                tposSyncDateRange={tposSyncDateRange}
-                setTposSyncDateRange={setTposSyncDateRange}
-                maxRecordsToFetch={maxRecordsToFetch}
-                setMaxRecordsToFetch={setMaxRecordsToFetch}
-                handleSyncProductIds={handleSyncProductIds}
-                isSyncingProductIds={isSyncingProductIds}
-                productIdSyncResult={productIdSyncResult}
-              />
-              
               {ordersWithProducts.length === 0 ? (
                 <Card>
                   <CardContent className="flex flex-col items-center justify-center py-12">
