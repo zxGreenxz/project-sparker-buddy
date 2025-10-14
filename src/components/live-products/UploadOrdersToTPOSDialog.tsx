@@ -98,15 +98,13 @@ export function UploadOrdersToTPOSDialog({
 
   // Format date for TPOS API with GMT+7 timezone
   const formatDateForAPI = (dateStr: string, isEndDate = false) => {
-    const date = new Date(dateStr + 'T00:00:00');
+    const date = new Date(dateStr);
     
     if (isEndDate) {
-      // End date: 23:59:59 GMT+7 = 16:59:59 UTC same day
-      date.setUTCHours(16, 59, 59, 0);
+      date.setHours(16, 59, 59, 0);
     } else {
-      // Start date: 00:00:00 GMT+7 = 17:00:00 UTC previous day
-      date.setUTCDate(date.getUTCDate() - 1);
-      date.setUTCHours(17, 0, 0, 0);
+      date.setHours(17, 0, 0, 0);
+      date.setDate(date.getDate() - 1);
     }
     
     return date.toISOString().replace(/\.\d{3}Z$/, 'Z');
