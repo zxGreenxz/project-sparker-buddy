@@ -1258,7 +1258,7 @@ export default function LiveProducts() {
         <div className="text-center">Đang tải...</div>
       </div>;
   }
-  return <div className="w-full py-6 px-4 space-y-6">
+  return <div className="w-full px-4 space-y-6">
       {/* Header */}
       
 
