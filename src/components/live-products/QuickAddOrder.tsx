@@ -434,20 +434,27 @@ export function QuickAddOrder({ productId, phaseId, sessionId, availableQuantity
                     .map(comment => (
                       <CommandItem
                         key={comment.id}
-                        className="cursor-pointer flex items-center justify-between gap-2"
+                        className="cursor-pointer flex flex-col items-start gap-1 py-3"
                         onSelect={() => handleSelectComment(comment.sessionIndex, comment.facebook_comment_id)}
                       >
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <span className="font-medium shrink-0">#{comment.sessionIndex}</span>
-                          <span className="shrink-0">-</span>
-                          <span className="font-bold truncate">{comment.name || '(không tên)'}</span>
+                        <div className="flex items-center justify-between gap-2 w-full">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <span className="font-medium shrink-0">#{comment.sessionIndex}</span>
+                            <span className="shrink-0">-</span>
+                            <span className="font-bold truncate">{comment.name || '(không tên)'}</span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0 text-xs text-muted-foreground">
+                            <span>{new Date(comment.created_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
+                            <span className="rounded bg-muted px-2 py-0.5">
+                              còn {comment.remaining}/{comment.total}
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0 text-xs text-muted-foreground">
-                          <span>{new Date(comment.created_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
-                          <span className="rounded bg-muted px-2 py-0.5">
-                            còn {comment.remaining}/{comment.total}
-                          </span>
-                        </div>
+                        {comment.comment && (
+                          <div className="font-bold text-sm pl-0 w-full">
+                            {comment.comment}
+                          </div>
+                        )}
                       </CommandItem>
                     ))}
                 </ScrollArea>
