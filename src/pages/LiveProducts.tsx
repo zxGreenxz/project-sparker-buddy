@@ -1554,8 +1554,8 @@ export default function LiveProducts() {
                           <TableRow>
                             <TableHead>Mã SP</TableHead>
                             <TableHead>Tên sản phẩm</TableHead>
-                            <TableHead>BT</TableHead>
                             <TableHead>Hình ảnh</TableHead>
+                            <TableHead>BT</TableHead>
                             <TableHead className="text-center w-24">Tạo order</TableHead>
                             <TableHead className="text-center">SL chuẩn bị</TableHead>
                             <TableHead className="text-center">SL đã bán</TableHead>
@@ -1912,8 +1912,8 @@ export default function LiveProducts() {
                       <TableRow>
                         <TableHead>Mã SP</TableHead>
                         <TableHead>Tên sản phẩm</TableHead>
-                        <TableHead>BT</TableHead>
                         <TableHead>Hình ảnh</TableHead>
+                        <TableHead>BT</TableHead>
                         <TableHead className="text-center">Tạo order</TableHead>
                         <TableHead className="text-center">SL chuẩn bị</TableHead>
                         <TableHead className="text-center">SL đã bán</TableHead>
@@ -1937,9 +1937,6 @@ export default function LiveProducts() {
                           <TableRow key={product.id}>
                             <TableCell className="font-medium">{product.product_code}</TableCell>
                             <TableCell>{product.product_name}</TableCell>
-                            <TableCell className="text-muted-foreground">
-                              {getVariantName(product.variant)}
-                            </TableCell>
                             <TableCell>
                               {product.image_url ? (
                                 <img 
@@ -1952,6 +1949,9 @@ export default function LiveProducts() {
                                   <Package className="h-6 w-6 text-muted-foreground" />
                                 </div>
                               )}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {getVariantName(product.variant)}
                             </TableCell>
                             <TableCell className="text-center">
                               <div className="flex flex-col items-center gap-1">
