@@ -1,4 +1,4 @@
-import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
+import { SidebarProvider, useSidebar, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { useCommentsSidebar } from "@/contexts/CommentsSidebarContext";
@@ -22,6 +22,11 @@ function LayoutContent({ children }: LayoutProps) {
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-background">
+        {/* Floating Sidebar Trigger - Always visible */}
+        {!isMobile && (
+          <SidebarTrigger className="fixed left-4 top-4 z-50 p-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg shadow-lg transition-all hover:scale-105" />
+        )}
+        
         {/* Desktop Sidebar - Hidden on mobile */}
         {!isMobile && <AppSidebar />}
         
