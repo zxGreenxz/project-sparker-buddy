@@ -458,14 +458,23 @@ ${billData.comment ? `${billData.comment}\n` : ''}${new Date(billData.createdTim
   return (
     <div className="w-full flex gap-2">
       <Popover open={isOpen} onOpenChange={setIsOpen}>
-        <PopoverTrigger asChild>
-          <div className="flex-1 relative">
+        <div className="flex-1 relative">
+          <PopoverTrigger asChild>
             <Input
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyPress={handleKeyPress}
-              onFocus={() => setIsOpen(true)}
+              onFocus={(e) => {
+                e.stopPropagation();
+                setIsOpen(true);
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!isOpen) {
+                  setIsOpen(true);
+                }
+              }}
               placeholder={isOutOfStock ? "Quá số (đánh dấu đỏ)" : "Nhập mã đơn..."}
               className={cn(
                 "text-sm h-9",
@@ -473,12 +482,21 @@ ${billData.comment ? `${billData.comment}\n` : ''}${new Date(billData.createdTim
               )}
               disabled={addOrderMutation.isPending}
             />
-          </div>
-        </PopoverTrigger>
+          </PopoverTrigger>
+        </div>
         <PopoverContent 
-          className="w-[520px] p-0 bg-popover z-50" 
+          className="w-[520px] p-0 z-[100]" 
           align="start"
+          side="bottom"
+          sideOffset={4}
           onOpenAutoFocus={(e) => e.preventDefault()}
+          onInteractOutside={(e) => {
+            // Prevent closing when clicking the input
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'INPUT') {
+              e.preventDefault();
+            }
+          }}
         >
           <Command shouldFilter={false} className="bg-popover">
             <div className="flex items-center justify-between px-3 py-2 border-b">
