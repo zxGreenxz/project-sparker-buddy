@@ -93,6 +93,84 @@ export function UploadTPOSDialog({ open, onOpenChange, sessionId, onUploadComple
     setSelectedOrderCodes(newSelection);
   };
 
+  /**
+   * Resolve Product ID cho TPOS với 3 cấp độ fallback:
+   * 1. productid_bienthe (ưu tiên cao nhất)
+   * 2. tpos_product_id (nếu không có variant)
+   * 3. Tìm trên TPOS bằng DefaultCode = product_code
+   */
+  const resolveProductId = async (
+    product: { 
+      product_code: string; 
+      productid_bienthe: number | null; 
+      tpos_product_id: number | null;
+      variant: string | null;
+    },
+    token: string
+  ): Promise<{ productId: number; source: string }> => {
+    
+    // CASE 1: Có productid_bienthe → dùng luôn
+    if (product.productid_bienthe) {
+      console.log(`✅ ${product.product_code}: Dùng productid_bienthe=${product.productid_bienthe}`);
+      return { 
+        productId: product.productid_bienthe, 
+        source: 'productid_bienthe' 
+      };
+    }
+    
+    // CASE 2: Có tpos_product_id và KHÔNG có variant → dùng base product
+    if (product.tpos_product_id && !product.variant) {
+      console.log(`✅ ${product.product_code}: Dùng tpos_product_id=${product.tpos_product_id} (base product)`);
+      return { 
+        productId: product.tpos_product_id, 
+        source: 'tpos_product_id (base)' 
+      };
+    }
+    
+    // CASE 3: Tìm trên TPOS bằng DefaultCode
+    console.log(`🔍 ${product.product_code}: Searching TPOS...`);
+    
+    const searchUrl = `https://tomato.tpos.vn/odata/Product/ODataService.GetViewV2?$filter=DefaultCode eq '${product.product_code}'&$select=Id,DefaultCode,Name&$top=1`;
+    
+    const searchResponse = await fetch(searchUrl, {
+      method: 'GET',
+      headers: getTPOSHeaders(token)
+    });
+    
+    if (!searchResponse.ok) {
+      throw new Error(`Không thể tìm sản phẩm ${product.product_code} trên TPOS (HTTP ${searchResponse.status})`);
+    }
+    
+    const searchData = await searchResponse.json();
+    
+    if (!searchData.value || searchData.value.length === 0) {
+      throw new Error(`Sản phẩm ${product.product_code} không tồn tại trên TPOS. Vui lòng tạo sản phẩm hoặc chạy đồng bộ mã biến thể trước.`);
+    }
+    
+    const tposProduct = searchData.value[0];
+    console.log(`✅ ${product.product_code}: Found on TPOS - ${tposProduct.Name} (Id: ${tposProduct.Id})`);
+    
+    // Auto-update vào DB để lần sau không cần search
+    const updateFields: any = { tpos_product_id: tposProduct.Id };
+    
+    // Nếu không có variant → cũng update productid_bienthe
+    if (!product.variant) {
+      updateFields.productid_bienthe = tposProduct.Id;
+    }
+    
+    await supabase
+      .from('products')
+      .update(updateFields)
+      .eq('product_code', product.product_code);
+    
+    console.log(`✅ ${product.product_code}: Auto-updated DB with TPOS Id`);
+    
+    return { 
+      productId: tposProduct.Id, 
+      source: 'TPOS search (DefaultCode)' 
+    };
+  };
+
   const handleUploadSelected = async () => {
     if (selectedOrderCodes.size === 0) {
       toast.error("Vui lòng chọn ít nhất 1 đơn hàng");
@@ -169,14 +247,6 @@ export function UploadTPOSDialog({ open, onOpenChange, sessionId, onUploadComple
 
           if (dbProductsError) throw dbProductsError;
 
-          // Validate tất cả products có productid_bienthe
-          const missingVariants = dbProducts.filter(p => !p.productid_bienthe);
-          if (missingVariants.length > 0) {
-            throw new Error(
-              `Các sản phẩm sau chưa có mã biến thể: ${missingVariants.map(p => p.product_code).join(', ')}`
-            );
-          }
-
           // Map data và GROUP BY product_code để gộp số lượng
           const productsMap = new Map<string, {
             productId: number;
@@ -186,32 +256,44 @@ export function UploadTPOSDialog({ open, onOpenChange, sessionId, onUploadComple
             price: number;
           }>();
 
-          liveOrdersData.forEach(liveOrder => {
+          for (const liveOrder of liveOrdersData) {
             const product = dbProducts.find(
               db => db.product_code === liveOrder.live_products.product_code
             );
             
             if (!product) {
-              throw new Error(`Không tìm thấy sản phẩm ${liveOrder.live_products.product_code}`);
+              throw new Error(`Không tìm thấy sản phẩm ${liveOrder.live_products.product_code} trong DB`);
             }
 
             const productCode = liveOrder.live_products.product_code;
             
             if (productsMap.has(productCode)) {
-              // SUM quantity nếu product đã tồn tại
+              // Đã resolve rồi, chỉ cộng thêm quantity
               const existing = productsMap.get(productCode)!;
               existing.quantity += liveOrder.quantity;
             } else {
-              // Tạo mới nếu chưa tồn tại
+              // Chưa có → resolve Product ID
+              let resolvedProductId: number;
+              
+              try {
+                const resolved = await resolveProductId(product, token);
+                resolvedProductId = resolved.productId;
+                console.log(`✅ ${productCode}: ProductId=${resolvedProductId} (${resolved.source})`);
+              } catch (resolveError: any) {
+                console.error(`❌ ${productCode}:`, resolveError.message);
+                throw new Error(`Sản phẩm ${productCode}: ${resolveError.message}`);
+              }
+              
+              // Tạo mới entry trong Map
               productsMap.set(productCode, {
-                productId: product.productid_bienthe!,
+                productId: resolvedProductId,
                 productName: product.product_name,
                 productNameGet: `[${product.product_code}] ${product.product_name}`,
                 quantity: liveOrder.quantity,
                 price: product.selling_price || 0
               });
             }
-          });
+          }
 
           // Chuyển Map thành Details array
           const detailsArray = Array.from(productsMap.values()).map(item => ({
