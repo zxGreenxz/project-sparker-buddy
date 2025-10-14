@@ -1166,8 +1166,15 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
                             <CardContent className="pt-4">
                               <div className="flex items-start gap-3">
                                 <div className="relative flex-shrink-0">
-                                  <div className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center text-white font-bold text-sm">
-                                    {comment.orderInfo?.SessionIndex || ''}
+                                  <div className={cn(
+                                    "w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm",
+                                    comment.orderInfo?.SessionIndex 
+                                      ? "bg-red-500" 
+                                      : "bg-gradient-to-br from-primary to-primary/60"
+                                  )}>
+                                    {comment.orderInfo?.SessionIndex 
+                                      ? comment.orderInfo.SessionIndex 
+                                      : comment.from?.name?.charAt(0) || '?'}
                                   </div>
                                 </div>
                                   <div className="flex-1 min-w-0">
