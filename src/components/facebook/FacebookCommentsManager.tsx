@@ -1189,7 +1189,7 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
                                         }
                                         className={cn(
                                           "text-xs",
-                                          comment.partnerStatus === 'Bình thường' && "bg-blue-400 hover:bg-blue-400 text-white"
+                                          comment.partnerStatus === 'Bình thường' && "bg-green-400 hover:bg-green-400 text-white"
                                         )}
                                       >
                                         {comment.partnerStatus}
