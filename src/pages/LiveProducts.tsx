@@ -135,6 +135,13 @@ interface LiveProduct {
   product_type?: 'hang_dat' | 'hang_le' | 'hang_so_luong';
 }
 
+interface UploadHistoryEntry {
+  timestamp: string;
+  status: 'success' | 'failed';
+  tpos_order_id?: string;
+  message?: string;
+}
+
 interface LiveOrder {
   id: string;
   live_session_id: string;
@@ -149,6 +156,7 @@ interface LiveOrder {
   uploaded_at?: string | null;
   upload_status?: string | null;
   customer_status?: string;
+  upload_history?: UploadHistoryEntry[] | null;
 }
 
 interface OrderWithProduct extends LiveOrder {
@@ -2476,19 +2484,38 @@ export default function LiveProducts() {
                                   rowSpan={aggregatedProducts.length}
                                   className="text-center py-2 align-middle border-r"
                                 >
-                                  {(() => {
-                                    const uploadStatus = orders[0]?.upload_status;
-                                    if (uploadStatus === 'success') {
-                                      return <Badge variant="default" className="bg-green-600">Đã upload</Badge>;
-                                    }
-                                    if (uploadStatus === 'failed') {
-                                      return <Badge variant="destructive">Lỗi</Badge>;
-                                    }
-                                    if (orders[0]?.code_tpos_order_id) {
-                                      return <Badge variant="outline">Chưa upload</Badge>;
-                                    }
-                                    return <span className="text-xs text-muted-foreground">-</span>;
-                                  })()}
+                                  <div className="flex flex-col gap-1 items-center">
+                                    {(() => {
+                                      const uploadStatus = orders[0]?.upload_status;
+                                      const uploadedAt = orders[0]?.uploaded_at;
+
+                                      if (!uploadStatus) {
+                                        return <span className="text-xs text-muted-foreground">Chưa upload</span>;
+                                      }
+
+                                      const timestamp = uploadedAt ? new Date(uploadedAt) : null;
+                                      const timeStr = timestamp ? timestamp.toLocaleString('vi-VN', {
+                                        day: '2-digit',
+                                        month: '2-digit',
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                      }) : '';
+
+                                      return (
+                                        <div className="flex flex-col gap-1 items-center">
+                                          <Badge 
+                                            variant={uploadStatus === 'success' ? 'default' : 'destructive'}
+                                            className={uploadStatus === 'success' ? 'bg-green-600' : ''}
+                                          >
+                                            {uploadStatus === 'success' ? 'Thành công' : 'Thất bại'}
+                                          </Badge>
+                                          {timeStr && (
+                                            <span className="text-xs text-muted-foreground">{timeStr}</span>
+                                          )}
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
                                 </TableCell>
                               )}
                             </TableRow>

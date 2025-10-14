@@ -209,6 +209,7 @@ export async function uploadOrderToTPOS(
         tpos_order_id: selectedOrder.Id.toString(),
         code_tpos_order_id: selectedOrder.Code,
         upload_status: 'success',
+        uploaded_at: new Date().toISOString(),
       })
       .eq('order_code', params.orderCode);
 
@@ -229,6 +230,7 @@ export async function uploadOrderToTPOS(
       .from('live_orders')
       .update({
         upload_status: 'failed',
+        uploaded_at: new Date().toISOString(),
       })
       .eq('order_code', params.orderCode);
 
