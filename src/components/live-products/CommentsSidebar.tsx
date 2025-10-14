@@ -13,27 +13,14 @@ export function CommentsSidebar({ isOpen, onClose, children }: CommentsSidebarPr
   const isMobile = useIsMobile();
 
   return (
-    <>
-      {/* Backdrop - hover to close */}
-      {isOpen && !isMobile && (
-        <div
-          className="fixed inset-0 z-[60]"
-          style={{ pointerEvents: 'none' }}
-          onMouseEnter={onClose}
-        />
+    <div
+      className={cn(
+        "fixed top-0 right-0 h-full bg-background border-l shadow-lg z-50",
+        isMobile ? "w-full" : "w-[400px] sm:w-[450px]",
+        "transition-transform duration-300 ease-in-out",
+        isOpen ? "translate-x-0" : "translate-x-full"
       )}
-      
-      {/* Sidebar */}
-      <div
-        className={cn(
-          "fixed top-0 right-0 h-full bg-background border-l shadow-lg z-50",
-          isMobile ? "w-full" : "w-[400px] sm:w-[450px]",
-          "transition-transform duration-300 ease-in-out",
-          isOpen ? "translate-x-0" : "translate-x-full",
-          !isOpen && "pointer-events-none"
-        )}
-        style={{ pointerEvents: isOpen ? 'auto' : 'none' }}
-      >
+    >
       {/* Header */}
       <div className={cn(
         "flex items-center justify-between border-b",
@@ -55,14 +42,13 @@ export function CommentsSidebar({ isOpen, onClose, children }: CommentsSidebarPr
         </Button>
       </div>
       
-        {/* Content */}
-        <div className={cn(
-          "overflow-y-auto",
-          isMobile ? "h-[calc(100vh-57px)]" : "h-[calc(100vh-65px)]"
-        )}>
-          {children}
-        </div>
+      {/* Content */}
+      <div className={cn(
+        "overflow-y-auto",
+        isMobile ? "h-[calc(100vh-57px)]" : "h-[calc(100vh-65px)]"
+      )}>
+        {children}
       </div>
-    </>
+    </div>
   );
 }
