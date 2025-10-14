@@ -577,14 +577,10 @@ export function LiveCommentsPanel({
                     {/* Avatar */}
                     <div className="relative flex-shrink-0">
                       <div className={cn(
-                        "rounded-full flex items-center justify-center text-white font-semibold",
-                        isMobile ? "w-8 h-8 text-[9px]" : "w-10 h-10 text-[10px]",
-                        comment.orderInfo?.SessionIndex ? 'bg-red-500' : 'bg-blue-500'
+                        "rounded-full flex items-center justify-center bg-red-500 text-white font-semibold",
+                        isMobile ? "w-8 h-8 text-[9px]" : "w-10 h-10 text-[10px]"
                       )}>
-                        {comment.orderInfo?.SessionIndex 
-                          ? comment.orderInfo.SessionIndex
-                          : comment.from.name.charAt(0).toUpperCase()
-                        }
+                        {comment.orderInfo?.SessionIndex || ''}
                       </div>
                     </div>
 
