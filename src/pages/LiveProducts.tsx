@@ -599,10 +599,10 @@ export default function LiveProducts() {
           const existing = existingMap.get(variant.product_code);
           
           if (existing) {
-            // Tăng số lượng
+            // Đẩy lên đầu bằng cách update created_at
             toUpdate.push({
               id: existing.id,
-              prepared_quantity: existing.prepared_quantity + 1
+              created_at: new Date().toISOString()
             });
           } else {
             // Thêm mới
@@ -633,28 +633,40 @@ export default function LiveProducts() {
           for (const update of toUpdate) {
             const { error: updateError } = await supabase
               .from("live_products")
-              .update({ prepared_quantity: update.prepared_quantity })
+              .update({ created_at: update.created_at })
               .eq("id", update.id);
             if (updateError) throw updateError;
           }
         }
 
-        // 7. Toast thông báo
+        // 7. Toast thông báo với format mới
         const insertedCount = toInsert.length;
         const updatedCount = toUpdate.length;
-        const variantNames = productsToAdd.map(v => v.product_code).join(", ");
+        
+        // Lấy thông tin sản phẩm gốc
+        const baseProductCode = productsToAdd[0]?.base_product_code || productsToAdd[0]?.product_code.split('X')[0];
+        const baseProductName = productsToAdd[0]?.product_name;
+        const allVariantCodes = productsToAdd.map(v => v.product_code).join(", ");
+        
+        const message = `Đã thêm ${baseProductCode} ${baseProductName} (${allVariantCodes})`;
+        toast.success(message);
 
-        if (insertedCount > 0 && updatedCount > 0) {
-          toast.success(
-            `✅ Đã thêm ${insertedCount} biến thể mới, tăng số lượng ${updatedCount} biến thể có sẵn (${variantNames})`
-          );
-        } else if (insertedCount > 0) {
-          toast.success(`✅ Đã thêm ${insertedCount} biến thể: ${variantNames}`);
-        } else {
-          toast.success(`✅ Đã tăng số lượng ${updatedCount} biến thể: ${variantNames}`);
-        }
+        // 8. Broadcast message to all users
+        const { data: currentUserData } = await supabase.auth.getUser();
+        const currentUserId = currentUserData.user?.id;
+        
+        const broadcastChannel = supabase.channel(`live-session-${selectedSession}`);
+        await broadcastChannel.send({
+          type: 'broadcast',
+          event: 'barcode-scanned',
+          payload: {
+            message: message,
+            scannedBy: currentUserId,
+            timestamp: new Date().toISOString()
+          }
+        });
 
-        // 8. Refresh data
+        // 9. Refresh data
         queryClient.invalidateQueries({ 
           queryKey: ["live-products", selectedPhase, selectedSession] 
         });
@@ -841,8 +853,23 @@ export default function LiveProducts() {
       )
       .subscribe();
 
+    // Subscribe to broadcast channel for barcode scanned notifications
+    const broadcastChannel = supabase
+      .channel(`live-session-${selectedSession}`)
+      .on('broadcast', { event: 'barcode-scanned' }, async (payload: any) => {
+        const { data: currentUserData } = await supabase.auth.getUser();
+        const currentUserId = currentUserData.user?.id;
+        
+        // Chỉ hiện toast nếu KHÔNG phải người quét
+        if (payload.payload.scannedBy !== currentUserId) {
+          toast.success(payload.payload.message);
+        }
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(broadcastChannel);
     };
   }, [selectedSession, selectedPhase]);
 
