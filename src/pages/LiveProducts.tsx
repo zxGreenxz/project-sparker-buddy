@@ -2314,7 +2314,6 @@ export default function LiveProducts() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-32 font-bold text-base">Mã đơn hàng</TableHead>
-                  <TableHead className="w-32 font-bold text-base">Mã TPOS</TableHead>
                   <TableHead className="w-48 font-bold text-base">Tên sản phẩm</TableHead>
                   <TableHead className="w-32 font-bold text-base">Mã sản phẩm</TableHead>
                   <TableHead className="w-20 text-center font-bold text-base">Số lượng</TableHead>
@@ -2385,36 +2384,25 @@ export default function LiveProducts() {
                               } ${bgColorClass}`}
                             >
                     {index === 0 && (
-                      <>
-                        <TableCell 
-                          rowSpan={aggregatedProducts.length} 
-                          className="font-medium align-middle border-r border-l text-center"
-                        >
-                          <div className="flex flex-col items-center justify-center gap-2">
-                            <div className="flex items-center gap-2">
-                              {hasOversell && (
-                                <AlertTriangle className="h-5 w-5 text-yellow-500" />
-                              )}
-                              <Badge className={`text-base font-bold font-mono px-3 py-1.5 ${
-                                hasOversell 
-                                  ? 'bg-yellow-500 text-white hover:bg-yellow-600 dark:bg-yellow-600 dark:hover:bg-yellow-700'
-                                  : 'bg-primary text-primary-foreground'
-                              }`}>
-                                {orderCode}
-                              </Badge>
-                            </div>
+                      <TableCell 
+                        rowSpan={aggregatedProducts.length} 
+                        className="font-medium align-middle border-r border-l text-center"
+                      >
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <div className="flex items-center gap-2">
+                            {hasOversell && (
+                              <AlertTriangle className="h-5 w-5 text-yellow-500" />
+                            )}
+                            <Badge className={`text-base font-bold font-mono px-3 py-1.5 ${
+                              hasOversell 
+                                ? 'bg-yellow-500 text-white hover:bg-yellow-600 dark:bg-yellow-600 dark:hover:bg-yellow-700'
+                                : 'bg-primary text-primary-foreground'
+                            }`}>
+                              {orderCode}
+                            </Badge>
                           </div>
-                        </TableCell>
-                        
-                        <TableCell 
-                          rowSpan={aggregatedProducts.length} 
-                          className="align-middle border-r text-center"
-                        >
-                          <span className="text-sm text-muted-foreground font-mono">
-                            {orders[0]?.tpos_order_id || '-'}
-                          </span>
-                        </TableCell>
-                      </>
+                        </div>
+                      </TableCell>
                     )}
                               <TableCell className="py-2 border-r">
                                 <div className="font-medium text-sm">{product.product_name}</div>
