@@ -375,7 +375,11 @@ export function QuickAddOrder({ productId, phaseId, sessionId, availableQuantity
       return { commentId, newCount };
     },
     onSuccess: ({ newCount }) => {
+      // Invalidate và refetch ngay để UI update tức thì
       queryClient.invalidateQueries({ 
+        queryKey: ['facebook-pending-orders', phaseData?.phase_date] 
+      });
+      queryClient.refetchQueries({ 
         queryKey: ['facebook-pending-orders', phaseData?.phase_date] 
       });
       
