@@ -36,6 +36,11 @@ async function searchTPOSProduct(productCode: string, bearerToken: string) {
     throw new Error(`Failed to search product ${productCode}: ${response.status}`);
   }
 
+  const contentType = response.headers.get('content-type');
+  if (!contentType?.includes('application/json')) {
+    throw new Error(`Invalid response from TPOS (not JSON)`);
+  }
+
   const data = await response.json();
   return data.value?.[0] || null;
 }
@@ -59,6 +64,11 @@ async function fetchTPOSOrders(
     throw new Error(`Failed to fetch TPOS orders: ${response.status}`);
   }
 
+  const contentType = response.headers.get('content-type');
+  if (!contentType?.includes('application/json')) {
+    throw new Error(`Invalid response from TPOS (not JSON)`);
+  }
+
   const data = await response.json();
   return data.value || [];
 }
@@ -74,6 +84,11 @@ async function getTPOSOrderDetail(orderId: number, bearerToken: string) {
 
   if (!response.ok) {
     throw new Error(`Failed to fetch order detail: ${response.status}`);
+  }
+
+  const contentType = response.headers.get('content-type');
+  if (!contentType?.includes('application/json')) {
+    throw new Error(`Invalid response from TPOS (not JSON)`);
   }
 
   return await response.json();
@@ -93,18 +108,36 @@ async function updateTPOSOrder(
     Details: products,
   };
 
+  console.log(`Updating TPOS order ${orderId} with ${products.length} products`);
+
   const response = await fetch(url, {
     method: 'PUT',
     headers: getTPOSHeaders(bearerToken),
     body: JSON.stringify(payload),
   });
 
+  console.log('Update response status:', response.status);
+  console.log('Update response content-type:', response.headers.get('content-type'));
+  console.log('Update response content-length:', response.headers.get('content-length'));
+
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`Failed to update order: ${response.status} - ${errorText}`);
   }
 
-  return await response.json();
+  // Handle 204 No Content or empty responses
+  if (response.status === 204 || response.headers.get('content-length') === '0') {
+    console.log('Order updated successfully (204 No Content)');
+    return { success: true };
+  }
+
+  const contentType = response.headers.get('content-type');
+  if (contentType && contentType.includes('application/json')) {
+    return await response.json();
+  }
+
+  console.log('Order updated successfully (non-JSON response)');
+  return { success: true };
 }
 
 export async function uploadOrderToTPOS(
