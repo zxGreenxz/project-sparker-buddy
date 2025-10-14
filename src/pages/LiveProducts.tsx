@@ -1280,7 +1280,7 @@ export default function LiveProducts() {
           ) : (
             <>
               <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col items-center gap-4">
                   <div className="flex items-center gap-2">
                     <Button onClick={() => setIsCreateSessionOpen(true)} className="flex items-center gap-2">
                       <Plus className="h-4 w-4" />
