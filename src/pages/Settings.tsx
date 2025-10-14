@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { RefreshCw, CheckCircle, AlertCircle, Copy, ChevronDown, ChevronUp, ShoppingCart, Key, Save, TestTube2, Code, Download, Upload, Facebook, Printer } from "lucide-react";
+import { RefreshCw, CheckCircle, AlertCircle, Copy, ChevronDown, ChevronUp, ShoppingCart, Key, Save, TestTube2, Code, Download, Upload, Facebook, Printer, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -28,6 +28,9 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import NetworkPrinterManager from "@/components/settings/NetworkPrinterManager";
+import { FacebookCommentsManager } from "@/components/facebook/FacebookCommentsManager";
+import { CommentsSidebar } from "@/components/live-products/CommentsSidebar";
+import { useCommentsSidebar } from "@/contexts/CommentsSidebarContext";
 
 const Settings = () => {
   const [isChecking, setIsChecking] = useState(false);
@@ -91,6 +94,7 @@ const Settings = () => {
   const [isFetchTPOSDialogOpen, setIsFetchTPOSDialogOpen] = useState(false);
   
   const { toast } = useToast();
+  const { isCommentsOpen, setIsCommentsOpen } = useCommentsSidebar();
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -697,6 +701,10 @@ const Settings = () => {
     <TabsTrigger value="printer" className="gap-2 flex-1 min-w-fit">
       <Printer className="h-4 w-4" />
       Máy in
+    </TabsTrigger>
+    <TabsTrigger value="facebook-comments-test" className="gap-2 flex-1 min-w-fit">
+      <MessageSquare className="h-4 w-4" />
+      Livestream Comment Test
     </TabsTrigger>
   </TabsList>
 
@@ -1792,10 +1800,55 @@ const Settings = () => {
           </div>
         </TabsContent>
 
-            <TabsContent value="printer" className="space-y-6 mt-4">
-        <NetworkPrinterManager />
-      </TabsContent>
-    </Tabs>
+        <TabsContent value="printer" className="space-y-6 mt-4">
+          <NetworkPrinterManager />
+        </TabsContent>
+
+        {/* Tab: Livestream Comment Test */}
+        <TabsContent value="facebook-comments-test" className="space-y-6 mt-4">
+          <div className={cn(
+            "transition-all duration-300 ease-in-out",
+            isCommentsOpen && !isMobile ? "mr-[450px]" : "mr-0"
+          )}>
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="bg-primary/10 p-3 rounded-lg">
+                    <MessageSquare className={cn(
+                      "text-primary",
+                      isMobile ? "h-5 w-5" : "h-6 w-6"
+                    )} />
+                  </div>
+                  <div>
+                    <CardTitle className={cn(
+                      "font-bold text-foreground",
+                      isMobile ? "text-xl" : "text-2xl"
+                    )}>
+                      Livestream Comment Test
+                    </CardTitle>
+                    <CardDescription className={cn(
+                      "text-muted-foreground",
+                      isMobile ? "text-xs" : "text-sm"
+                    )}>
+                      Test tính năng quản lý comment và đơn hàng từ Facebook Live
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <FacebookCommentsManager />
+              </CardContent>
+            </Card>
+
+            {/* Comments Sidebar */}
+            <CommentsSidebar isOpen={isCommentsOpen} onClose={() => setIsCommentsOpen(false)}>
+              <div className="p-4 text-center text-muted-foreground">
+                Select a video from Facebook Comments Manager to view comments here
+              </div>
+            </CommentsSidebar>
+          </div>
+        </TabsContent>
+      </Tabs>
 
       <FetchTPOSProductsDialog
         open={isFetchTPOSDialogOpen}
