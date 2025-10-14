@@ -16,6 +16,7 @@ interface QuickAddOrderProps {
   phaseId: string;
   sessionId?: string;
   availableQuantity: number;
+  onOrderAdded?: (quantity: number) => void;
 }
 type PendingOrder = {
   id: string;
@@ -35,7 +36,8 @@ export function QuickAddOrder({
   productId,
   phaseId,
   sessionId,
-  availableQuantity
+  availableQuantity,
+  onOrderAdded
 }: QuickAddOrderProps) {
   const [inputValue, setInputValue] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -244,6 +246,10 @@ export function QuickAddOrder({
       billData
     }) => {
       setInputValue('');
+      
+      // Notify parent component to increment order quantity
+      onOrderAdded?.(1);
+      
       // Force refetch all related queries immediately
       queryClient.invalidateQueries({
         queryKey: ['live-orders', phaseId]

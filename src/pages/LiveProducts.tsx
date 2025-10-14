@@ -291,6 +291,15 @@ export default function LiveProducts() {
   const [isEditOrderItemOpen, setIsEditOrderItemOpen] = useState(false);
   const [orderQuantities, setOrderQuantities] = useState<Record<string, number>>({});
   const [copyTotals, setCopyTotals] = useState<Record<string, number>>({});
+  
+  // Helper function to increment order quantities when an order is added
+  const handleOrderAdded = (productId: string, quantity: number) => {
+    setOrderQuantities(prev => ({
+      ...prev,
+      [productId]: (prev[productId] || 0) + quantity
+    }));
+  };
+  
   const [editingOrderItem, setEditingOrderItem] = useState<{
     id: string;
     product_id: string;
@@ -1671,7 +1680,11 @@ export default function LiveProducts() {
                                         size="sm"
                                         className="h-7 w-7 p-0"
                                         onClick={async () => {
-                                          const qty = orderQuantities[product.id] || 1;
+                                          const qty = orderQuantities[product.id] || 0;
+                                          if (qty === 0) {
+                                            toast.error("Số lượng phải lớn hơn 0");
+                                            return;
+                                          }
                                           if (!product.image_url) {
                                             toast.error("Sản phẩm chưa có hình ảnh");
                                             return;
@@ -1687,6 +1700,11 @@ export default function LiveProducts() {
                                             ...prev,
                                             [product.id]: (prev[product.id] || 0) + qty
                                           }));
+                                          // Reset orderQuantities to 0
+                                          setOrderQuantities(prev => ({
+                                            ...prev,
+                                            [product.id]: 0
+                                          }));
                                         }}
                                         disabled={!product.image_url}
                                         title={product.image_url ? "Copy hình order" : "Chưa có hình ảnh"}
@@ -1696,9 +1714,9 @@ export default function LiveProducts() {
                                       <input
                                         type="number"
                                         min="1"
-                                        value={orderQuantities[product.id] || 1}
+                                        value={orderQuantities[product.id] || 0}
                                         onChange={(e) => {
-                                          const value = parseInt(e.target.value) || 1;
+                                          const value = parseInt(e.target.value) || 0;
                                           setOrderQuantities(prev => ({
                                             ...prev,
                                             [product.id]: value
@@ -1829,6 +1847,7 @@ export default function LiveProducts() {
                                                 phaseId={selectedPhase}
                                                 sessionId={selectedSession}
                                                 availableQuantity={product.prepared_quantity - product.sold_quantity}
+                                                onOrderAdded={(qty) => handleOrderAdded(product.id, qty)}
                                               />
                                             )}
                                           </>
@@ -1964,7 +1983,11 @@ export default function LiveProducts() {
                                   size="sm"
                                   className="h-7 w-7 p-0"
                                   onClick={async () => {
-                                    const qty = orderQuantities[product.id] || 1;
+                                    const qty = orderQuantities[product.id] || 0;
+                                    if (qty === 0) {
+                                      toast.error("Số lượng phải lớn hơn 0");
+                                      return;
+                                    }
                                     if (!product.image_url) {
                                       toast.error("Sản phẩm chưa có hình ảnh");
                                       return;
@@ -1979,18 +2002,23 @@ export default function LiveProducts() {
                                       ...prev,
                                       [product.id]: (prev[product.id] || 0) + qty
                                     }));
+                                    // Reset orderQuantities to 0
+                                    setOrderQuantities(prev => ({
+                                      ...prev,
+                                      [product.id]: 0
+                                    }));
                                   }}
                                   disabled={!product.image_url}
                                   title={product.image_url ? "Copy hình order" : "Chưa có hình ảnh"}
                                 >
                                   <Copy className="h-3 w-3" />
                                 </Button>
-                                <input
-                                  type="number"
-                                  min="1"
-                                  value={orderQuantities[product.id] || 1}
-                                  onChange={(e) => {
-                                    const value = parseInt(e.target.value) || 1;
+                                 <input
+                                   type="number"
+                                   min="1"
+                                   value={orderQuantities[product.id] || 0}
+                                   onChange={(e) => {
+                                     const value = parseInt(e.target.value) || 0;
                                     setOrderQuantities(prev => ({
                                       ...prev,
                                       [product.id]: value
@@ -2085,6 +2113,7 @@ export default function LiveProducts() {
                                             phaseId={selectedPhase}
                                             sessionId={selectedSession}
                                             availableQuantity={product.prepared_quantity - product.sold_quantity}
+                                            onOrderAdded={(qty) => handleOrderAdded(product.id, qty)}
                                           />
                                         </div>
                                       )}
@@ -2245,6 +2274,7 @@ export default function LiveProducts() {
                                         phaseId={selectedPhase}
                                         sessionId={selectedSession}
                                         availableQuantity={product.prepared_quantity - product.sold_quantity}
+                                        onOrderAdded={(qty) => handleOrderAdded(product.id, qty)}
                                       />
                                     )}
                                   </div>

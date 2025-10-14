@@ -25,6 +25,7 @@ interface AddOrderDialogProps {
   onOpenChange: (open: boolean) => void;
   sessionId: string;
   productId: string;
+  onOrderAdded?: (quantity: number) => void;
 }
 
 interface FormData {
@@ -33,7 +34,7 @@ interface FormData {
   quantity: number;
 }
 
-export function AddOrderDialog({ open, onOpenChange, sessionId, productId }: AddOrderDialogProps) {
+export function AddOrderDialog({ open, onOpenChange, sessionId, productId, onOrderAdded }: AddOrderDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const queryClient = useQueryClient();
 
@@ -83,6 +84,10 @@ export function AddOrderDialog({ open, onOpenChange, sessionId, productId }: Add
       queryClient.invalidateQueries({ queryKey: ["live-orders", sessionId] });
       queryClient.invalidateQueries({ queryKey: ["live-products", sessionId] });
       toast.success("Đã thêm đơn hàng thành công");
+      
+      // Notify parent component to increment order quantity
+      onOrderAdded?.(form.getValues().quantity);
+      
       form.reset({
         order_code: "",
         customer_code: "",
