@@ -1542,18 +1542,9 @@ export default function LiveProducts() {
                                         </div>}
                                     </div>
                                   </TableCell>
-                                  <TableCell className="text-center">
-                                    <Input type="number" min="0" value={preparedQuantities[product.id] ?? product.prepared_quantity} // Use local state, fallback to prop
-                              onChange={e => handlePreparedQuantityChange(product.id, e.target.value)} onBlur={() => {
-                                const newQuantity = preparedQuantities[product.id];
-                                if (newQuantity !== undefined && newQuantity !== product.prepared_quantity) {
-                                  updatePreparedQuantityMutation.mutate({
-                                    productId: product.id,
-                                    newQuantity
-                                  });
-                                }
-                              }} className="w-20 text-center h-8" disabled={updatePreparedQuantityMutation.isPending} />
-                                  </TableCell>
+                                   <TableCell className="text-center">
+                                     <span className="text-sm font-medium">{product.prepared_quantity}</span>
+                                   </TableCell>
                                   <TableCell className="text-center">{product.sold_quantity}</TableCell>
                                   <TableCell>
                                     <div className="flex flex-wrap items-center gap-1.5">
