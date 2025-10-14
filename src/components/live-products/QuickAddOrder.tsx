@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Plus } from 'lucide-react';
+import { Plus, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -39,6 +39,17 @@ export function QuickAddOrder({ productId, phaseId, sessionId, availableQuantity
   const [isOpen, setIsOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
+  // State for hiding comments (client-side only, persisted in localStorage)
+  const [hiddenCommentIds, setHiddenCommentIds] = useState<Set<string>>(() => {
+    const saved = localStorage.getItem('quickAddOrder_hiddenComments');
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  });
+
+  // Persist hidden comments to localStorage
+  useEffect(() => {
+    localStorage.setItem('quickAddOrder_hiddenComments', JSON.stringify([...hiddenCommentIds]));
+  }, [hiddenCommentIds]);
 
   // Fetch phase data to get the date
   const { data: phaseData } = useQuery({
@@ -177,8 +188,9 @@ export function QuickAddOrder({ productId, phaseId, sessionId, availableQuantity
       new Date(b.created_time).getTime() - new Date(a.created_time).getTime()
     );
 
-    return comments;
-  }, [pendingOrders, commentUsageCount]);
+    // Filter out hidden comments (client-side only)
+    return comments.filter(c => !hiddenCommentIds.has(c.facebook_comment_id));
+  }, [pendingOrders, commentUsageCount, hiddenCommentIds]);
 
   const addOrderMutation = useMutation({
     mutationFn: async ({ sessionIndex, commentId }: { sessionIndex: string; commentId: string }) => {
@@ -391,6 +403,19 @@ ${billData.comment ? `${billData.comment}\n` : ''}${new Date(billData.createdTim
   });
 
 
+  const handleHideComment = (e: React.MouseEvent, commentId: string) => {
+    e.stopPropagation();
+    setHiddenCommentIds(prev => {
+      const next = new Set(prev);
+      next.add(commentId);
+      return next;
+    });
+    toast({
+      title: "Đã ẩn comment",
+      description: "Comment đã được ẩn khỏi danh sách (dữ liệu vẫn còn nguyên)",
+    });
+  };
+
   const handleSelectComment = (sessionIndex: string, commentId: string) => {
     addOrderMutation.mutate({ sessionIndex, commentId });
     setIsOpen(false);
@@ -456,12 +481,31 @@ ${billData.comment ? `${billData.comment}\n` : ''}${new Date(billData.createdTim
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
           <Command shouldFilter={false} className="bg-popover">
-            <CommandInput 
-              placeholder="Tìm mã đơn hoặc tên..."
-              value={inputValue}
-              onValueChange={setInputValue}
-              className="bg-background"
-            />
+            <div className="flex items-center justify-between px-3 py-2 border-b">
+              <CommandInput 
+                placeholder="Tìm mã đơn hoặc tên..."
+                value={inputValue}
+                onValueChange={setInputValue}
+                className="bg-background border-0 flex-1"
+              />
+              {hiddenCommentIds.size > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs ml-2"
+                  onClick={() => {
+                    setHiddenCommentIds(new Set());
+                    toast({
+                      title: "Đã hiện lại tất cả",
+                      description: `${hiddenCommentIds.size} comment đã được hiện lại`,
+                    });
+                  }}
+                >
+                  <EyeOff className="mr-1 h-3 w-3" />
+                  Hiện {hiddenCommentIds.size}
+                </Button>
+              )}
+            </div>
             <CommandList className="bg-popover">
               <CommandEmpty>Không thấy mã phù hợp.</CommandEmpty>
               <CommandGroup>
@@ -490,6 +534,15 @@ ${billData.comment ? `${billData.comment}\n` : ''}${new Date(billData.createdTim
                             <span className="rounded bg-muted px-2 py-0.5">
                               còn {comment.remaining}/{comment.total}
                             </span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                              onClick={(e) => handleHideComment(e, comment.facebook_comment_id)}
+                              title="Ẩn comment"
+                            >
+                              <EyeOff className="h-3 w-3" />
+                            </Button>
                           </div>
                         </div>
                         {comment.comment && (
