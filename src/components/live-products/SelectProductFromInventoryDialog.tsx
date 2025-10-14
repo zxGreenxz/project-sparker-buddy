@@ -113,7 +113,6 @@ export function SelectProductFromInventoryDialog({
         sold_quantity: 0,
         live_session_id: sessionId,
         live_phase_id: phaseId,
-        purchase_price: product.purchase_price,
       });
 
       if (insertError) throw insertError;
