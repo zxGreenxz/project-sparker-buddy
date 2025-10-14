@@ -23,9 +23,10 @@ import { BarcodeScannerSettings } from "@/components/settings/BarcodeScannerSett
 import { FetchTPOSProductsDialog } from "@/components/settings/FetchTPOSProductsDialog";
 import { GetTPOSProductTool } from "@/components/settings/GetTPOSProductTool";
 import { FacebookPageManager } from "@/components/facebook/FacebookPageManager";
+import { UploadOrderLiveTool } from "@/components/settings/UploadOrderLiveTool";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; // Import Tabs components
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import NetworkPrinterManager from "@/components/settings/NetworkPrinterManager";
 
 const Settings = () => {
@@ -684,6 +685,10 @@ const Settings = () => {
     <TabsTrigger value="tpos-tools" className="gap-2 flex-1 min-w-fit">
       <Code className="h-4 w-4" />
       Công cụ TPOS
+    </TabsTrigger>
+    <TabsTrigger value="upload-order-live" className="gap-2 flex-1 min-w-fit">
+      <Upload className="h-4 w-4" />
+      Upload Order Live
     </TabsTrigger>
     <TabsTrigger value="barcode" className="gap-2 flex-1 min-w-fit">
       <TestTube2 className="h-4 w-4" />
@@ -1759,6 +1764,24 @@ const Settings = () => {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        {/* Tab: Upload Order Live */}
+        <TabsContent value="upload-order-live" className="space-y-6 mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Upload className="h-5 w-5" />
+                Công cụ Upload Order Live
+              </CardTitle>
+              <CardDescription>
+                Tìm đơn hàng TPOS theo khoảng thời gian và cập nhật sản phẩm vào đơn
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <UploadOrderLiveTool />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Tab: Barcode & Test */}
