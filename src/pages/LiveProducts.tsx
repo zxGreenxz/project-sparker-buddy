@@ -1400,7 +1400,7 @@ export default function LiveProducts() {
               </div>
             </div>
 
-            <TabsContent value="products" className="space-y-4">
+            <TabsContent value="products" className="space-y-4 overflow-visible">
               {liveProducts.length === 0 ? <Card>
                   <CardContent className="flex flex-col items-center justify-center py-12">
                     <Package className="h-12 w-12 text-muted-foreground mb-4" />
@@ -1419,9 +1419,9 @@ export default function LiveProducts() {
                       </Button>}
                   </div>
 
-                  <div ref={productListRef}>
-                    <Card>
-                      <Table>
+                  <div ref={productListRef} className="overflow-visible">
+                    <Card className="overflow-visible">
+                      <Table className="overflow-visible">
                         <TableHeader>
                           <TableRow>
                             <TableHead>Mã SP</TableHead>
@@ -1499,8 +1499,8 @@ export default function LiveProducts() {
                                    <TableCell className="text-muted-foreground">
                                      {getVariantName(product.variant)}
                                    </TableCell>
-                                   <TableCell className="border-r">
-                                     {product.image_url ? <img src={product.image_url} alt={group.product_name} className="w-12 h-12 object-cover rounded cursor-pointer transition-transform duration-200 hover:scale-[14] hover:z-50 relative origin-left" /> : <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
+                                   <TableCell className="border-r overflow-visible">
+                                     {product.image_url ? <img src={product.image_url} alt={group.product_name} className="w-12 h-12 object-cover rounded cursor-pointer transition-transform duration-200 hover:scale-[8] hover:z-[9999] hover:fixed relative origin-left hover:shadow-2xl" /> : <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
                                          <Package className="h-6 w-6 text-muted-foreground" />
                                        </div>}
                                    </TableCell>
