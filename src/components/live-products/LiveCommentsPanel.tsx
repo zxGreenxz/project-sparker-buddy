@@ -601,16 +601,6 @@ export function LiveCommentsPanel({
                           )}>
                             {comment.from.name}
                           </span>
-                          
-                          {/* Order Code Badge */}
-                          {comment.orderInfo?.Code && (
-                            <Badge className={cn(
-                              "bg-blue-600 text-white font-semibold",
-                              isMobile ? "text-[9px] px-1 py-0" : "text-[10px] px-1.5 py-0"
-                            )}>
-                              {comment.orderInfo.Code}
-                            </Badge>
-                          )}
 
                           {/* Order Count Badge */}
                           {comment.orderInfo?.order_count && comment.orderInfo.order_count > 1 && (
