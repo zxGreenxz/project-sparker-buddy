@@ -11,14 +11,12 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { getActivePrinter, printToXC80 } from '@/lib/printer-utils';
-
 interface QuickAddOrderProps {
   productId: string;
   phaseId: string;
   sessionId?: string;
   availableQuantity: number;
 }
-
 type PendingOrder = {
   id: string;
   name: string | null;
@@ -33,13 +31,19 @@ type PendingOrder = {
   facebook_post_id: string | null;
   order_count: number;
 };
-
-export function QuickAddOrder({ productId, phaseId, sessionId, availableQuantity }: QuickAddOrderProps) {
+export function QuickAddOrder({
+  productId,
+  phaseId,
+  sessionId,
+  availableQuantity
+}: QuickAddOrderProps) {
   const [inputValue, setInputValue] = useState('');
   const [isOpen, setIsOpen] = useState(false);
-  const { toast } = useToast();
+  const {
+    toast
+  } = useToast();
   const queryClient = useQueryClient();
-  
+
   // State for hiding comments (client-side only, persisted in localStorage)
   const [hiddenCommentIds, setHiddenCommentIds] = useState<Set<string>>(() => {
     const saved = localStorage.getItem('quickAddOrder_hiddenComments');
@@ -52,86 +56,75 @@ export function QuickAddOrder({ productId, phaseId, sessionId, availableQuantity
   }, [hiddenCommentIds]);
 
   // Fetch phase data to get the date
-  const { data: phaseData } = useQuery({
+  const {
+    data: phaseData
+  } = useQuery({
     queryKey: ['live-phase', phaseId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('live_phases')
-        .select('phase_date')
-        .eq('id', phaseId)
-        .single();
-      
+      const {
+        data,
+        error
+      } = await supabase.from('live_phases').select('phase_date').eq('id', phaseId).single();
       if (error) throw error;
       return data;
     },
-    enabled: !!phaseId,
+    enabled: !!phaseId
   });
 
   // Fetch existing orders and count usage per comment
-  const { data: existingOrders = [] } = useQuery({
+  const {
+    data: existingOrders = []
+  } = useQuery({
     queryKey: ['live-orders', phaseId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('live_orders')
-        .select('order_code, facebook_comment_id')
-        .eq('live_phase_id', phaseId);
-      
+      const {
+        data,
+        error
+      } = await supabase.from('live_orders').select('order_code, facebook_comment_id').eq('live_phase_id', phaseId);
       if (error) throw error;
       return data || [];
     },
-    enabled: !!phaseId,
+    enabled: !!phaseId
   });
 
   // Fetch facebook_pending_orders for the phase date (include order_count)
-  const { data: pendingOrders = [] } = useQuery({
+  const {
+    data: pendingOrders = []
+  } = useQuery({
     queryKey: ['facebook-pending-orders', phaseData?.phase_date],
     queryFn: async () => {
       if (!phaseData?.phase_date) return [];
-      
-      const { data, error } = await supabase
-        .from('facebook_pending_orders')
-        .select('*, order_count')
-        .gte('created_time', `${phaseData.phase_date}T00:00:00`)
-        .lt('created_time', `${phaseData.phase_date}T23:59:59`)
-        .order('created_time', { ascending: false });
-      
+      const {
+        data,
+        error
+      } = await supabase.from('facebook_pending_orders').select('*, order_count').gte('created_time', `${phaseData.phase_date}T00:00:00`).lt('created_time', `${phaseData.phase_date}T23:59:59`).order('created_time', {
+        ascending: false
+      });
       if (error) throw error;
       return (data || []) as PendingOrder[];
     },
     enabled: !!phaseData?.phase_date,
-    refetchInterval: 5000,
+    refetchInterval: 5000
   });
 
   // Real-time subscription for instant updates
   useEffect(() => {
     if (!phaseData?.phase_date) return;
-
-    const channel = supabase
-      .channel('facebook-pending-orders-realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'facebook_pending_orders',
-        },
-        (payload) => {
-          // Only refetch if the new order is for today's phase
-          if (!payload.new || typeof payload.new !== 'object') return;
-          const createdTime = new Date((payload.new as any).created_time);
-          const phaseDate = new Date(phaseData.phase_date);
-          
-          if (
-            createdTime.getDate() === phaseDate.getDate() &&
-            createdTime.getMonth() === phaseDate.getMonth() &&
-            createdTime.getFullYear() === phaseDate.getFullYear()
-          ) {
-            queryClient.invalidateQueries({ queryKey: ['facebook-pending-orders', phaseData.phase_date] });
-          }
-        }
-      )
-      .subscribe();
-
+    const channel = supabase.channel('facebook-pending-orders-realtime').on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'facebook_pending_orders'
+    }, payload => {
+      // Only refetch if the new order is for today's phase
+      if (!payload.new || typeof payload.new !== 'object') return;
+      const createdTime = new Date((payload.new as any).created_time);
+      const phaseDate = new Date(phaseData.phase_date);
+      if (createdTime.getDate() === phaseDate.getDate() && createdTime.getMonth() === phaseDate.getMonth() && createdTime.getFullYear() === phaseDate.getFullYear()) {
+        queryClient.invalidateQueries({
+          queryKey: ['facebook-pending-orders', phaseData.phase_date]
+        });
+      }
+    }).subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
@@ -161,14 +154,11 @@ export function QuickAddOrder({ productId, phaseId, sessionId, availableQuantity
       remaining: number;
       total: number;
     }[] = [];
-
-    pendingOrders.forEach((order) => {
+    pendingOrders.forEach(order => {
       if (!order.session_index || !order.facebook_comment_id) return;
-
       const used = commentUsageCount.get(order.facebook_comment_id) || 0;
       const total = order.order_count || 1;
       const remaining = total - used;
-
       if (remaining <= 0) return; // skip consumed comments
 
       comments.push({
@@ -179,28 +169,29 @@ export function QuickAddOrder({ productId, phaseId, sessionId, availableQuantity
         facebook_comment_id: order.facebook_comment_id,
         created_time: order.created_time,
         remaining,
-        total,
+        total
       });
     });
 
     // Sort by created_time descending (newest first)
-    comments.sort((a, b) => 
-      new Date(b.created_time).getTime() - new Date(a.created_time).getTime()
-    );
+    comments.sort((a, b) => new Date(b.created_time).getTime() - new Date(a.created_time).getTime());
 
     // Filter out hidden comments (client-side only)
     return comments.filter(c => !hiddenCommentIds.has(c.facebook_comment_id));
   }, [pendingOrders, commentUsageCount, hiddenCommentIds]);
-
   const addOrderMutation = useMutation({
-    mutationFn: async ({ sessionIndex, commentId }: { sessionIndex: string; commentId: string }) => {
+    mutationFn: async ({
+      sessionIndex,
+      commentId
+    }: {
+      sessionIndex: string;
+      commentId: string;
+    }) => {
       // Get current product data to check if overselling
-      const { data: product, error: fetchError } = await supabase
-        .from('live_products')
-        .select('sold_quantity, prepared_quantity, product_code, product_name')
-        .eq('id', productId)
-        .single();
-
+      const {
+        data: product,
+        error: fetchError
+      } = await supabase.from('live_products').select('sold_quantity, prepared_quantity, product_code, product_name').eq('id', productId).single();
       if (fetchError) throw fetchError;
 
       // Get pending order details for bill
@@ -211,32 +202,30 @@ export function QuickAddOrder({ productId, phaseId, sessionId, availableQuantity
       const isOversell = newSoldQuantity > product.prepared_quantity;
 
       // Insert new order with oversell flag and comment ID
-      const { error: orderError } = await supabase
-        .from('live_orders')
-        .insert({
-          order_code: sessionIndex,
-          facebook_comment_id: commentId,
-          tpos_order_id: pendingOrder?.code || null,
-          code_tpos_order_id: pendingOrder?.tpos_order_id || null,
-          live_session_id: sessionId,
-          live_phase_id: phaseId,
-          live_product_id: productId,
-          quantity: 1,
-          is_oversell: isOversell
-        });
-
+      const {
+        error: orderError
+      } = await supabase.from('live_orders').insert({
+        order_code: sessionIndex,
+        facebook_comment_id: commentId,
+        tpos_order_id: pendingOrder?.code || null,
+        code_tpos_order_id: pendingOrder?.tpos_order_id || null,
+        live_session_id: sessionId,
+        live_phase_id: phaseId,
+        live_product_id: productId,
+        quantity: 1,
+        is_oversell: isOversell
+      });
       if (orderError) throw orderError;
 
       // Update sold quantity
-      const { error: updateError } = await supabase
-        .from('live_products')
-        .update({ sold_quantity: newSoldQuantity })
-        .eq('id', productId);
-
+      const {
+        error: updateError
+      } = await supabase.from('live_products').update({
+        sold_quantity: newSoldQuantity
+      }).eq('id', productId);
       if (updateError) throw updateError;
-      
-      return { 
-        sessionIndex, 
+      return {
+        sessionIndex,
         isOversell,
         billData: pendingOrder ? {
           sessionIndex,
@@ -245,28 +234,47 @@ export function QuickAddOrder({ productId, phaseId, sessionId, availableQuantity
           productCode: product.product_code,
           productName: product.product_name,
           comment: pendingOrder.comment,
-          createdTime: pendingOrder.created_time,
+          createdTime: pendingOrder.created_time
         } : null
       };
     },
-    onSuccess: async ({ sessionIndex, isOversell, billData }) => {
+    onSuccess: async ({
+      sessionIndex,
+      isOversell,
+      billData
+    }) => {
       setInputValue('');
       // Force refetch all related queries immediately
-      queryClient.invalidateQueries({ queryKey: ['live-orders', phaseId] });
-      queryClient.invalidateQueries({ queryKey: ['live-products', phaseId] });
-      queryClient.invalidateQueries({ queryKey: ['orders-with-products', phaseId] });
-      queryClient.invalidateQueries({ queryKey: ['facebook-pending-orders', phaseData?.phase_date] });
-      
+      queryClient.invalidateQueries({
+        queryKey: ['live-orders', phaseId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['live-products', phaseId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['orders-with-products', phaseId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['facebook-pending-orders', phaseData?.phase_date]
+      });
+
       // Also refetch queries to ensure UI updates immediately
-      queryClient.refetchQueries({ queryKey: ['live-orders', phaseId] });
-      queryClient.refetchQueries({ queryKey: ['live-products', phaseId] });
-      queryClient.refetchQueries({ queryKey: ['orders-with-products', phaseId] });
-      queryClient.refetchQueries({ queryKey: ['facebook-pending-orders', phaseData?.phase_date] });
-      
+      queryClient.refetchQueries({
+        queryKey: ['live-orders', phaseId]
+      });
+      queryClient.refetchQueries({
+        queryKey: ['live-products', phaseId]
+      });
+      queryClient.refetchQueries({
+        queryKey: ['orders-with-products', phaseId]
+      });
+      queryClient.refetchQueries({
+        queryKey: ['facebook-pending-orders', phaseData?.phase_date]
+      });
+
       // Auto-print bill
       if (billData) {
         const activePrinter = getActivePrinter();
-        
         if (activePrinter) {
           // Print to XC80 thermal printer
           const billContent = `
@@ -275,27 +283,24 @@ ${billData.phone || 'Chưa có SĐT'}
 
 ${billData.productCode} - ${billData.productName.replace(/^\d+\s+/, '')}
 
-${billData.comment ? `${billData.comment}\n` : ''}${new Date(billData.createdTime).toLocaleString('vi-VN', { 
-  timeZone: 'Asia/Bangkok',
-  day: '2-digit',
-  month: '2-digit', 
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit'
-})}
+${billData.comment ? `${billData.comment}\n` : ''}${new Date(billData.createdTime).toLocaleString('vi-VN', {
+            timeZone: 'Asia/Bangkok',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })}
 --------------------------------
           `.trim();
-          
           console.log(`🖨️ Printing to ${activePrinter.name} (${activePrinter.ipAddress}:${activePrinter.port})`);
-          
           const printResult = await printToXC80(activePrinter, billContent);
-          
           if (!printResult.success) {
             console.error("Print failed:", printResult.error);
             toast({
               title: "⚠️ Lỗi in bill",
               description: `Không thể in lên ${activePrinter.name}. Lỗi: ${printResult.error}`,
-              variant: "destructive",
+              variant: "destructive"
             });
           } else {
             console.log("✅ Bill printed successfully");
@@ -303,7 +308,6 @@ ${billData.comment ? `${billData.comment}\n` : ''}${new Date(billData.createdTim
         } else {
           // Fallback: Browser print dialog nếu không có máy in active
           console.log("⚠️ No active printer found, using browser dialog");
-          
           const billHtml = `
             <!DOCTYPE html>
             <html>
@@ -358,51 +362,44 @@ ${billData.comment ? `${billData.comment}\n` : ''}${new Date(billData.createdTim
                 <div class="phone">${billData.phone || 'Chưa có SĐT'}</div>
                 <div class="product">${billData.productCode} - ${billData.productName.replace(/^\d+\s+/, '')}</div>
                 ${billData.comment ? `<div class="comment">${billData.comment}</div>` : ''}
-                <div class="time">${new Date(billData.createdTime).toLocaleString('vi-VN', { 
-                  timeZone: 'Asia/Bangkok',
-                  day: '2-digit',
-                  month: '2-digit', 
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}</div>
+                <div class="time">${new Date(billData.createdTime).toLocaleString('vi-VN', {
+            timeZone: 'Asia/Bangkok',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })}</div>
               </div>
             </body>
             </html>
           `;
-          
           const printWindow = window.open('', '_blank', 'width=400,height=600');
           if (printWindow) {
             printWindow.document.write(billHtml);
             printWindow.document.close();
             printWindow.focus();
-            
             printWindow.onload = () => {
               printWindow.print();
             };
           }
         }
       }
-      
       toast({
         title: isOversell ? "⚠️ Đơn oversell" : "Thành công",
-        description: isOversell 
-          ? `Đã thêm đơn ${sessionIndex} (vượt số lượng - đánh dấu đỏ)`
-          : `Đã thêm đơn hàng ${sessionIndex}`,
-        variant: isOversell ? "destructive" : "default",
+        description: isOversell ? `Đã thêm đơn ${sessionIndex} (vượt số lượng - đánh dấu đỏ)` : `Đã thêm đơn hàng ${sessionIndex}`,
+        variant: isOversell ? "destructive" : "default"
       });
     },
-    onError: (error) => {
+    onError: error => {
       console.error('Error adding order:', error);
       toast({
         title: "Lỗi",
         description: "Không thể thêm đơn hàng. Vui lòng thử lại.",
-        variant: "destructive",
+        variant: "destructive"
       });
-    },
+    }
   });
-
-
   const handleHideComment = (e: React.MouseEvent, commentId: string) => {
     e.stopPropagation();
     setHiddenCommentIds(prev => {
@@ -412,23 +409,23 @@ ${billData.comment ? `${billData.comment}\n` : ''}${new Date(billData.createdTim
     });
     toast({
       title: "Đã ẩn comment",
-      description: "Comment đã được ẩn khỏi danh sách (dữ liệu vẫn còn nguyên)",
+      description: "Comment đã được ẩn khỏi danh sách (dữ liệu vẫn còn nguyên)"
     });
   };
-
   const handleSelectComment = (sessionIndex: string, commentId: string) => {
-    addOrderMutation.mutate({ sessionIndex, commentId });
+    addOrderMutation.mutate({
+      sessionIndex,
+      commentId
+    });
     setIsOpen(false);
   };
-
   const handleAddOrder = () => {
     const trimmedValue = inputValue.trim();
-    
     if (!trimmedValue) {
       toast({
         title: "Lỗi",
         description: "Vui lòng nhập mã đơn hàng",
-        variant: "destructive",
+        variant: "destructive"
       });
       return;
     }
@@ -439,100 +436,50 @@ ${billData.comment ? `${billData.comment}\n` : ''}${new Date(billData.createdTim
       toast({
         title: "Không tìm thấy",
         description: `Mã "${trimmedValue}" không có comment khả dụng hoặc đã dùng hết`,
-        variant: "destructive",
+        variant: "destructive"
       });
       return;
     }
-
     handleSelectComment(matchedComment.sessionIndex, matchedComment.facebook_comment_id);
   };
-
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       handleAddOrder();
     }
   };
-
   const isOutOfStock = availableQuantity <= 0;
-  
-  return (
-    <div className="w-full flex gap-2">
+  return <div className="w-full flex gap-2">
       <Popover open={isOpen} onOpenChange={setIsOpen}>
         <PopoverTrigger asChild>
           <div className="flex-1 relative">
-            <Input
-              type="text"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyPress={handleKeyPress}
-              onClick={() => setIsOpen(true)}
-              placeholder={isOutOfStock ? "Quá số (đánh dấu đỏ)" : "Nhập mã đơn..."}
-              className={cn(
-                "text-sm h-9",
-                isOutOfStock && "border-red-500"
-              )}
-              disabled={addOrderMutation.isPending}
-            />
+            <Input type="text" value={inputValue} onChange={e => setInputValue(e.target.value)} onKeyPress={handleKeyPress} onClick={() => setIsOpen(true)} placeholder={isOutOfStock ? "Quá số (đánh dấu đỏ)" : "Nhập mã đơn..."} className={cn("text-sm h-9", isOutOfStock && "border-red-500")} disabled={addOrderMutation.isPending} />
           </div>
         </PopoverTrigger>
-        <PopoverContent 
-          className="w-[520px] p-0 z-[100] bg-popover" 
-          align="start"
-          side="bottom"
-          sideOffset={4}
-          onOpenAutoFocus={(e) => e.preventDefault()}
-          onCloseAutoFocus={(e) => e.preventDefault()}
-          onMouseLeave={() => setIsOpen(false)}
-          onPointerDownOutside={(e) => {
-            const target = e.target as HTMLElement;
-            if (target.closest('[role="combobox"]') || target.closest('input[type="text"]')) {
-              e.preventDefault();
-            }
-          }}
-        >
+        <PopoverContent className="w-[520px] p-0 z-[100] bg-popover" align="start" side="bottom" sideOffset={4} onOpenAutoFocus={e => e.preventDefault()} onCloseAutoFocus={e => e.preventDefault()} onMouseLeave={() => setIsOpen(false)} onPointerDownOutside={e => {
+        const target = e.target as HTMLElement;
+        if (target.closest('[role="combobox"]') || target.closest('input[type="text"]')) {
+          e.preventDefault();
+        }
+      }}>
           <Command shouldFilter={false} className="bg-popover">
             <div className="flex items-center justify-between px-3 py-2 border-b">
-              <CommandInput 
-                placeholder="Tìm mã đơn hoặc tên..."
-                value={inputValue}
-                onValueChange={setInputValue}
-                className="bg-background border-0 flex-1"
-              />
-              {hiddenCommentIds.size > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs ml-2"
-                  onClick={() => {
-                    setHiddenCommentIds(new Set());
-                    toast({
-                      title: "Đã hiện lại tất cả",
-                      description: `${hiddenCommentIds.size} comment đã được hiện lại`,
-                    });
-                  }}
-                >
+              <CommandInput placeholder="Tìm mã đơn hoặc tên..." value={inputValue} onValueChange={setInputValue} className="bg-background border-0 flex-1" />
+              {hiddenCommentIds.size > 0 && <Button variant="ghost" size="sm" className="h-7 text-xs ml-2" onClick={() => {
+              setHiddenCommentIds(new Set());
+              toast({
+                title: "Đã hiện lại tất cả",
+                description: `${hiddenCommentIds.size} comment đã được hiện lại`
+              });
+            }}>
                   <EyeOff className="mr-1 h-3 w-3" />
                   Hiện {hiddenCommentIds.size}
-                </Button>
-              )}
+                </Button>}
             </div>
             <CommandList className="bg-popover">
               <CommandEmpty>Không thấy mã phù hợp.</CommandEmpty>
               <CommandGroup>
                 <ScrollArea className="h-[280px]">
-                  {flatComments
-                    .filter(comment =>
-                      !inputValue ||
-                      comment.sessionIndex?.includes(inputValue) ||
-                      (comment.name || '').toLowerCase().includes(inputValue.toLowerCase()) ||
-                      (comment.comment || '').toLowerCase().includes(inputValue.toLowerCase())
-                    )
-                    .map(comment => (
-                      <CommandItem
-                        key={comment.id}
-                        className="cursor-pointer flex flex-col items-start gap-1 py-3"
-                        onSelect={() => handleSelectComment(comment.sessionIndex, comment.facebook_comment_id)}
-                      >
+                  {flatComments.filter(comment => !inputValue || comment.sessionIndex?.includes(inputValue) || (comment.name || '').toLowerCase().includes(inputValue.toLowerCase()) || (comment.comment || '').toLowerCase().includes(inputValue.toLowerCase())).map(comment => <CommandItem key={comment.id} className="cursor-pointer flex flex-col items-start gap-1 py-3" onSelect={() => handleSelectComment(comment.sessionIndex, comment.facebook_comment_id)}>
                         <div className="flex items-center justify-between gap-2 w-full">
                           <div className="flex items-center gap-2 flex-1 min-w-0">
                             <span className="font-medium shrink-0">#{comment.sessionIndex}</span>
@@ -540,28 +487,22 @@ ${billData.comment ? `${billData.comment}\n` : ''}${new Date(billData.createdTim
                             <span className="font-bold truncate">{comment.name || '(không tên)'}</span>
                           </div>
                           <div className="flex items-center gap-2 shrink-0 text-xs text-muted-foreground">
-                            <span>{new Date(comment.created_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
+                            <span>{new Date(comment.created_time).toLocaleTimeString('vi-VN', {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}</span>
                             <span className="rounded bg-muted px-2 py-0.5">
                               {comment.remaining}
                             </span>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                              onClick={(e) => handleHideComment(e, comment.facebook_comment_id)}
-                              title="Ẩn comment"
-                            >
+                            <Button variant="ghost" size="icon" onClick={e => handleHideComment(e, comment.facebook_comment_id)} title="Ẩn comment" className="max-h-20 max-w-20 text-muted-foreground hover:text-destructive hover:bg-destructive/10">
                               <EyeOff className="h-4 w-4" />
                             </Button>
                           </div>
                         </div>
-                        {comment.comment && (
-                          <div className="font-bold text-sm pl-0 w-full">
+                        {comment.comment && <div className="font-bold text-sm pl-0 w-full">
                             {comment.comment}
-                          </div>
-                        )}
-                      </CommandItem>
-                    ))}
+                          </div>}
+                      </CommandItem>)}
                 </ScrollArea>
               </CommandGroup>
             </CommandList>
@@ -569,14 +510,8 @@ ${billData.comment ? `${billData.comment}\n` : ''}${new Date(billData.createdTim
         </PopoverContent>
       </Popover>
       
-      <Button
-        onClick={handleAddOrder}
-        disabled={addOrderMutation.isPending || !inputValue.trim()}
-        size="sm"
-        className="h-9"
-      >
+      <Button onClick={handleAddOrder} disabled={addOrderMutation.isPending || !inputValue.trim()} size="sm" className="h-9">
         <Plus className="h-4 w-4" />
       </Button>
-    </div>
-  );
+    </div>;
 }
