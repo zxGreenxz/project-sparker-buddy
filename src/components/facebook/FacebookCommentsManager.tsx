@@ -384,62 +384,10 @@ export function FacebookCommentsManager({
       const startTime = Date.now();
 
       // ========================================================================
-      // OFFLINE VIDEO: Check cache first (only on first page)
-      // LIVE VIDEO: Always fetch real-time, skip cache
+      // Fetch comments from TPOS API
       // ========================================================================
-      if (!pageParam && selectedVideo.statusLive === 0) {
-        console.log(
-          "[FacebookCommentsManager] Offline video - checking cache first...",
-        );
 
-        const oneMonthAgo = new Date();
-        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-
-        const { data: cachedComments, error: dbError } = await supabase
-          .from("facebook_comments_archive")
-          .select("*")
-          .eq("facebook_post_id", selectedVideo.objectId)
-          .gte("comment_created_time", oneMonthAgo.toISOString())
-          .order("comment_created_time", { ascending: false })
-          .limit(1000)
-          .returns<FacebookCommentArchive[]>();
-
-        if (!dbError && cachedComments && cachedComments.length > 0) {
-          const elapsed = Date.now() - startTime;
-          console.log(
-            `[FacebookCommentsManager] ✅ Using ${cachedComments.length} cached comments from DB (${elapsed}ms)`,
-          );
-
-          const formattedComments: FacebookComment[] = cachedComments.map(
-            (c) => ({
-              id: c.facebook_comment_id,
-              message: c.comment_message || "",
-              from: {
-                name: c.facebook_user_name || "Unknown",
-                id: c.facebook_user_id || "",
-              },
-              created_time: c.comment_created_time,
-              like_count: c.like_count || 0,
-            }),
-          );
-
-          return {
-            data: formattedComments,
-            paging: {},
-            fromCache: true,
-          };
-        } else {
-          console.log(
-            "[FacebookCommentsManager] ⚠️ No cache found - will fetch from TPOS and cache",
-          );
-        }
-      } else if (selectedVideo.statusLive === 1) {
-        console.log(
-          "[FacebookCommentsManager] 🔴 Live video - fetching real-time from TPOS",
-        );
-      }
-
-      // Fetch from TPOS if not in cache
+      // Fetch from TPOS
       const order =
         selectedVideo.statusLive === 1
           ? "reverse_chronological"
@@ -657,32 +605,9 @@ export function FacebookCommentsManager({
   // ============================================================================
 
   const checkCacheStatus = useCallback(async () => {
-    if (!selectedVideo) {
-      setCacheStatus({ isCached: false, count: 0, lastUpdated: null });
-      return;
-    }
-
-    const { count, error } = await supabase
-      .from("facebook_comments_archive")
-      .select("*", { count: "exact", head: true })
-      .eq("facebook_post_id", selectedVideo.objectId);
-
-    if (!error && count !== null) {
-      const { data: latestComment } = await supabase
-        .from("facebook_comments_archive")
-        .select("comment_created_time")
-        .eq("facebook_post_id", selectedVideo.objectId)
-        .order("comment_created_time", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      setCacheStatus({
-        isCached: count > 0,
-        count: count,
-        lastUpdated: latestComment?.comment_created_time || null,
-      });
-    }
-  }, [selectedVideo]);
+    // Archive table disabled
+    setCacheStatus({ isCached: false, count: 0, lastUpdated: null });
+  }, []);
 
   // Check cache status when video selected
   useEffect(() => {
@@ -759,95 +684,11 @@ export function FacebookCommentsManager({
 
     const checkForNewComments = async () => {
       if (isCheckingNewCommentsRef.current) return;
-
       isCheckingNewCommentsRef.current = true;
 
       try {
-        // 1. Count comments in DB
-        const { count: dbCount, error: countError } = await supabase
-          .from("facebook_comments_archive")
-          .select("*", { count: "exact", head: true })
-          .eq("facebook_post_id", selectedVideo.objectId);
-
-        if (countError) {
-          console.error(
-            "[Realtime Check] Error counting DB comments:",
-            countError,
-          );
-          return;
-        }
-
-        const currentDbCount = dbCount || 0;
-        const tposCount = selectedVideo.countComment || 0;
-
-        console.log(`[Realtime Check] Video: ${selectedVideo.objectId}`);
-        console.log(
-          `  DB: ${currentDbCount}, TPOS: ${tposCount}, Deleted: ${deletedCountRef.current}, Last TPOS: ${lastKnownCountRef.current}`,
-        );
-
-        // 2. Check if TPOS deleted comments
-        if (
-          lastKnownCountRef.current > 0 &&
-          tposCount < lastKnownCountRef.current
-        ) {
-          const deletedThisTime = lastKnownCountRef.current - tposCount;
-          deletedCountRef.current += deletedThisTime;
-
-          console.log(
-            `[Realtime Check] TPOS deleted ${deletedThisTime} comments (Total deleted: ${deletedCountRef.current})`,
-          );
-
-          toast({
-            title: "TPOS đã xóa comment",
-            description: `${deletedThisTime} comment bị xóa (Tổng: ${deletedCountRef.current})`,
-            variant: "destructive",
-          });
-        }
-
-        // 3. Calculate expected DB count
-        const expectedDbCount = tposCount + deletedCountRef.current;
-
-        console.log(
-          `  Expected DB count: ${tposCount} + ${deletedCountRef.current} = ${expectedDbCount}`,
-        );
-
-        // 4. Fetch new comments if needed
-        if (currentDbCount < expectedDbCount) {
-          const newCommentsCount = expectedDbCount - currentDbCount;
-          console.log(
-            `[Realtime Check] Need to fetch ${newCommentsCount} new comments`,
-          );
-
-          const {
-            data: { session },
-          } = await supabase.auth.getSession();
-
-          await fetch(
-            `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/facebook-comments?pageId=${pageId}&postId=${selectedVideo.objectId}&limit=100&order=reverse_chronological`,
-            {
-              headers: {
-                Authorization: `Bearer ${session?.access_token}`,
-                "Content-Type": "application/json",
-              },
-            },
-          );
-
-          queryClient.invalidateQueries({
-            queryKey: ["facebook-comments", pageId, selectedVideo.objectId],
-          });
-
-          toast({
-            title: "Comment mới",
-            description: `Có ${newCommentsCount} comment mới`,
-          });
-        } else if (currentDbCount === expectedDbCount) {
-          console.log(
-            `[Realtime Check] DB in sync: ${currentDbCount} = ${expectedDbCount}`,
-          );
-        }
-
-        // 5. Update last known count
-        lastKnownCountRef.current = tposCount;
+        // Archive table disabled - skip check
+        return;
       } catch (error) {
         console.error("[Realtime Check] Error:", error);
       } finally {
@@ -999,15 +840,24 @@ export function FacebookCommentsManager({
 
         // Upsert to DB
         if (customersToUpsert.length > 0) {
-          const { error: upsertError } = await supabase
-            .from("customers")
-            .upsert(customersToUpsert, {
-              onConflict: "facebook_id",
-              ignoreDuplicates: false,
-            });
+          const validCustomers = customersToUpsert
+            .filter(c => c.customer_name) // Only include customers with names
+            .map(c => ({
+              ...c,
+              customer_name: c.customer_name!
+            }));
 
-          if (upsertError) {
-            throw upsertError;
+          if (validCustomers.length > 0) {
+            const { error: upsertError } = await supabase
+              .from("customers")
+              .upsert(validCustomers, {
+                onConflict: "facebook_id",
+                ignoreDuplicates: false,
+              });
+
+            if (upsertError) {
+              throw upsertError;
+            }
           }
         }
 
@@ -1034,13 +884,12 @@ export function FacebookCommentsManager({
     [fetchPartnerStatusBatch],
   );
 
-  // Cleanup debounced function
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      // Cancel any pending debounced calls
-      debouncedFetchStatus.cancel?.();
+      // Cleanup
     };
-  }, [debouncedFetchStatus]);
+  }, []);
 
   useEffect(() => {
     if (!comments.length || !ordersData.length) return;
