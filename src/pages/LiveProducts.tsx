@@ -1280,22 +1280,6 @@ export default function LiveProducts() {
           ) : (
             <>
               <CardHeader>
-                <div className="flex flex-col items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <Button onClick={() => setIsCreateSessionOpen(true)} className="flex items-center gap-2">
-                      <Plus className="h-4 w-4" />
-                      Tạo đợt Live mới
-                    </Button>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setIsSessionCardCollapsed(true)}
-                    className="h-8 w-8"
-                  >
-                    <ChevronDown className="h-4 w-4 rotate-180" />
-                  </Button>
-                </div>
               </CardHeader>
               <CardContent>
             {liveSessions.length > 0 ? <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1334,23 +1318,43 @@ export default function LiveProducts() {
                 Chưa có đợt live nào. Nhấn nút "Tạo đợt Live mới" để bắt đầu.
               </div>}
 
-            {selectedSession && <div className="flex gap-2 mt-4">
-                <Button variant="outline" size="sm" onClick={() => {
-              const session = liveSessions.find(s => s.id === selectedSession);
-              if (session) handleEditSession(session);
-            }} className="flex items-center gap-2">
-                  <Edit className="h-4 w-4" />
-                  Chỉnh sửa đợt live
+            <div className="flex flex-col gap-3 mt-4">
+              <div className="flex gap-2">
+                <Button onClick={() => setIsCreateSessionOpen(true)} className="flex items-center gap-2">
+                  <Plus className="h-4 w-4" />
+                  Tạo đợt Live mới
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => handleDeleteAllPhasesForSession(selectedSession)} className="flex items-center gap-2 text-orange-600 hover:text-orange-700">
-                  <Trash2 className="h-4 w-4" />
-                  Xóa toàn bộ phiên live
+                {selectedSession && (
+                  <>
+                    <Button variant="outline" size="sm" onClick={() => {
+                      const session = liveSessions.find(s => s.id === selectedSession);
+                      if (session) handleEditSession(session);
+                    }} className="flex items-center gap-2">
+                      <Edit className="h-4 w-4" />
+                      Chỉnh Sửa
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => handleDeleteAllPhasesForSession(selectedSession)} className="flex items-center gap-2 text-orange-600 hover:text-orange-700">
+                      <Trash2 className="h-4 w-4" />
+                      Xóa toàn bộ phiên live
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => handleDeleteSession(selectedSession)} className="flex items-center gap-2 text-red-600 hover:text-red-700">
+                      <Trash2 className="h-4 w-4" />
+                      Xóa đợt live
+                    </Button>
+                  </>
+                )}
+              </div>
+              <div className="flex justify-center">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsSessionCardCollapsed(true)}
+                  className="h-8 w-8"
+                >
+                  <ChevronDown className="h-4 w-4 rotate-180" />
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => handleDeleteSession(selectedSession)} className="flex items-center gap-2 text-red-600 hover:text-red-700">
-                  <Trash2 className="h-4 w-4" />
-                  Xóa đợt live
-                </Button>
-              </div>}
+              </div>
+            </div>
               </CardContent>
             </>
           )}
