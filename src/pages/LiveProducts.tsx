@@ -43,9 +43,7 @@ import {
   Search,
   MessageSquare,
   ShoppingBag,
-  Upload,
-  Maximize2,
-  Minimize2
+  Upload
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
@@ -308,48 +306,6 @@ export default function LiveProducts() {
     orders?: OrderWithProduct[];
   } | null>(null);
   const [isUploadLiveOrdersOpen, setIsUploadLiveOrdersOpen] = useState(false);
-  const [isFullScreenMode, setIsFullScreenMode] = useState(false);
-  
-  // Effect to hide sidebar and header in fullscreen mode
-  useEffect(() => {
-    if (isFullScreenMode) {
-      // Hide all layout elements
-      const sidebar = document.querySelector('[data-sidebar="sidebar"]');
-      const header = document.querySelector('header');
-      const mobileNav = document.querySelector('nav[class*="bottom"]');
-      
-      if (sidebar) (sidebar as HTMLElement).style.display = 'none';
-      if (header) (header as HTMLElement).style.display = 'none';
-      if (mobileNav) (mobileNav as HTMLElement).style.display = 'none';
-      
-      // Make body fullscreen
-      document.body.style.overflow = 'hidden';
-    } else {
-      // Restore layout elements
-      const sidebar = document.querySelector('[data-sidebar="sidebar"]');
-      const header = document.querySelector('header');
-      const mobileNav = document.querySelector('nav[class*="bottom"]');
-      
-      if (sidebar) (sidebar as HTMLElement).style.display = '';
-      if (header) (header as HTMLElement).style.display = '';
-      if (mobileNav) (mobileNav as HTMLElement).style.display = '';
-      
-      document.body.style.overflow = '';
-    }
-    
-    return () => {
-      // Cleanup on unmount
-      const sidebar = document.querySelector('[data-sidebar="sidebar"]');
-      const header = document.querySelector('header');
-      const mobileNav = document.querySelector('nav[class*="bottom"]');
-      
-      if (sidebar) (sidebar as HTMLElement).style.display = '';
-      if (header) (header as HTMLElement).style.display = '';
-      if (mobileNav) (mobileNav as HTMLElement).style.display = '';
-      
-      document.body.style.overflow = '';
-    };
-  }, [isFullScreenMode]);
   
   // Search state for products tab
   const [productSearch, setProductSearch] = useState("");
@@ -1377,28 +1333,8 @@ export default function LiveProducts() {
   }
 
   return (
-    <div className={cn(
-      "w-full py-6 px-4 space-y-6",
-      isFullScreenMode && "fixed inset-0 z-[9999] bg-background p-0"
-    )}>
-      {/* Fullscreen Mode Header */}
-      {isFullScreenMode && (
-        <div className="sticky top-0 z-[10000] bg-background border-b p-4 flex items-center justify-between shadow-sm">
-          <h2 className="text-lg font-semibold">Danh sách sản phẩm</h2>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsFullScreenMode(false)}
-            className="flex items-center gap-2"
-          >
-            <Minimize2 className="h-4 w-4" />
-            Thoát toàn màn hình
-          </Button>
-        </div>
-      )}
-      
+    <div className="w-full py-6 px-4 space-y-6">
       {/* Header */}
-      {!isFullScreenMode && (
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Order Live</h1>
@@ -1417,7 +1353,6 @@ export default function LiveProducts() {
           </Button>
         </div>
       </div>
-      )}
 
       {/* Main content wrapper - pushes left when sidebar opens */}
       <div className={cn(
@@ -1513,13 +1448,11 @@ export default function LiveProducts() {
             )}
           </CardContent>
         </Card>
-        )}
+      )}
 
       {/* Stats and Content */}
       {selectedPhase && (
         <>
-          {/* Hide tabs and stats in fullscreen mode */}
-          {!isFullScreenMode && (
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <div ref={tabsRef} className="flex items-center justify-between">
               <TabsList>
@@ -1569,25 +1502,6 @@ export default function LiveProducts() {
                     >
                       <RefreshCw className="h-4 w-4" />
                       Làm mới
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setIsFullScreenMode(!isFullScreenMode)}
-                      disabled={liveProducts.length === 0}
-                      className="flex items-center gap-2"
-                    >
-                      {isFullScreenMode ? (
-                        <>
-                          <Minimize2 className="h-4 w-4" />
-                          Thoát toàn màn hình
-                        </>
-                      ) : (
-                        <>
-                          <Maximize2 className="h-4 w-4" />
-                          Xem toàn màn hình
-                        </>
-                      )}
                     </Button>
                   </>
                 )}
@@ -2637,7 +2551,6 @@ export default function LiveProducts() {
               />
             </TabsContent>
           </Tabs>
-          )}
         </>
       )}
 
