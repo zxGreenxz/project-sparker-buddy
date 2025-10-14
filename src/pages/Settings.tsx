@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { RefreshCw, CheckCircle, AlertCircle, Copy, ChevronDown, ChevronUp, ShoppingCart, Key, Save, TestTube2, Code, Download, Upload, Facebook } from "lucide-react";
+import { RefreshCw, CheckCircle, AlertCircle, Copy, ChevronDown, ChevronUp, ShoppingCart, Key, Save, TestTube2, Code, Download, Upload, Facebook, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -26,6 +26,7 @@ import { FacebookPageManager } from "@/components/facebook/FacebookPageManager";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; // Import Tabs components
+import NetworkPrinterManager from "@/components/settings/NetworkPrinterManager";
 
 const Settings = () => {
   const [isChecking, setIsChecking] = useState(false);
@@ -671,24 +672,28 @@ const Settings = () => {
       />
 
       <Tabs defaultValue="general" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-          <TabsTrigger value="general" className="gap-2">
-            <Key className="h-4 w-4" />
-            Cấu hình chung
-          </TabsTrigger>
-          <TabsTrigger value="tpos-data" className="gap-2">
-            <Download className="h-4 w-4" />
-            Dữ liệu TPOS
-          </TabsTrigger>
-          <TabsTrigger value="tpos-tools" className="gap-2">
-            <Code className="h-4 w-4" />
-            Công cụ TPOS
-          </TabsTrigger>
-          <TabsTrigger value="barcode" className="gap-2">
-            <TestTube2 className="h-4 w-4" />
-            Barcode & Test
-          </TabsTrigger>
-        </TabsList>
+  <TabsList className="w-full flex flex-wrap gap-1">
+    <TabsTrigger value="general" className="gap-2 flex-1 min-w-fit">
+      <Key className="h-4 w-4" />
+      Cấu hình chung
+    </TabsTrigger>
+    <TabsTrigger value="tpos-data" className="gap-2 flex-1 min-w-fit">
+      <Download className="h-4 w-4" />
+      Dữ liệu TPOS
+    </TabsTrigger>
+    <TabsTrigger value="tpos-tools" className="gap-2 flex-1 min-w-fit">
+      <Code className="h-4 w-4" />
+      Công cụ TPOS
+    </TabsTrigger>
+    <TabsTrigger value="barcode" className="gap-2 flex-1 min-w-fit">
+      <TestTube2 className="h-4 w-4" />
+      Barcode & Test
+    </TabsTrigger>
+    <TabsTrigger value="printer" className="gap-2 flex-1 min-w-fit">
+      <Printer className="h-4 w-4" />
+      Máy in
+    </TabsTrigger>
+  </TabsList>
 
         {/* Tab: Cấu hình chung */}
         <TabsContent value="general" className="space-y-6 mt-4">
@@ -781,7 +786,6 @@ const Settings = () => {
 
             <FacebookPageManager />
           </div>
-
           <BarcodeScannerSettings />
         </TabsContent>
 
@@ -1764,7 +1768,11 @@ const Settings = () => {
             <BarcodeProductTest />
           </div>
         </TabsContent>
-      </Tabs>
+
+            <TabsContent value="printer" className="space-y-6 mt-4">
+        <NetworkPrinterManager />
+      </TabsContent>
+    </Tabs>
 
       <FetchTPOSProductsDialog
         open={isFetchTPOSDialogOpen}
