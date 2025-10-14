@@ -1269,10 +1269,10 @@ export default function LiveProducts() {
           {isSessionCardCollapsed ? (
             <div className="p-2 flex justify-center">
               <Button
-                variant="default"
+                variant="ghost"
                 size="lg"
                 onClick={() => setIsSessionCardCollapsed(false)}
-                className="h-12 w-12 font-bold"
+                className="h-12 w-12"
               >
                 <ChevronDown className="h-6 w-6" />
               </Button>
@@ -1346,10 +1346,10 @@ export default function LiveProducts() {
               </div>
               <div className="flex justify-center">
                 <Button
-                  variant="default"
+                  variant="ghost"
                   size="lg"
                   onClick={() => setIsSessionCardCollapsed(true)}
-                  className="h-12 w-12 font-bold"
+                  className="h-12 w-12"
                 >
                   <ChevronDown className="h-6 w-6 rotate-180" />
                 </Button>
