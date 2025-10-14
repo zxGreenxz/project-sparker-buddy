@@ -542,16 +542,16 @@ ${billData.comment ? `${billData.comment}\n` : ''}${new Date(billData.createdTim
                           <div className="flex items-center gap-2 shrink-0 text-xs text-muted-foreground">
                             <span>{new Date(comment.created_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
                             <span className="rounded bg-muted px-2 py-0.5">
-                              còn {comment.remaining}/{comment.total}
+                              {comment.remaining}
                             </span>
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                               onClick={(e) => handleHideComment(e, comment.facebook_comment_id)}
                               title="Ẩn comment"
                             >
-                              <EyeOff className="h-3 w-3" />
+                              <EyeOff className="h-4 w-4" />
                             </Button>
                           </div>
                         </div>
