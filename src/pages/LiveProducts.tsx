@@ -14,6 +14,7 @@ import { SelectProductFromInventoryDialog } from "@/components/live-products/Sel
 import { EditProductDialog } from "@/components/live-products/EditProductDialog";
 import { EditOrderItemDialog } from "@/components/live-products/EditOrderItemDialog";
 import { QuickAddOrder } from "@/components/live-products/QuickAddOrder";
+import { UploadLiveOrdersToTPOSDialog } from "@/components/live-products/UploadLiveOrdersToTPOSDialog";
 import { LiveSessionStats } from "@/components/live-products/LiveSessionStats";
 import { FullScreenProductView } from "@/components/live-products/FullScreenProductView";
 import { LiveSupplierStats } from "@/components/live-products/LiveSupplierStats";
@@ -43,7 +44,8 @@ import {
   Store,
   Search,
   MessageSquare,
-  ShoppingBag
+  ShoppingBag,
+  Upload
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
@@ -289,6 +291,7 @@ export default function LiveProducts() {
     orders?: OrderWithProduct[];
   } | null>(null);
   const [isFullScreenProductViewOpen, setIsFullScreenProductViewOpen] = useState(false);
+  const [isUploadLiveOrdersOpen, setIsUploadLiveOrdersOpen] = useState(false);
   
   // Search state for products tab
   const [productSearch, setProductSearch] = useState("");
@@ -2297,6 +2300,14 @@ export default function LiveProducts() {
                       <h3 className="text-lg font-semibold">Danh sách đơn hàng</h3>
                       <Badge variant="outline">{ordersWithProducts.length} đơn</Badge>
                     </div>
+                    <Button
+                      variant="default"
+                      onClick={() => setIsUploadLiveOrdersOpen(true)}
+                      disabled={!selectedSession || selectedPhase !== "all" || ordersWithProducts.length === 0}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload TPOS
+                    </Button>
                   </div>
                   <Card>
                     <Table>
@@ -2596,6 +2607,12 @@ export default function LiveProducts() {
         selectedSession={selectedSession}
       />
 
+      <UploadLiveOrdersToTPOSDialog
+        open={isUploadLiveOrdersOpen}
+        onOpenChange={setIsUploadLiveOrdersOpen}
+        ordersWithProducts={ordersWithProducts}
+        sessionId={selectedSession}
+      />
 
       {/* Floating Action Buttons */}
       {selectedPhase && selectedPhase !== "all" && (
