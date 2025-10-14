@@ -17,7 +17,8 @@ export function CommentsSidebar({ isOpen, onClose, children }: CommentsSidebarPr
       {/* Backdrop - hover to close */}
       {isOpen && !isMobile && (
         <div
-          className="fixed inset-0 z-40"
+          className="fixed inset-0 z-[60]"
+          style={{ pointerEvents: 'none' }}
           onMouseEnter={onClose}
         />
       )}
@@ -31,6 +32,7 @@ export function CommentsSidebar({ isOpen, onClose, children }: CommentsSidebarPr
           isOpen ? "translate-x-0" : "translate-x-full",
           !isOpen && "pointer-events-none"
         )}
+        style={{ pointerEvents: isOpen ? 'auto' : 'none' }}
       >
       {/* Header */}
       <div className={cn(
