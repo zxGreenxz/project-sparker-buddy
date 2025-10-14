@@ -122,10 +122,10 @@ export function AppSidebar() {
 
   return (
     <Sidebar className="border-r border-border relative">
-      {/* Floating Sidebar Trigger */}
-      <SidebarTrigger className="absolute -right-3 top-4 z-50 p-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full shadow-lg transition-all hover:scale-110" />
+      {/* Floating Sidebar Trigger - Top Left */}
+      <SidebarTrigger className="absolute left-4 top-4 z-50 p-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg shadow-lg transition-all hover:scale-105" />
       
-      <SidebarContent className="p-4 flex flex-col h-full">
+      <SidebarContent className="p-4 flex flex-col h-full pt-16">
         <div className="mb-8">
           <div className="flex items-center gap-2 px-3">
             <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center">
