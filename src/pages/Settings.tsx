@@ -25,6 +25,7 @@ import { GetTPOSProductTool } from "@/components/settings/GetTPOSProductTool";
 import { FacebookPageManager } from "@/components/facebook/FacebookPageManager";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; // Import Tabs components
 
 const Settings = () => {
   const [isChecking, setIsChecking] = useState(false);
@@ -669,1061 +670,1101 @@ const Settings = () => {
         }}
       />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Key className="h-5 w-5" />
-            Cập nhật TPOS Bearer Token
-          </CardTitle>
-          <CardDescription>
-            Quản lý Bearer Token để kết nối với hệ thống TPOS
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Bearer Token</label>
-            <Textarea
-              value={bearerToken}
-              onChange={(e) => setBearerToken(e.target.value)}
-              placeholder="Nhập Bearer Token từ TPOS..."
-              className="min-h-[100px] font-mono text-xs"
-            />
-            <p className="text-xs text-muted-foreground">
-              Token này sẽ được sử dụng để gọi API TPOS. Vui lòng lấy token mới từ TPOS khi token cũ hết hạn.
-            </p>
-          </div>
-          
-          <div className="flex gap-3">
-            <Button
-              onClick={handleUpdateToken}
-              disabled={isUpdatingToken || !bearerToken.trim()}
-            >
-              {isUpdatingToken ? (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                  Đang cập nhật...
-                </>
-              ) : (
-                <>
-                  <Save className="mr-2 h-4 w-4" />
-                  Cập nhật Token
-                </>
-              )}
-            </Button>
-            
-            <Button
-              onClick={loadCurrentToken}
-              variant="outline"
-              disabled={isLoadingToken}
-            >
-              {isLoadingToken ? (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                  Đang tải...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Tải token hiện tại
-                </>
-              )}
-            </Button>
-          </div>
-          
-          {currentToken && (
-            <Alert>
-              <CheckCircle className="h-4 w-4" />
-              <AlertTitle>Token hiện tại</AlertTitle>
-              <AlertDescription>
-                <div className="mt-2 space-y-1 text-xs">
-                  <div className="flex justify-between">
-                    <span>Đã lưu lúc:</span>
-                    <Badge variant="secondary">
-                      {new Date(currentToken.updated_at).toLocaleString('vi-VN')}
-                    </Badge>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Trạng thái:</span>
-                    <Badge variant={currentToken.is_active ? "default" : "secondary"}>
-                      {currentToken.is_active ? "Đang hoạt động" : "Không hoạt động"}
-                    </Badge>
-                  </div>
+      <Tabs defaultValue="general" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          <TabsTrigger value="general" className="gap-2">
+            <Key className="h-4 w-4" />
+            Cấu hình chung
+          </TabsTrigger>
+          <TabsTrigger value="tpos-data" className="gap-2">
+            <Download className="h-4 w-4" />
+            Dữ liệu TPOS
+          </TabsTrigger>
+          <TabsTrigger value="tpos-tools" className="gap-2">
+            <Code className="h-4 w-4" />
+            Công cụ TPOS
+          </TabsTrigger>
+          <TabsTrigger value="barcode" className="gap-2">
+            <TestTube2 className="h-4 w-4" />
+            Barcode & Test
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Tab: Cấu hình chung */}
+        <TabsContent value="general" className="space-y-6 mt-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Key className="h-5 w-5" />
+                  Cập nhật TPOS Bearer Token
+                </CardTitle>
+                <CardDescription>
+                  Quản lý Bearer Token để kết nối với hệ thống TPOS
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Bearer Token</label>
+                  <Textarea
+                    value={bearerToken}
+                    onChange={(e) => setBearerToken(e.target.value)}
+                    placeholder="Nhập Bearer Token từ TPOS..."
+                    className="min-h-[100px] font-mono text-xs"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Token này sẽ được sử dụng để gọi API TPOS. Vui lòng lấy token mới từ TPOS khi token cũ hết hạn.
+                  </p>
                 </div>
-              </AlertDescription>
-            </Alert>
-          )}
-        </CardContent>
-      </Card>
-
-      <FacebookPageManager />
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <RefreshCw className="h-5 w-5" />
-            Quản lý ảnh TPOS
-          </CardTitle>
-          <CardDescription>
-            Kiểm tra và đồng bộ hóa ảnh sản phẩm từ hệ thống TPOS về database
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex gap-3">
-            <Button
-              onClick={handleCheckImages}
-              disabled={isChecking || isSyncing}
-              variant="outline"
-            >
-              {isChecking ? (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                  Đang kiểm tra...
-                </>
-              ) : (
-                <>
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                  Kiểm tra ảnh TPOS
-                </>
-              )}
-            </Button>
-
-            <Button
-              onClick={handleSyncImages}
-              disabled={isChecking || isSyncing}
-            >
-              {isSyncing ? (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                  Đang đồng bộ...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Đồng bộ ảnh TPOS
-                </>
-              )}
-            </Button>
-          </div>
-
-          {checkResult && (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Kết quả kiểm tra</AlertTitle>
-              <AlertDescription>
-                <div className="mt-2 space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <span>Tổng sản phẩm TPOS:</span>
-                    <Badge variant="secondary">{checkResult.summary.total_tpos_products}</Badge>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Sản phẩm trong DB:</span>
-                    <Badge variant="secondary">{checkResult.summary.total_db_products}</Badge>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Thiếu ảnh:</span>
-                    <Badge variant="destructive">{checkResult.summary.missing_images}</Badge>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Không tìm thấy trong TPOS:</span>
-                    <Badge variant="outline">{checkResult.summary.not_found_in_tpos}</Badge>
-                  </div>
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {syncResult && (
-            <Alert>
-              <CheckCircle className="h-4 w-4" />
-              <AlertTitle>Kết quả đồng bộ</AlertTitle>
-              <AlertDescription>
-                <div className="mt-2 space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <span>Tổng sản phẩm xử lý:</span>
-                    <Badge variant="secondary">{syncResult.summary.total_products}</Badge>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Đã cập nhật:</span>
-                    <Badge>{syncResult.summary.updated}</Badge>
-                  </div>
-                  {syncResult.summary.skipped > 0 && (
-                    <div className="flex justify-between">
-                      <span>Đã đồng bộ trước đó:</span>
-                      <Badge variant="outline">{syncResult.summary.skipped}</Badge>
-                    </div>
-                  )}
-                  <div className="flex justify-between">
-                    <span>Không tìm thấy trong TPOS:</span>
-                    <Badge variant="outline">{syncResult.summary.not_found_in_tpos}</Badge>
-                  </div>
-                  {syncResult.summary.errors > 0 && (
-                    <div className="flex justify-between">
-                      <span>Lỗi:</span>
-                      <Badge variant="destructive">{syncResult.summary.errors}</Badge>
-                    </div>
-                  )}
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {(checkResult || syncResult) && (
-            <Collapsible open={isJsonOpen} onOpenChange={setIsJsonOpen}>
-              <Card className="border-dashed">
-                <CollapsibleTrigger className="w-full">
-                  <CardHeader className="hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-base">Chi tiết JSON Response</CardTitle>
-                      {isJsonOpen ? (
-                        <ChevronUp className="h-4 w-4" />
-                      ) : (
-                        <ChevronDown className="h-4 w-4" />
-                      )}
-                    </div>
-                  </CardHeader>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {checkResult && (
-                        <div>
-                          <div className="flex items-center justify-between mb-2">
-                            <p className="text-sm font-medium">Check Result:</p>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => copyToClipboard(JSON.stringify(checkResult, null, 2))}
-                            >
-                              <Copy className="h-3 w-3 mr-1" />
-                              Copy
-                            </Button>
-                          </div>
-                          <pre className="bg-muted p-4 rounded-md text-xs overflow-auto max-h-96">
-                            {JSON.stringify(checkResult, null, 2)}
-                          </pre>
-                        </div>
-                      )}
-                      {syncResult && (
-                        <div>
-                          <div className="flex items-center justify-between mb-2">
-                            <p className="text-sm font-medium">Sync Result:</p>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => copyToClipboard(JSON.stringify(syncResult, null, 2))}
-                            >
-                              <Copy className="h-3 w-3 mr-1" />
-                              Copy
-                            </Button>
-                          </div>
-                          <pre className="bg-muted p-4 rounded-md text-xs overflow-auto max-h-96">
-                            {JSON.stringify(syncResult, null, 2)}
-                          </pre>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </CollapsibleContent>
-              </Card>
-            </Collapsible>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ShoppingCart className="h-5 w-5" />
-            Đơn hàng TPOS
-          </CardTitle>
-          <CardDescription>
-            Lấy danh sách đơn hàng online từ TPOS theo ngày hôm nay
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex gap-3 items-end">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Số lượng đơn hàng</label>
-              <Select value={topValue} onValueChange={setTopValue}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Chọn số lượng" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="20">20 đơn</SelectItem>
-                  <SelectItem value="50">50 đơn</SelectItem>
-                  <SelectItem value="200">200 đơn</SelectItem>
-                  <SelectItem value="1000">1000 đơn</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <Button
-              onClick={handleFetchOrders}
-              disabled={isFetchingOrders}
-            >
-              {isFetchingOrders ? (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                  Đang lấy...
-                </>
-              ) : (
-                <>
-                  <ShoppingCart className="mr-2 h-4 w-4" />
-                  Lấy đơn hàng
-                </>
-              )}
-            </Button>
-          </div>
-
-          {ordersResult && (
-            <Alert>
-              <CheckCircle className="h-4 w-4" />
-              <AlertTitle>Kết quả</AlertTitle>
-              <AlertDescription>
-                <div className="mt-2 space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <span>Tổng số đơn hàng:</span>
-                    <Badge variant="secondary">
-                      {ordersResult["@odata.count"] || ordersResult.value?.length || 0}
-                    </Badge>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Đơn hàng hiển thị:</span>
-                    <Badge>{ordersResult.value?.length || 0}</Badge>
-                  </div>
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {ordersResult && (
-            <Collapsible open={isOrdersJsonOpen} onOpenChange={setIsOrdersJsonOpen}>
-              <Card className="border-dashed">
-                <CollapsibleTrigger className="w-full">
-                  <CardHeader className="hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-base">Chi tiết JSON Response</CardTitle>
-                      {isOrdersJsonOpen ? (
-                        <ChevronUp className="h-4 w-4" />
-                      ) : (
-                        <ChevronDown className="h-4 w-4" />
-                      )}
-                    </div>
-                  </CardHeader>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <CardContent>
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-medium">Orders Response:</p>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => copyToClipboard(JSON.stringify(ordersResult, null, 2))}
-                      >
-                        <Copy className="h-3 w-3 mr-1" />
-                        Copy
-                      </Button>
-                    </div>
-                    <pre className="bg-muted p-4 rounded-md text-xs overflow-auto max-h-96">
-                      {JSON.stringify(ordersResult, null, 2)}
-                    </pre>
-                  </CardContent>
-                </CollapsibleContent>
-              </Card>
-            </Collapsible>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TestTube2 className="h-5 w-5" />
-            Test Variant Creator
-          </CardTitle>
-          <CardDescription>
-            Test việc tạo variant trên TPOS với product ID và attributes
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">TPOS Product ID</label>
-            <div className="flex gap-2">
-              <Input
-                type="number"
-                value={testProductId}
-                onChange={(e) => setTestProductId(e.target.value)}
-                placeholder="Nhập TPOS Product ID..."
-                className="flex-1"
-              />
-              <Button
-                onClick={handleGetTestProduct}
-                disabled={isGettingProduct}
-                variant="outline"
-              >
-                {isGettingProduct ? (
-                  <>
-                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                    Getting...
-                  </>
-                ) : (
-                  "GET Product"
-                )}
-              </Button>
-            </div>
-          </div>
-
-          {testProduct && (
-            <>
-              <Alert>
-                <CheckCircle className="h-4 w-4" />
-                <AlertTitle>Product Retrieved</AlertTitle>
-                <AlertDescription>
-                  <div className="mt-2 space-y-1 text-sm">
-                    <div className="flex justify-between">
-                      <span>Name:</span>
-                      <Badge variant="secondary">{testProduct.Name}</Badge>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Code:</span>
-                      <Badge variant="outline">{testProduct.DefaultCode}</Badge>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Price:</span>
-                      <Badge>{testProduct.ListPrice?.toLocaleString()} VNĐ</Badge>
-                    </div>
-                  </div>
-                </AlertDescription>
-              </Alert>
-
-              <div className="space-y-4 border rounded-lg p-4">
-                <h3 className="font-medium">Chọn Attributes</h3>
                 
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Size Chữ</label>
-                    <div className="grid grid-cols-4 gap-2">
-                      {TPOS_ATTRIBUTES.sizeText.map((attr) => (
-                        <div key={attr.Id} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`size-text-${attr.Id}`}
-                            checked={selectedSizeText.includes(attr.Id)}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                setSelectedSizeText([...selectedSizeText, attr.Id]);
-                              } else {
-                                setSelectedSizeText(selectedSizeText.filter(id => id !== attr.Id));
-                              }
-                            }}
-                          />
-                          <label
-                            htmlFor={`size-text-${attr.Id}`}
-                            className="text-sm cursor-pointer"
-                          >
-                            {attr.Name}
-                          </label>
+                <div className="flex gap-3">
+                  <Button
+                    onClick={handleUpdateToken}
+                    disabled={isUpdatingToken || !bearerToken.trim()}
+                  >
+                    {isUpdatingToken ? (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        Đang cập nhật...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="mr-2 h-4 w-4" />
+                        Cập nhật Token
+                      </>
+                    )}
+                  </Button>
+                  
+                  <Button
+                    onClick={loadCurrentToken}
+                    variant="outline"
+                    disabled={isLoadingToken}
+                  >
+                    {isLoadingToken ? (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        Đang tải...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                        Tải token hiện tại
+                      </>
+                    )}
+                  </Button>
+                </div>
+                
+                {currentToken && (
+                  <Alert>
+                    <CheckCircle className="h-4 w-4" />
+                    <AlertTitle>Token hiện tại</AlertTitle>
+                    <AlertDescription>
+                      <div className="mt-2 space-y-1 text-sm">
+                        <div className="flex justify-between">
+                          <span>Đã lưu lúc:</span>
+                          <Badge variant="secondary">
+                            {new Date(currentToken.updated_at).toLocaleString('vi-VN')}
+                          </Badge>
                         </div>
-                      ))}
-                    </div>
-                  </div>
+                        <div className="flex justify-between">
+                          <span>Trạng thái:</span>
+                          <Badge variant={currentToken.is_active ? "default" : "secondary"}>
+                            {currentToken.is_active ? "Đang hoạt động" : "Không hoạt động"}
+                          </Badge>
+                        </div>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </CardContent>
+            </Card>
 
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Size Số</label>
-                    <div className="grid grid-cols-6 gap-2 max-h-32 overflow-y-auto">
-                      {TPOS_ATTRIBUTES.sizeNumber.map((attr) => (
-                        <div key={attr.Id} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`size-number-${attr.Id}`}
-                            checked={selectedSizeNumber.includes(attr.Id)}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                setSelectedSizeNumber([...selectedSizeNumber, attr.Id]);
-                              } else {
-                                setSelectedSizeNumber(selectedSizeNumber.filter(id => id !== attr.Id));
-                              }
-                            }}
-                          />
-                          <label
-                            htmlFor={`size-number-${attr.Id}`}
-                            className="text-sm cursor-pointer"
-                          >
-                            {attr.Name}
-                          </label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+            <FacebookPageManager />
+          </div>
 
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Màu</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {TPOS_ATTRIBUTES.color.map((attr) => (
-                        <div key={attr.Id} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`color-${attr.Id}`}
-                            checked={selectedColor.includes(attr.Id)}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                setSelectedColor([...selectedColor, attr.Id]);
-                              } else {
-                                setSelectedColor(selectedColor.filter(id => id !== attr.Id));
-                              }
-                            }}
-                          />
-                          <label
-                            htmlFor={`color-${attr.Id}`}
-                            className="text-sm cursor-pointer"
-                          >
-                            {attr.Name}
-                          </label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+          <BarcodeScannerSettings />
+        </TabsContent>
+
+        {/* Tab: Dữ liệu TPOS */}
+        <TabsContent value="tpos-data" className="space-y-6 mt-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <RefreshCw className="h-5 w-5" />
+                  Quản lý ảnh TPOS
+                </CardTitle>
+                <CardDescription>
+                  Kiểm tra và đồng bộ hóa ảnh sản phẩm từ hệ thống TPOS về database
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex gap-3">
+                  <Button
+                    onClick={handleCheckImages}
+                    disabled={isChecking || isSyncing}
+                    variant="outline"
+                  >
+                    {isChecking ? (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        Đang kiểm tra...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="mr-2 h-4 w-4" />
+                        Kiểm tra ảnh TPOS
+                      </>
+                    )}
+                  </Button>
+
+                  <Button
+                    onClick={handleSyncImages}
+                    disabled={isChecking || isSyncing}
+                  >
+                    {isSyncing ? (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        Đang đồng bộ...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                        Đồng bộ ảnh TPOS
+                      </>
+                    )}
+                  </Button>
                 </div>
 
+                {checkResult && (
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Kết quả kiểm tra</AlertTitle>
+                    <AlertDescription>
+                      <div className="mt-2 space-y-1 text-sm">
+                        <div className="flex justify-between">
+                          <span>Tổng sản phẩm TPOS:</span>
+                          <Badge variant="secondary">{checkResult.summary.total_tpos_products}</Badge>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Sản phẩm trong DB:</span>
+                          <Badge variant="secondary">{checkResult.summary.total_db_products}</Badge>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Thiếu ảnh:</span>
+                          <Badge variant="destructive">{checkResult.summary.missing_images}</Badge>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Không tìm thấy trong TPOS:</span>
+                          <Badge variant="outline">{checkResult.summary.not_found_in_tpos}</Badge>
+                        </div>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {syncResult && (
+                  <Alert>
+                    <CheckCircle className="h-4 w-4" />
+                    <AlertTitle>Kết quả đồng bộ</AlertTitle>
+                    <AlertDescription>
+                      <div className="mt-2 space-y-1 text-sm">
+                        <div className="flex justify-between">
+                          <span>Tổng sản phẩm xử lý:</span>
+                          <Badge variant="secondary">{syncResult.summary.total_products}</Badge>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Đã cập nhật:</span>
+                          <Badge>{syncResult.summary.updated}</Badge>
+                        </div>
+                        {syncResult.summary.skipped > 0 && (
+                          <div className="flex justify-between">
+                            <span>Đã đồng bộ trước đó:</span>
+                            <Badge variant="outline">{syncResult.summary.skipped}</Badge>
+                          </div>
+                        )}
+                        <div className="flex justify-between">
+                          <span>Không tìm thấy trong TPOS:</span>
+                          <Badge variant="outline">{syncResult.summary.not_found_in_tpos}</Badge>
+                        </div>
+                        {syncResult.summary.errors > 0 && (
+                          <div className="flex justify-between">
+                            <span>Lỗi:</span>
+                            <Badge variant="destructive">{syncResult.summary.errors}</Badge>
+                          </div>
+                        )}
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {(checkResult || syncResult) && (
+                  <Collapsible open={isJsonOpen} onOpenChange={setIsJsonOpen}>
+                    <Card className="border-dashed">
+                      <CollapsibleTrigger className="w-full">
+                        <CardHeader className="hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="text-base">Chi tiết JSON Response</CardTitle>
+                            {isJsonOpen ? (
+                              <ChevronUp className="h-4 w-4" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4" />
+                            )}
+                          </div>
+                        </CardHeader>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <CardContent>
+                          <div className="space-y-4">
+                            {checkResult && (
+                              <div>
+                                <div className="flex items-center justify-between mb-2">
+                                  <p className="text-sm font-medium">Check Result:</p>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => copyToClipboard(JSON.stringify(checkResult, null, 2))}
+                                  >
+                                    <Copy className="h-3 w-3 mr-1" />
+                                    Copy
+                                  </Button>
+                                </div>
+                                <pre className="bg-muted p-4 rounded-md text-xs overflow-auto max-h-96">
+                                  {JSON.stringify(checkResult, null, 2)}
+                                </pre>
+                              </div>
+                            )}
+                            {syncResult && (
+                              <div>
+                                <div className="flex items-center justify-between mb-2">
+                                  <p className="text-sm font-medium">Sync Result:</p>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => copyToClipboard(JSON.stringify(syncResult, null, 2))}
+                                  >
+                                    <Copy className="h-3 w-3 mr-1" />
+                                    Copy
+                                  </Button>
+                                </div>
+                                <pre className="bg-muted p-4 rounded-md text-xs overflow-auto max-h-96">
+                                  {JSON.stringify(syncResult, null, 2)}
+                                </pre>
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </CollapsibleContent>
+                    </Card>
+                  </Collapsible>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ShoppingCart className="h-5 w-5" />
+                  Đơn hàng TPOS
+                </CardTitle>
+                <CardDescription>
+                  Lấy danh sách đơn hàng online từ TPOS theo ngày hôm nay
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex gap-3 items-end">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Số lượng đơn hàng</label>
+                    <Select value={topValue} onValueChange={setTopValue}>
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Chọn số lượng" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="20">20 đơn</SelectItem>
+                        <SelectItem value="50">50 đơn</SelectItem>
+                        <SelectItem value="200">200 đơn</SelectItem>
+                        <SelectItem value="1000">1000 đơn</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <Button
+                    onClick={handleFetchOrders}
+                    disabled={isFetchingOrders}
+                  >
+                    {isFetchingOrders ? (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        Đang lấy...
+                      </>
+                    ) : (
+                      <>
+                        <ShoppingCart className="mr-2 h-4 w-4" />
+                        Lấy đơn hàng
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                {ordersResult && (
+                  <Alert>
+                    <CheckCircle className="h-4 w-4" />
+                    <AlertTitle>Kết quả</AlertTitle>
+                    <AlertDescription>
+                      <div className="mt-2 space-y-1 text-sm">
+                        <div className="flex justify-between">
+                          <span>Tổng số đơn hàng:</span>
+                          <Badge variant="secondary">
+                            {ordersResult["@odata.count"] || ordersResult.value?.length || 0}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Đơn hàng hiển thị:</span>
+                          <Badge>{ordersResult.value?.length || 0}</Badge>
+                        </div>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {ordersResult && (
+                  <Collapsible open={isOrdersJsonOpen} onOpenChange={setIsOrdersJsonOpen}>
+                    <Card className="border-dashed">
+                      <CollapsibleTrigger className="w-full">
+                        <CardHeader className="hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="text-base">Chi tiết JSON Response</CardTitle>
+                            {isOrdersJsonOpen ? (
+                              <ChevronUp className="h-4 w-4" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4" />
+                            )}
+                          </div>
+                        </CardHeader>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <CardContent>
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-sm font-medium">Orders Response:</p>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => copyToClipboard(JSON.stringify(ordersResult, null, 2))}
+                            >
+                              <Copy className="h-3 w-3 mr-1" />
+                              Copy
+                            </Button>
+                          </div>
+                          <pre className="bg-muted p-4 rounded-md text-xs overflow-auto max-h-96">
+                            {JSON.stringify(ordersResult, null, 2)}
+                          </pre>
+                        </CardContent>
+                      </CollapsibleContent>
+                    </Card>
+                  </Collapsible>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Download className="h-5 w-5" />
+                  Lấy sản phẩm từ TPOS
+                </CardTitle>
+                <CardDescription>
+                  Import sản phẩm từ TPOS về hệ thống nội bộ với số lượng tùy chọn
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
                 <Button
-                  onClick={handlePostVariant}
-                  disabled={isPostingVariant}
+                  onClick={() => setIsFetchTPOSDialogOpen(true)}
+                  variant="default"
                   className="w-full"
                 >
-                  {isPostingVariant ? (
+                  <Download className="h-4 w-4 mr-2" />
+                  Mở công cụ lấy sản phẩm
+                </Button>
+              </CardContent>
+            </Card>
+
+            <GetTPOSProductTool />
+          </div>
+        </TabsContent>
+
+        {/* Tab: Công cụ TPOS */}
+        <TabsContent value="tpos-tools" className="space-y-6 mt-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TestTube2 className="h-5 w-5" />
+                  Test Variant Creator
+                </CardTitle>
+                <CardDescription>
+                  Test việc tạo variant trên TPOS với product ID và attributes
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">TPOS Product ID</label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      value={testProductId}
+                      onChange={(e) => setTestProductId(e.target.value)}
+                      placeholder="Nhập TPOS Product ID..."
+                      className="flex-1"
+                    />
+                    <Button
+                      onClick={handleGetTestProduct}
+                      disabled={isGettingProduct}
+                      variant="outline"
+                    >
+                      {isGettingProduct ? (
+                        <>
+                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                          Getting...
+                        </>
+                      ) : (
+                        "GET Product"
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                {testProduct && (
+                  <>
+                    <Alert>
+                      <CheckCircle className="h-4 w-4" />
+                      <AlertTitle>Product Retrieved</AlertTitle>
+                      <AlertDescription>
+                        <div className="mt-2 space-y-1 text-sm">
+                          <div className="flex justify-between">
+                            <span>Name:</span>
+                            <Badge variant="secondary">{testProduct.Name}</Badge>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Code:</span>
+                            <Badge variant="outline">{testProduct.DefaultCode}</Badge>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Price:</span>
+                            <Badge>{testProduct.ListPrice?.toLocaleString()} VNĐ</Badge>
+                          </div>
+                        </div>
+                      </AlertDescription>
+                    </Alert>
+
+                    <div className="space-y-4 border rounded-lg p-4">
+                      <h3 className="font-medium">Chọn Attributes</h3>
+                      
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-sm font-medium mb-2 block">Size Chữ</label>
+                          <div className="grid grid-cols-4 gap-2">
+                            {TPOS_ATTRIBUTES.sizeText.map((attr) => (
+                              <div key={attr.Id} className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`size-text-${attr.Id}`}
+                                  checked={selectedSizeText.includes(attr.Id)}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      setSelectedSizeText([...selectedSizeText, attr.Id]);
+                                    } else {
+                                      setSelectedSizeText(selectedSizeText.filter(id => id !== attr.Id));
+                                    }
+                                  }}
+                                />
+                                <label
+                                  htmlFor={`size-text-${attr.Id}`}
+                                  className="text-sm cursor-pointer"
+                                >
+                                  {attr.Name}
+                                </label>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-sm font-medium mb-2 block">Size Số</label>
+                          <div className="grid grid-cols-6 gap-2 max-h-32 overflow-y-auto">
+                            {TPOS_ATTRIBUTES.sizeNumber.map((attr) => (
+                              <div key={attr.Id} className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`size-number-${attr.Id}`}
+                                  checked={selectedSizeNumber.includes(attr.Id)}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      setSelectedSizeNumber([...selectedSizeNumber, attr.Id]);
+                                    } else {
+                                      setSelectedSizeNumber(selectedSizeNumber.filter(id => id !== attr.Id));
+                                    }
+                                  }}
+                                />
+                                <label
+                                  htmlFor={`size-number-${attr.Id}`}
+                                  className="text-sm cursor-pointer"
+                                >
+                                  {attr.Name}
+                                </label>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-sm font-medium mb-2 block">Màu</label>
+                          <div className="grid grid-cols-3 gap-2">
+                            {TPOS_ATTRIBUTES.color.map((attr) => (
+                              <div key={attr.Id} className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`color-${attr.Id}`}
+                                  checked={selectedColor.includes(attr.Id)}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      setSelectedColor([...selectedColor, attr.Id]);
+                                    } else {
+                                      setSelectedColor(selectedColor.filter(id => id !== attr.Id));
+                                    }
+                                  }}
+                                />
+                                <label
+                                  htmlFor={`color-${attr.Id}`}
+                                  className="text-sm cursor-pointer"
+                                >
+                                  {attr.Name}
+                                </label>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      <Button
+                        onClick={handlePostVariant}
+                        disabled={isPostingVariant}
+                        className="w-full"
+                      >
+                        {isPostingVariant ? (
+                          <>
+                            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                            Đang POST...
+                          </>
+                        ) : (
+                          "POST Create Variants"
+                        )}
+                      </Button>
+                    </div>
+
+                    {variantPostResult && (
+                      <Alert>
+                        <CheckCircle className="h-4 w-4" />
+                        <AlertTitle>Variant Created</AlertTitle>
+                        <AlertDescription>
+                          <div className="mt-2 text-sm">
+                            Response đã nhận. Xem chi tiết bên dưới.
+                          </div>
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
+                    <Collapsible open={isTestJsonOpen} onOpenChange={setIsTestJsonOpen}>
+                      <Card className="border-dashed">
+                        <CollapsibleTrigger className="w-full">
+                          <CardHeader className="hover:bg-muted/50 transition-colors">
+                            <div className="flex items-center justify-between">
+                              <CardTitle className="text-base">Chi tiết JSON Response</CardTitle>
+                              {isTestJsonOpen ? (
+                                <ChevronUp className="h-4 w-4" />
+                              ) : (
+                                <ChevronDown className="h-4 w-4" />
+                            )}
+                            </div>
+                          </CardHeader>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <CardContent>
+                            <div className="space-y-4">
+                              {testProduct && (
+                                <div>
+                                  <div className="flex items-center justify-between mb-2">
+                                    <p className="text-sm font-medium">GET Product Response:</p>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => copyToClipboard(JSON.stringify(testProduct, null, 2))}
+                                    >
+                                      <Copy className="h-3 w-3 mr-1" />
+                                      Copy
+                                    </Button>
+                                  </div>
+                                  <pre className="bg-muted p-4 rounded-md text-xs overflow-auto max-h-96">
+                                    {JSON.stringify(testProduct, null, 2)}
+                                  </pre>
+                                </div>
+                              )}
+                              {variantPostResult && (
+                                <div>
+                                  <div className="flex items-center justify-between mb-2">
+                                    <p className="text-sm font-medium">POST Variant Response:</p>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => copyToClipboard(JSON.stringify(variantPostResult, null, 2))}
+                                    >
+                                      <Copy className="h-3 w-3 mr-1" />
+                                      Copy
+                                    </Button>
+                                  </div>
+                                  <pre className="bg-muted p-4 rounded-md text-xs overflow-auto max-h-96">
+                                    {JSON.stringify(variantPostResult, null, 2)}
+                                  </pre>
+                                </div>
+                              )}
+                            </div>
+                          </CardContent>
+                        </CollapsibleContent>
+                      </Card>
+                    </Collapsible>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Single Product Upload Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Upload className="h-5 w-5" />
+                  Upload sản phẩm lên TPOS
+                </CardTitle>
+                <CardDescription>
+                  Test upload từng sản phẩm lên TPOS với thông tin cơ bản
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Tên sản phẩm *</label>
+                    <Input
+                      value={singleProductName}
+                      onChange={(e) => setSingleProductName(e.target.value)}
+                      placeholder="Nhập tên sản phẩm..."
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Mã sản phẩm *</label>
+                    <Input
+                      value={singleProductCode}
+                      onChange={(e) => setSingleProductCode(e.target.value)}
+                      placeholder="Nhập mã sản phẩm..."
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Biến thể</label>
+                    <Input
+                      value={singleVariant}
+                      onChange={(e) => setSingleVariant(e.target.value)}
+                      placeholder="Ví dụ: Đỏ, S, 28"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Giá mua</label>
+                    <Input
+                      type="number"
+                      value={singlePurchasePrice}
+                      onChange={(e) => setSinglePurchasePrice(e.target.value)}
+                      placeholder="0"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Giá bán</label>
+                    <Input
+                      type="number"
+                      value={singleSellingPrice}
+                      onChange={(e) => setSingleSellingPrice(e.target.value)}
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+                
+                <Button
+                  onClick={handleUploadSingleProduct}
+                  disabled={isUploadingSingle || !singleProductName.trim() || !singleProductCode.trim()}
+                  className="w-full"
+                >
+                  {isUploadingSingle ? (
                     <>
                       <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                      Đang POST...
+                      Đang upload...
                     </>
                   ) : (
-                    "POST Create Variants"
+                    <>
+                      <Upload className="mr-2 h-4 w-4" />
+                      Upload lên TPOS
+                    </>
                   )}
                 </Button>
-              </div>
-
-              {variantPostResult && (
-                <Alert>
-                  <CheckCircle className="h-4 w-4" />
-                  <AlertTitle>Variant Created</AlertTitle>
-                  <AlertDescription>
-                    <div className="mt-2 text-sm">
-                      Response đã nhận. Xem chi tiết bên dưới.
-                    </div>
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              <Collapsible open={isTestJsonOpen} onOpenChange={setIsTestJsonOpen}>
-                <Card className="border-dashed">
-                  <CollapsibleTrigger className="w-full">
-                    <CardHeader className="hover:bg-muted/50 transition-colors">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-base">Chi tiết JSON Response</CardTitle>
-                        {isTestJsonOpen ? (
-                          <ChevronUp className="h-4 w-4" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4" />
-                        )}
-                      </div>
-                    </CardHeader>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <CardContent>
-                      <div className="space-y-4">
-                        {testProduct && (
-                          <div>
-                            <div className="flex items-center justify-between mb-2">
-                              <p className="text-sm font-medium">GET Product Response:</p>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => copyToClipboard(JSON.stringify(testProduct, null, 2))}
-                              >
-                                <Copy className="h-3 w-3 mr-1" />
-                                Copy
-                              </Button>
-                            </div>
-                            <pre className="bg-muted p-4 rounded-md text-xs overflow-auto max-h-96">
-                              {JSON.stringify(testProduct, null, 2)}
-                            </pre>
-                          </div>
-                        )}
-                        {variantPostResult && (
-                          <div>
-                            <div className="flex items-center justify-between mb-2">
-                              <p className="text-sm font-medium">POST Variant Response:</p>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => copyToClipboard(JSON.stringify(variantPostResult, null, 2))}
-                              >
-                                <Copy className="h-3 w-3 mr-1" />
-                                Copy
-                              </Button>
-                            </div>
-                            <pre className="bg-muted p-4 rounded-md text-xs overflow-auto max-h-96">
-                              {JSON.stringify(variantPostResult, null, 2)}
-                            </pre>
+                
+                {singleUploadResult && (
+                  <Alert>
+                    {singleUploadResult.successCount > 0 ? (
+                      <CheckCircle className="h-4 w-4" />
+                    ) : (
+                      <AlertCircle className="h-4 w-4" />
+                    )}
+                    <AlertTitle>
+                      {singleUploadResult.successCount > 0 ? "Upload thành công" : "Upload thất bại"}
+                    </AlertTitle>
+                    <AlertDescription>
+                      <div className="mt-2 space-y-1 text-sm">
+                        <div className="flex justify-between">
+                          <span>Thành công:</span>
+                          <Badge variant={singleUploadResult.successCount > 0 ? "default" : "secondary"}>
+                            {singleUploadResult.successCount}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Thất bại:</span>
+                          <Badge variant={singleUploadResult.failedCount > 0 ? "destructive" : "secondary"}>
+                            {singleUploadResult.failedCount}
+                          </Badge>
+                        </div>
+                        {singleUploadResult.productIds.length > 0 && (
+                          <div className="flex justify-between">
+                            <span>TPOS Product ID:</span>
+                            <Badge variant="outline">
+                              {singleUploadResult.productIds[0].tposId}
+                            </Badge>
                           </div>
                         )}
                       </div>
-                    </CardContent>
-                  </CollapsibleContent>
-                </Card>
-              </Collapsible>
-            </>
-          )}
-        </CardContent>
-      </Card>
+                    </AlertDescription>
+                  </Alert>
+                )}
+                
+                {singleUploadResult && (
+                  <Collapsible open={isSingleResultOpen} onOpenChange={setIsSingleResultOpen}>
+                    <Card className="border-dashed">
+                      <CollapsibleTrigger className="w-full">
+                        <CardHeader className="hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="text-base">Chi tiết JSON Response</CardTitle>
+                            {isSingleResultOpen ? (
+                              <ChevronUp className="h-4 w-4" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4" />
+                            )}
+                          </div>
+                        </CardHeader>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <CardContent>
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-sm font-medium">Upload Result:</p>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => copyToClipboard(JSON.stringify(singleUploadResult, null, 2))}
+                            >
+                              <Copy className="h-3 w-3 mr-1" />
+                              Copy
+                            </Button>
+                          </div>
+                          <pre className="bg-muted p-4 rounded-md text-xs overflow-auto max-h-96">
+                            {JSON.stringify(singleUploadResult, null, 2)}
+                          </pre>
+                        </CardContent>
+                      </CollapsibleContent>
+                    </Card>
+                  </Collapsible>
+                )}
+              </CardContent>
+            </Card>
 
-      {/* Single Product Upload Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Upload className="h-5 w-5" />
-            Upload sản phẩm lên TPOS
-          </CardTitle>
-          <CardDescription>
-            Test upload từng sản phẩm lên TPOS với thông tin cơ bản
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Tên sản phẩm *</label>
-              <Input
-                value={singleProductName}
-                onChange={(e) => setSingleProductName(e.target.value)}
-                placeholder="Nhập tên sản phẩm..."
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Mã sản phẩm *</label>
-              <Input
-                value={singleProductCode}
-                onChange={(e) => setSingleProductCode(e.target.value)}
-                placeholder="Nhập mã sản phẩm..."
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Biến thể</label>
-              <Input
-                value={singleVariant}
-                onChange={(e) => setSingleVariant(e.target.value)}
-                placeholder="Ví dụ: Đỏ, S, 28"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Giá mua</label>
-              <Input
-                type="number"
-                value={singlePurchasePrice}
-                onChange={(e) => setSinglePurchasePrice(e.target.value)}
-                placeholder="0"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Giá bán</label>
-              <Input
-                type="number"
-                value={singleSellingPrice}
-                onChange={(e) => setSingleSellingPrice(e.target.value)}
-                placeholder="0"
-              />
-            </div>
-          </div>
-          
-          <Button
-            onClick={handleUploadSingleProduct}
-            disabled={isUploadingSingle || !singleProductName.trim() || !singleProductCode.trim()}
-            className="w-full"
-          >
-            {isUploadingSingle ? (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                Đang upload...
-              </>
-            ) : (
-              <>
-                <Upload className="mr-2 h-4 w-4" />
-                Upload lên TPOS
-              </>
-            )}
-          </Button>
-          
-          {singleUploadResult && (
-            <Alert>
-              {singleUploadResult.successCount > 0 ? (
-                <CheckCircle className="h-4 w-4" />
-              ) : (
-                <AlertCircle className="h-4 w-4" />
-              )}
-              <AlertTitle>
-                {singleUploadResult.successCount > 0 ? "Upload thành công" : "Upload thất bại"}
-              </AlertTitle>
-              <AlertDescription>
-                <div className="mt-2 space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <span>Thành công:</span>
-                    <Badge variant={singleUploadResult.successCount > 0 ? "default" : "secondary"}>
-                      {singleUploadResult.successCount}
-                    </Badge>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Thất bại:</span>
-                    <Badge variant={singleUploadResult.failedCount > 0 ? "destructive" : "secondary"}>
-                      {singleUploadResult.failedCount}
-                    </Badge>
-                  </div>
-                  {singleUploadResult.productIds.length > 0 && (
-                    <div className="flex justify-between">
-                      <span>TPOS Product ID:</span>
-                      <Badge variant="outline">
-                        {singleUploadResult.productIds[0].tposId}
-                      </Badge>
+            {/* TPOS Debug Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Code className="h-5 w-5" />
+                  TPOS Debug
+                </CardTitle>
+                <CardDescription>
+                  Test các API của TPOS: GET Order, GET Product, PUT Variant Creation
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Test GET TPOS Order */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold flex items-center gap-2">
+                    <Code className="h-4 w-4" />
+                    Test GET TPOS Order
+                  </h3>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <Input
+                        placeholder="Nhập Order ID (ví dụ: 12345)"
+                        value={testOrderId}
+                        onChange={(e) => setTestOrderId(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            handleTestGetOrder();
+                          }
+                        }}
+                      />
                     </div>
+                    <Button 
+                      onClick={handleTestGetOrder}
+                      disabled={isTestingOrder || !testOrderId.trim()}
+                    >
+                      {isTestingOrder ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          Đang tải...
+                        </>
+                      ) : (
+                        <>
+                          <Download className="h-4 w-4 mr-2" />
+                          Test GET Order
+                        </>
+                      )}
+                    </Button>
+                  </div>
+
+                  {testOrderError && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Lỗi</AlertTitle>
+                      <AlertDescription>{testOrderError}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  {testOrderResponse && (
+                    <Collapsible open={isTestResponseOpen} onOpenChange={setIsTestResponseOpen}>
+                      <div className="flex items-center justify-between border rounded-lg p-3 bg-muted/50">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          <span className="font-medium">Kết quả (Order ID: {testOrderResponse.Id})</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyToClipboard(JSON.stringify(testOrderResponse, null, 2))}
+                          >
+                            <Copy className="h-4 w-4 mr-1" />
+                            Copy JSON
+                          </Button>
+                          <CollapsibleTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              {isTestResponseOpen ? (
+                                <ChevronUp className="h-4 w-4" />
+                              ) : (
+                                <ChevronDown className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </CollapsibleTrigger>
+                        </div>
+                      </div>
+                      <CollapsibleContent className="mt-2">
+                        <ScrollArea className="h-[500px] w-full rounded-md border">
+                          <pre className="p-4 text-xs bg-muted">
+                            {JSON.stringify(testOrderResponse, null, 2)}
+                          </pre>
+                        </ScrollArea>
+                      </CollapsibleContent>
+                    </Collapsible>
                   )}
                 </div>
-              </AlertDescription>
-            </Alert>
-          )}
-          
-          {singleUploadResult && (
-            <Collapsible open={isSingleResultOpen} onOpenChange={setIsSingleResultOpen}>
-              <Card className="border-dashed">
-                <CollapsibleTrigger className="w-full">
-                  <CardHeader className="hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-base">Chi tiết JSON Response</CardTitle>
-                      {isSingleResultOpen ? (
-                        <ChevronUp className="h-4 w-4" />
+
+                {/* Test GET TPOS Product */}
+                <div className="space-y-4 border-t pt-6">
+                  <h3 className="text-lg font-semibold flex items-center gap-2">
+                    <Download className="h-4 w-4" />
+                    Test GET TPOS Product
+                  </h3>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <Input
+                        placeholder="Nhập Product ID (ví dụ: 107812)"
+                        value={testTPOSProductId}
+                        onChange={(e) => setTestTPOSProductId(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            handleTestGetTPOSProduct();
+                          }
+                        }}
+                      />
+                    </div>
+                    <Button 
+                      onClick={handleTestGetTPOSProduct}
+                      disabled={isTestingTPOSProduct || !testTPOSProductId.trim()}
+                    >
+                      {isTestingTPOSProduct ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          Đang tải...
+                        </>
                       ) : (
-                        <ChevronDown className="h-4 w-4" />
+                        <>
+                          <Download className="h-4 w-4 mr-2" />
+                          Test GET Product
+                        </>
                       )}
-                    </div>
-                  </CardHeader>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <CardContent>
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-medium">Upload Result:</p>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => copyToClipboard(JSON.stringify(singleUploadResult, null, 2))}
-                      >
-                        <Copy className="h-3 w-3 mr-1" />
-                        Copy
-                      </Button>
-                    </div>
-                    <pre className="bg-muted p-4 rounded-md text-xs overflow-auto max-h-96">
-                      {JSON.stringify(singleUploadResult, null, 2)}
-                    </pre>
-                  </CardContent>
-                </CollapsibleContent>
-              </Card>
-            </Collapsible>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* TPOS Debug Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Code className="h-5 w-5" />
-            TPOS Debug
-          </CardTitle>
-          <CardDescription>
-            Test các API của TPOS: GET Order, GET Product, PUT Variant Creation
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Test GET TPOS Order */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold flex items-center gap-2">
-              <Code className="h-4 w-4" />
-              Test GET TPOS Order
-            </h3>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <Input
-                  placeholder="Nhập Order ID (ví dụ: 12345)"
-                  value={testOrderId}
-                  onChange={(e) => setTestOrderId(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      handleTestGetOrder();
-                    }
-                  }}
-                />
-              </div>
-              <Button 
-                onClick={handleTestGetOrder}
-                disabled={isTestingOrder || !testOrderId.trim()}
-              >
-                {isTestingOrder ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    Đang tải...
-                  </>
-                ) : (
-                  <>
-                    <Download className="h-4 w-4 mr-2" />
-                    Test GET Order
-                  </>
-                )}
-              </Button>
-            </div>
-
-            {testOrderError && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Lỗi</AlertTitle>
-                <AlertDescription>{testOrderError}</AlertDescription>
-              </Alert>
-            )}
-
-            {testOrderResponse && (
-              <Collapsible open={isTestResponseOpen} onOpenChange={setIsTestResponseOpen}>
-                <div className="flex items-center justify-between border rounded-lg p-3 bg-muted/50">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                    <span className="font-medium">Kết quả (Order ID: {testOrderResponse.Id})</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => copyToClipboard(JSON.stringify(testOrderResponse, null, 2))}
-                    >
-                      <Copy className="h-4 w-4 mr-1" />
-                      Copy JSON
                     </Button>
-                    <CollapsibleTrigger asChild>
-                      <Button variant="ghost" size="sm">
-                        {isTestResponseOpen ? (
-                          <ChevronUp className="h-4 w-4" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </CollapsibleTrigger>
                   </div>
+
+                  {testTPOSProductError && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Lỗi</AlertTitle>
+                      <AlertDescription>{testTPOSProductError}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  {testTPOSProductResponse && (
+                    <Collapsible open={isTPOSProductResponseOpen} onOpenChange={setIsTPOSProductResponseOpen}>
+                      <div className="flex items-center justify-between border rounded-lg p-3 bg-muted/50">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          <span className="font-medium">Kết quả (Product ID: {testTPOSProductResponse.Id})</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyToClipboard(JSON.stringify(testTPOSProductResponse, null, 2))}
+                          >
+                            <Copy className="h-4 w-4 mr-1" />
+                            Copy JSON
+                          </Button>
+                          <CollapsibleTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              {isTPOSProductResponseOpen ? (
+                                <ChevronUp className="h-4 w-4" />
+                              ) : (
+                                <ChevronDown className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </CollapsibleTrigger>
+                        </div>
+                      </div>
+                      <CollapsibleContent className="mt-2">
+                        <ScrollArea className="h-[500px] w-full rounded-md border">
+                          <pre className="p-4 text-xs bg-muted">
+                            {JSON.stringify(testTPOSProductResponse, null, 2)}
+                          </pre>
+                        </ScrollArea>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  )}
                 </div>
-                <CollapsibleContent className="mt-2">
-                  <ScrollArea className="h-[500px] w-full rounded-md border">
-                    <pre className="p-4 text-xs bg-muted">
-                      {JSON.stringify(testOrderResponse, null, 2)}
-                    </pre>
-                  </ScrollArea>
-                </CollapsibleContent>
-              </Collapsible>
-            )}
-          </div>
 
-          {/* Test GET TPOS Product */}
-          <div className="space-y-4 border-t pt-6">
-            <h3 className="text-lg font-semibold flex items-center gap-2">
-              <Download className="h-4 w-4" />
-              Test GET TPOS Product
-            </h3>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <Input
-                  placeholder="Nhập Product ID (ví dụ: 107812)"
-                  value={testTPOSProductId}
-                  onChange={(e) => setTestTPOSProductId(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      handleTestGetTPOSProduct();
-                    }
-                  }}
-                />
-              </div>
-              <Button 
-                onClick={handleTestGetTPOSProduct}
-                disabled={isTestingTPOSProduct || !testTPOSProductId.trim()}
-              >
-                {isTestingTPOSProduct ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    Đang tải...
-                  </>
-                ) : (
-                  <>
-                    <Download className="h-4 w-4 mr-2" />
-                    Test GET Product
-                  </>
-                )}
-              </Button>
-            </div>
-
-            {testTPOSProductError && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Lỗi</AlertTitle>
-                <AlertDescription>{testTPOSProductError}</AlertDescription>
-              </Alert>
-            )}
-
-            {testTPOSProductResponse && (
-              <Collapsible open={isTPOSProductResponseOpen} onOpenChange={setIsTPOSProductResponseOpen}>
-                <div className="flex items-center justify-between border rounded-lg p-3 bg-muted/50">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                    <span className="font-medium">Kết quả (Product ID: {testTPOSProductResponse.Id})</span>
+                {/* Test PUT TPOS Variant Creation */}
+                <div className="space-y-4 border-t pt-6">
+                  <h3 className="text-lg font-semibold flex items-center gap-2">
+                    <Upload className="h-4 w-4" />
+                    Test PUT TPOS Variant Creation
+                  </h3>
+                  <div className="space-y-2">
+                    <Input
+                      placeholder="Nhập Product ID (ví dụ: 107812)"
+                      value={testVariantProductId}
+                      onChange={(e) => setTestVariantProductId(e.target.value)}
+                    />
+                    <Input
+                      placeholder="Nhập chuỗi biến thể (ví dụ: Đen, L)"
+                      value={testVariantString}
+                      onChange={(e) => setTestVariantString(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleTestCreateVariant();
+                        }
+                      }}
+                    />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => copyToClipboard(JSON.stringify(testTPOSProductResponse, null, 2))}
-                    >
-                      <Copy className="h-4 w-4 mr-1" />
-                      Copy JSON
-                    </Button>
-                    <CollapsibleTrigger asChild>
-                      <Button variant="ghost" size="sm">
-                        {isTPOSProductResponseOpen ? (
-                          <ChevronUp className="h-4 w-4" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </CollapsibleTrigger>
-                  </div>
+                  <Button 
+                    onClick={handleTestCreateVariant}
+                    disabled={isTestingVariant || !testVariantProductId.trim() || !testVariantString.trim()}
+                    className="w-full"
+                  >
+                    {isTestingVariant ? (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        Đang xử lý...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="mr-2 h-4 w-4" />
+                        Test Create Variants
+                      </>
+                    )}
+                  </Button>
+
+                  {testVariantError && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Lỗi</AlertTitle>
+                      <AlertDescription>{testVariantError}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  {testVariantResponse && (
+                    <Collapsible open={isVariantResponseOpen} onOpenChange={setIsVariantResponseOpen}>
+                      <div className="flex items-center justify-between border rounded-lg p-3 bg-muted/50">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4" />
+                          <span className="font-medium">Kết quả tạo variants</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyToClipboard(JSON.stringify(testVariantResponse, null, 2))}
+                          >
+                            <Copy className="h-4 w-4 mr-1" />
+                            Copy JSON
+                          </Button>
+                          <CollapsibleTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              {isVariantResponseOpen ? (
+                                <ChevronUp className="h-4 w-4" />
+                              ) : (
+                                <ChevronDown className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </CollapsibleTrigger>
+                        </div>
+                      </div>
+                      <CollapsibleContent className="mt-2">
+                        <ScrollArea className="h-[500px] w-full rounded-md border">
+                          <pre className="p-4 text-xs bg-muted">
+                            {JSON.stringify(testVariantResponse, null, 2)}
+                          </pre>
+                        </ScrollArea>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  )}
                 </div>
-                <CollapsibleContent className="mt-2">
-                  <ScrollArea className="h-[500px] w-full rounded-md border">
-                    <pre className="p-4 text-xs bg-muted">
-                      {JSON.stringify(testTPOSProductResponse, null, 2)}
-                    </pre>
-                  </ScrollArea>
-                </CollapsibleContent>
-              </Collapsible>
-            )}
+              </CardContent>
+            </Card>
           </div>
+        </TabsContent>
 
-          {/* Test PUT TPOS Variant Creation */}
-          <div className="space-y-4 border-t pt-6">
-            <h3 className="text-lg font-semibold flex items-center gap-2">
-              <Upload className="h-4 w-4" />
-              Test PUT TPOS Variant Creation
-            </h3>
-            <div className="space-y-2">
-              <Input
-                placeholder="Nhập Product ID (ví dụ: 107812)"
-                value={testVariantProductId}
-                onChange={(e) => setTestVariantProductId(e.target.value)}
-              />
-              <Input
-                placeholder="Nhập chuỗi biến thể (ví dụ: Đen, L)"
-                value={testVariantString}
-                onChange={(e) => setTestVariantString(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleTestCreateVariant();
-                  }
-                }}
-              />
-            </div>
-            <Button 
-              onClick={handleTestCreateVariant}
-              disabled={isTestingVariant || !testVariantProductId.trim() || !testVariantString.trim()}
-              className="w-full"
-            >
-              {isTestingVariant ? (
-                <>
-                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  Đang xử lý...
-                </>
-              ) : (
-                <>
-                  <Upload className="h-4 w-4 mr-2" />
-                  Test Create Variants
-                </>
-              )}
-            </Button>
-
-            {testVariantError && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Lỗi</AlertTitle>
-                <AlertDescription>{testVariantError}</AlertDescription>
-              </Alert>
-            )}
-
-            {testVariantResponse && (
-              <Collapsible open={isVariantResponseOpen} onOpenChange={setIsVariantResponseOpen}>
-                <div className="flex items-center justify-between border rounded-lg p-3 bg-muted/50">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                    <span className="font-medium">Kết quả tạo variants</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => copyToClipboard(JSON.stringify(testVariantResponse, null, 2))}
-                    >
-                      <Copy className="h-4 w-4 mr-1" />
-                      Copy JSON
-                    </Button>
-                    <CollapsibleTrigger asChild>
-                      <Button variant="ghost" size="sm">
-                        {isVariantResponseOpen ? (
-                          <ChevronUp className="h-4 w-4" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </CollapsibleTrigger>
-                  </div>
-                </div>
-                <CollapsibleContent className="mt-2">
-                  <ScrollArea className="h-[500px] w-full rounded-md border">
-                    <pre className="p-4 text-xs bg-muted">
-                      {JSON.stringify(testVariantResponse, null, 2)}
-                    </pre>
-                  </ScrollArea>
-                </CollapsibleContent>
-              </Collapsible>
-            )}
+        {/* Tab: Barcode & Test */}
+        <TabsContent value="barcode" className="space-y-6 mt-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <VariantTestTool />
+            <BarcodeProductTest />
           </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Download className="h-5 w-5" />
-            Lấy sản phẩm từ TPOS
-          </CardTitle>
-          <CardDescription>
-            Import sản phẩm từ TPOS về hệ thống nội bộ với số lượng tùy chọn
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button
-            onClick={() => setIsFetchTPOSDialogOpen(true)}
-            variant="default"
-            className="w-full"
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Mở công cụ lấy sản phẩm
-          </Button>
-        </CardContent>
-      </Card>
-
-      <GetTPOSProductTool />
-
-      <BarcodeScannerSettings />
-
-      <VariantTestTool />
-
-      <BarcodeProductTest />
+        </TabsContent>
+      </Tabs>
 
       <FetchTPOSProductsDialog
         open={isFetchTPOSDialogOpen}
