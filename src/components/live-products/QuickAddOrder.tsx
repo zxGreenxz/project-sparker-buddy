@@ -31,7 +31,6 @@ type PendingOrder = {
   facebook_user_id: string | null;
   facebook_post_id: string | null;
   order_count: number;
-  tpos_order_id: string | null;
 };
 
 export function QuickAddOrder({ productId, phaseId, sessionId, availableQuantity }: QuickAddOrderProps) {
@@ -79,7 +78,7 @@ export function QuickAddOrder({ productId, phaseId, sessionId, availableQuantity
       
       const { data, error } = await supabase
         .from('facebook_pending_orders')
-        .select('*, order_count, tpos_order_id')
+        .select('*, order_count')
         .gte('created_time', `${phaseData.phase_date}T00:00:00`)
         .lt('created_time', `${phaseData.phase_date}T23:59:59`)
         .order('created_time', { ascending: false });
@@ -201,59 +200,44 @@ export function QuickAddOrder({ productId, phaseId, sessionId, availableQuantity
 
   const addOrderMutation = useMutation({
     mutationFn: async ({ sessionIndex, commentId }: { sessionIndex: string; commentId: string }) => {
-      // Get current product data for oversell check
+      // Get current product data to check if overselling
       const { data: product, error: fetchError } = await supabase
         .from('live_products')
         .select('sold_quantity, prepared_quantity, product_code, product_name')
         .eq('id', productId)
         .single();
 
-      if (fetchError) {
-        console.error('[QuickAddOrder] Fetch product error:', fetchError);
-        throw fetchError;
-      }
+      if (fetchError) throw fetchError;
 
-      // Get pending order details
+      // Get pending order details for bill
       const pendingOrder = pendingOrders.find(order => order.facebook_comment_id === commentId);
-      
-      if (!pendingOrder) {
-        console.warn('[QuickAddOrder] Pending order not found for commentId:', commentId);
-      }
 
-      // Check for oversell
+      // Check if this order will be an oversell
       const newSoldQuantity = (product.sold_quantity || 0) + 1;
       const isOversell = newSoldQuantity > product.prepared_quantity;
 
-      console.log('[QuickAddOrder] Calling add_live_order_with_tpos:', {
-        sessionIndex,
-        commentId,
-        tpos_order_id: pendingOrder?.code,
-        code_tpos_order_id: pendingOrder?.tpos_order_id,
-        isOversell
-      });
+      // Insert new order with oversell flag and comment ID
+      const { error: orderError } = await supabase
+        .from('live_orders')
+        .insert({
+          order_code: sessionIndex,
+          facebook_comment_id: commentId,
+          live_session_id: sessionId,
+          live_phase_id: phaseId,
+          live_product_id: productId,
+          quantity: 1,
+          is_oversell: isOversell
+        });
 
-      // Call database function for atomic transaction
-      const { data: result, error: rpcError } = await supabase.rpc(
-        'add_live_order_with_tpos' as any,
-        {
-          p_order_code: sessionIndex,
-          p_facebook_comment_id: commentId,
-          p_session_id: sessionId || null,
-          p_phase_id: phaseId,
-          p_product_id: productId,
-          p_is_oversell: isOversell,
-          p_tpos_order_id: pendingOrder?.code || null,
-          p_code_tpos_order_id: pendingOrder?.tpos_order_id || null
-        }
-      );
+      if (orderError) throw orderError;
 
-      if (rpcError) {
-        console.error('[QuickAddOrder] RPC error:', rpcError);
-        throw rpcError;
-      }
+      // Update sold quantity
+      const { error: updateError } = await supabase
+        .from('live_products')
+        .update({ sold_quantity: newSoldQuantity })
+        .eq('id', productId);
 
-      console.log('[QuickAddOrder] RPC result:', result);
-      console.log('[QuickAddOrder] RPC result:', result);
+      if (updateError) throw updateError;
       
       return { 
         sessionIndex, 
