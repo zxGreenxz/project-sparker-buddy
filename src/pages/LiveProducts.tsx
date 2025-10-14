@@ -12,6 +12,7 @@ import { EditLiveSessionDialog } from "@/components/live-products/EditLiveSessio
 import { AddProductToLiveDialog } from "@/components/live-products/AddProductToLiveDialog";
 import { SelectProductFromInventoryDialog } from "@/components/live-products/SelectProductFromInventoryDialog";
 import { UploadTPOSDialog } from "@/components/live-products/UploadTPOSDialog";
+import { UploadOrdersToTPOSDialog } from "@/components/live-products/UploadOrdersToTPOSDialog";
 import { EditProductDialog } from "@/components/live-products/EditProductDialog";
 import { EditOrderItemDialog } from "@/components/live-products/EditOrderItemDialog";
 import { QuickAddOrder } from "@/components/live-products/QuickAddOrder";
@@ -292,6 +293,7 @@ export default function LiveProducts() {
   } | null>(null);
   const [isFullScreenProductViewOpen, setIsFullScreenProductViewOpen] = useState(false);
   const [isUploadTPOSOpen, setIsUploadTPOSOpen] = useState(false);
+  const [isUploadOrdersToTPOSOpen, setIsUploadOrdersToTPOSOpen] = useState(false);
   
   // Search state for products tab
   const [productSearch, setProductSearch] = useState("");
@@ -2294,8 +2296,23 @@ export default function LiveProducts() {
                   </CardContent>
                 </Card>
               ) : (
-                <Card>
-                  <Table>
+                <>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-semibold">Danh sách đơn hàng</h3>
+                      <Badge variant="outline">{ordersWithProducts.length} đơn</Badge>
+                    </div>
+                    <Button
+                      variant="default"
+                      onClick={() => setIsUploadOrdersToTPOSOpen(true)}
+                      disabled={!selectedSession || !selectedPhase || ordersWithProducts.length === 0}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload TPOS
+                    </Button>
+                  </div>
+                  <Card>
+                    <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-32 font-bold text-base">Mã đơn hàng</TableHead>
@@ -2496,6 +2513,7 @@ export default function LiveProducts() {
                     </TableBody>
                   </Table>
                 </Card>
+                </>
               )}
             </TabsContent>
 
@@ -2599,6 +2617,14 @@ export default function LiveProducts() {
           queryClient.invalidateQueries({ queryKey: ['live-orders'] });
           setIsUploadTPOSOpen(false);
         }}
+      />
+
+      <UploadOrdersToTPOSDialog
+        open={isUploadOrdersToTPOSOpen}
+        onOpenChange={setIsUploadOrdersToTPOSOpen}
+        orders={ordersWithProducts}
+        sessionId={selectedSession}
+        phaseId={selectedPhase}
       />
 
       {/* Floating Action Buttons */}
