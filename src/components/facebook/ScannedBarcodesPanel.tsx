@@ -10,37 +10,85 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 
+// ============================================================================
+// TYPES & INTERFACES
+// ============================================================================
+
+interface ScannedBarcode {
+  code: string;
+  timestamp: string;
+  productInfo?: {
+    name: string;
+    image_url?: string;
+  };
+}
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
+
 export function ScannedBarcodesPanel() {
-  const { scannedBarcodes, clearScannedBarcodes, removeScannedBarcode } = useBarcodeScanner();
+  const { 
+    scannedBarcodes, 
+    clearScannedBarcodes, 
+    removeScannedBarcode 
+  } = useBarcodeScanner();
+  
   const isMobile = useIsMobile();
   const [isExpanded, setIsExpanded] = useState(true);
   const [manualCode, setManualCode] = useState("");
 
+  // ============================================================================
+  // HANDLERS
+  // ============================================================================
+
   const handleManualSubmit = () => {
-    if (!manualCode.trim()) return;
+    const trimmedCode = manualCode.trim();
+    
+    if (!trimmedCode) return;
     
     // Dispatch the same barcode-scanned event
     window.dispatchEvent(
       new CustomEvent('barcode-scanned', { 
-        detail: { code: manualCode.trim() } 
+        detail: { code: trimmedCode } 
       })
     );
     
     setManualCode("");
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
+      e.preventDefault();
       handleManualSubmit();
     }
   };
+
+  const handleToggleExpand = () => {
+    setIsExpanded(!isExpanded);
+  };
+
+  const handleClearAll = () => {
+    if (scannedBarcodes.length > 0) {
+      if (confirm(`Bạn có chắc muốn xóa tất cả ${scannedBarcodes.length} barcode?`)) {
+        clearScannedBarcodes();
+      }
+    }
+  };
+
+  // ============================================================================
+  // RENDER EMPTY STATE
+  // ============================================================================
 
   if (scannedBarcodes.length === 0) {
     return (
       <Card className={cn("border-dashed", isMobile ? "mx-4" : "")}>
         <CardContent className="flex flex-col items-center justify-center py-8 space-y-4">
           <div className="text-center">
-            <Barcode className="h-12 w-12 text-muted-foreground mb-3 mx-auto" />
+            <Barcode 
+              className="h-12 w-12 text-muted-foreground mb-3 mx-auto" 
+              aria-hidden="true"
+            />
             <p className="text-sm text-muted-foreground">
               Chưa có barcode nào được quét
             </p>
@@ -54,13 +102,15 @@ export function ScannedBarcodesPanel() {
               placeholder="Nhập mã sản phẩm..."
               value={manualCode}
               onChange={(e) => setManualCode(e.target.value)}
-              onKeyPress={handleKeyPress}
+              onKeyDown={handleKeyDown}
               className="flex-1"
+              aria-label="Nhập mã sản phẩm thủ công"
             />
             <Button
               onClick={handleManualSubmit}
               disabled={!manualCode.trim()}
               size="sm"
+              aria-label="Xác nhận mã sản phẩm"
             >
               <CheckCircle className="h-4 w-4 mr-1" />
               Xác nhận
@@ -71,28 +121,34 @@ export function ScannedBarcodesPanel() {
     );
   }
 
+  // ============================================================================
+  // RENDER WITH BARCODES
+  // ============================================================================
+
   return (
     <Card className={isMobile ? "mx-4" : ""}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
-            <Barcode className="h-4 w-4" />
+            <Barcode className="h-4 w-4" aria-hidden="true" />
             Barcode đã quét ({scannedBarcodes.length})
           </CardTitle>
           <div className="flex gap-2">
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setIsExpanded(!isExpanded)}
+              onClick={handleToggleExpand}
               className="h-7 px-2"
+              aria-label={isExpanded ? "Thu gọn danh sách" : "Mở rộng danh sách"}
             >
               {isExpanded ? "Thu gọn" : "Mở rộng"}
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              onClick={clearScannedBarcodes}
+              onClick={handleClearAll}
               className="h-7 px-2"
+              aria-label="Xóa tất cả barcode"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
@@ -107,23 +163,24 @@ export function ScannedBarcodesPanel() {
               placeholder="Nhập mã sản phẩm..."
               value={manualCode}
               onChange={(e) => setManualCode(e.target.value)}
-              onKeyPress={handleKeyPress}
+              onKeyDown={handleKeyDown}
               className="flex-1"
+              aria-label="Nhập mã sản phẩm thủ công"
             />
             <Button
               onClick={handleManualSubmit}
               disabled={!manualCode.trim()}
               size="sm"
+              aria-label="Xác nhận mã sản phẩm"
             >
               <CheckCircle className="h-4 w-4 mr-1" />
               Xác nhận
             </Button>
           </div>
           
-          
           <ScrollArea className="h-[300px]">
             <div className="space-y-2">
-              {scannedBarcodes.map((barcode, index) => (
+              {scannedBarcodes.map((barcode: ScannedBarcode, index: number) => (
                 <div
                   key={`${barcode.code}-${index}`}
                   className="flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
@@ -133,10 +190,11 @@ export function ScannedBarcodesPanel() {
                       src={barcode.productInfo.image_url}
                       alt={barcode.productInfo.name}
                       className="w-12 h-12 rounded object-cover"
+                      loading="lazy"
                     />
                   ) : (
                     <div className="w-12 h-12 rounded bg-muted flex items-center justify-center">
-                      <Package className="h-6 w-6 text-muted-foreground" />
+                      <Package className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
                     </div>
                   )}
                   
@@ -161,6 +219,7 @@ export function ScannedBarcodesPanel() {
                         size="sm"
                         onClick={() => removeScannedBarcode(barcode.code)}
                         className="h-6 w-6 p-0 flex-shrink-0"
+                        aria-label={`Xóa barcode ${barcode.code}`}
                       >
                         <X className="h-3.5 w-3.5" />
                       </Button>
