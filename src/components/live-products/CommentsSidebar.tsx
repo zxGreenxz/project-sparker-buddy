@@ -20,6 +20,11 @@ export function CommentsSidebar({ isOpen, onClose, children }: CommentsSidebarPr
         "transition-transform duration-300 ease-in-out",
         isOpen ? "translate-x-0" : "translate-x-full"
       )}
+      onMouseLeave={() => {
+        if (isOpen && !isMobile) {
+          onClose();
+        }
+      }}
     >
       {/* Header */}
       <div className={cn(
