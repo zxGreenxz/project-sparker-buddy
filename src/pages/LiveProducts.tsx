@@ -17,34 +17,12 @@ import { QuickAddOrder } from "@/components/live-products/QuickAddOrder";
 import { UploadLiveOrdersToTPOSDialog } from "@/components/live-products/UploadLiveOrdersToTPOSDialog";
 import { LiveSessionStats } from "@/components/live-products/LiveSessionStats";
 import { LiveSupplierStats } from "@/components/live-products/LiveSupplierStats";
-
 import { useBarcodeScanner } from "@/contexts/BarcodeScannerContext";
 import { useCommentsSidebar } from "@/contexts/CommentsSidebarContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDebounce } from "@/hooks/use-debounce";
 import { cn } from "@/lib/utils";
-import { 
-  Plus, 
-  Calendar,
-  Package,
-  ShoppingCart,
-  Trash2,
-  ChevronDown,
-  ChevronRight,
-  Edit,
-  ListOrdered,
-  Pencil,
-  Copy,
-  AlertTriangle,
-  RefreshCw,
-  Download,
-  CheckCircle,
-  Store,
-  Search,
-  MessageSquare,
-  ShoppingBag,
-  Upload
-} from "lucide-react";
+import { Plus, Calendar, Package, ShoppingCart, Trash2, ChevronDown, ChevronRight, Edit, ListOrdered, Pencil, Copy, AlertTriangle, RefreshCw, Download, CheckCircle, Store, Search, MessageSquare, ShoppingBag, Upload } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { CommentsSettingsCollapsible } from "@/components/live-products/CommentsSettingsCollapsible";
@@ -70,22 +48,17 @@ import { useProcessPendingOrders } from "@/hooks/use-process-pending-orders";
  * - Single keyword: search in product_code, product_name, variant
  * - Multiple keywords: ALL must be in product_name
  */
-const filterProductsBySearch = <T extends { product_code: string; product_name: string; variant?: string | null }>(
-  products: T[], 
-  searchTerm: string
-): T[] => {
+const filterProductsBySearch = <T extends {
+  product_code: string;
+  product_name: string;
+  variant?: string | null;
+},>(products: T[], searchTerm: string): T[] => {
   if (!searchTerm.trim()) return products;
-  
   const keywords = searchTerm.trim().split(/\s+/).filter(k => k.length > 0);
-  
   if (keywords.length === 1) {
     // Single keyword: OR search across fields
     const searchLower = keywords[0].toLowerCase();
-    return products.filter(product => 
-      product.product_code.toLowerCase().includes(searchLower) ||
-      product.product_name.toLowerCase().includes(searchLower) ||
-      (product.variant?.toLowerCase() || "").includes(searchLower)
-    );
+    return products.filter(product => product.product_code.toLowerCase().includes(searchLower) || product.product_name.toLowerCase().includes(searchLower) || (product.variant?.toLowerCase() || "").includes(searchLower));
   } else {
     // Multiple keywords: ALL must be in product_name
     return products.filter(product => {
@@ -94,8 +67,6 @@ const filterProductsBySearch = <T extends { product_code: string; product_name: 
     });
   }
 };
-
-
 interface LiveSession {
   id: string;
   session_date: string;
@@ -107,7 +78,6 @@ interface LiveSession {
   notes?: string;
   created_at: string;
 }
-
 interface LivePhase {
   id: string;
   live_session_id: string;
@@ -116,7 +86,6 @@ interface LivePhase {
   status: string;
   created_at: string;
 }
-
 interface LiveProduct {
   id: string;
   live_session_id: string;
@@ -132,14 +101,12 @@ interface LiveProduct {
   note?: string | null;
   product_type?: 'hang_dat' | 'hang_le' | 'hang_so_luong';
 }
-
 interface UploadHistoryEntry {
   timestamp: string;
   status: 'success' | 'failed';
   tpos_order_id?: string;
   message?: string;
 }
-
 interface LiveOrder {
   id: string;
   live_session_id: string;
@@ -156,7 +123,6 @@ interface LiveOrder {
   customer_status?: string;
   upload_history?: UploadHistoryEntry[] | null;
 }
-
 interface OrderWithProduct extends LiveOrder {
   product_code: string;
   product_name: string;
@@ -165,38 +131,26 @@ interface OrderWithProduct extends LiveOrder {
 }
 
 // Helper function to calculate oversell status dynamically
-const calculateIsOversell = (
-  productId: string,
-  currentOrderId: string,
-  liveProducts: LiveProduct[],
-  ordersWithProducts: OrderWithProduct[]
-): boolean => {
+const calculateIsOversell = (productId: string, currentOrderId: string, liveProducts: LiveProduct[], ordersWithProducts: OrderWithProduct[]): boolean => {
   const product = liveProducts.find(p => p.id === productId);
   if (!product) return false;
+  const productOrders = ordersWithProducts.filter(order => order.live_product_id === productId);
 
-  const productOrders = ordersWithProducts.filter(
-    order => order.live_product_id === productId
-  );
-  
   // Sort orders by order date to get chronological order
-  const sortedOrders = [...productOrders].sort((a, b) => 
-    new Date(a.order_date).getTime() - new Date(b.order_date).getTime()
-  );
-  
+  const sortedOrders = [...productOrders].sort((a, b) => new Date(a.order_date).getTime() - new Date(b.order_date).getTime());
+
   // Calculate cumulative quantity up to and including the current order
   let cumulativeQuantity = 0;
   let foundCurrentOrder = false;
-  
   for (const order of sortedOrders) {
     cumulativeQuantity += order.quantity;
-    
     if (order.id === currentOrderId) {
       foundCurrentOrder = true;
       // Current order is oversell if cumulative quantity exceeds prepared quantity
       return cumulativeQuantity > product.prepared_quantity;
     }
   }
-  
+
   // If current order not found, check if total exceeds prepared quantity
   return cumulativeQuantity > product.prepared_quantity;
 };
@@ -204,27 +158,26 @@ const calculateIsOversell = (
 // Helper function to get highest priority customer_status from orders array
 const getHighestPriorityCustomerStatus = (orders: OrderWithProduct[]): string => {
   if (!orders || orders.length === 0) return 'normal';
-  
+
   // Check for bom_hang first (highest priority)
   if (orders.some(order => order.customer_status === 'bom_hang')) {
     return 'bom_hang';
   }
-  
+
   // Check for thieu_thong_tin (medium priority)
   if (orders.some(order => order.customer_status === 'thieu_thong_tin')) {
     return 'thieu_thong_tin';
   }
-  
+
   // Default to normal
   return 'normal';
 };
-
 export default function LiveProducts() {
   const isMobile = useIsMobile();
-  
+
   // Auto-process pending orders from Facebook Comments
   useProcessPendingOrders();
-  
+
   // Initialize states from localStorage
   const [selectedSession, setSelectedSession] = useState<string>(() => {
     return localStorage.getItem('liveProducts_selectedSession') || "";
@@ -235,7 +188,7 @@ export default function LiveProducts() {
   const [activeTab, setActiveTab] = useState<string>(() => {
     return localStorage.getItem('liveProducts_activeTab') || "products";
   });
-  
+
   // Facebook Comments State - persist in localStorage
   const [commentsPageId, setCommentsPageId] = useState(() => {
     return localStorage.getItem('liveProducts_commentsPageId') || "";
@@ -252,8 +205,10 @@ export default function LiveProducts() {
   const [hideNhiJudyHouse, setHideNhiJudyHouse] = useState(true);
   const hideNames = hideNhiJudyHouse ? ["Nhi Judy House"] : [];
   const productListRef = useRef<HTMLDivElement>(null);
-  const { isCommentsOpen: isCommentsPanelOpen, setIsCommentsOpen: setIsCommentsPanelOpen } = useCommentsSidebar();
-  
+  const {
+    isCommentsOpen: isCommentsPanelOpen,
+    setIsCommentsOpen: setIsCommentsPanelOpen
+  } = useCommentsSidebar();
   const {
     comments,
     ordersData,
@@ -262,13 +217,12 @@ export default function LiveProducts() {
     hasNextPage,
     isFetchingNextPage,
     refetchComments,
-    commentsLoading,
+    commentsLoading
   } = useFacebookComments({
     pageId: commentsPageId,
     videoId: commentsVideoId,
-    isAutoRefresh: isCommentsAutoRefresh,
+    isAutoRefresh: isCommentsAutoRefresh
   });
-  
   const [isCreateSessionOpen, setIsCreateSessionOpen] = useState(false);
   const [isEditSessionOpen, setIsEditSessionOpen] = useState(false);
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
@@ -289,7 +243,7 @@ export default function LiveProducts() {
   const [isEditOrderItemOpen, setIsEditOrderItemOpen] = useState(false);
   const [orderQuantities, setOrderQuantities] = useState<Record<string, number>>({});
   const [copyTotals, setCopyTotals] = useState<Record<string, number>>({});
-  
+
   // Helper function to increment order quantities when an order is added
   const handleOrderAdded = (productId: string, quantity: number) => {
     setOrderQuantities(prev => ({
@@ -297,7 +251,6 @@ export default function LiveProducts() {
       [productId]: (prev[productId] || 0) + quantity
     }));
   };
-  
   const [editingOrderItem, setEditingOrderItem] = useState<{
     id: string;
     product_id: string;
@@ -306,135 +259,156 @@ export default function LiveProducts() {
     orders?: OrderWithProduct[];
   } | null>(null);
   const [isUploadLiveOrdersOpen, setIsUploadLiveOrdersOpen] = useState(false);
-  
+
   // Search state for products tab
   const [productSearch, setProductSearch] = useState("");
   const debouncedProductSearch = useDebounce(productSearch, 300);
-  
   const queryClient = useQueryClient();
-  const { enabledPages, addScannedBarcode } = useBarcodeScanner();
+  const {
+    enabledPages,
+    addScannedBarcode
+  } = useBarcodeScanner();
 
   // New mutation for updating prepared_quantity
   const updatePreparedQuantityMutation = useMutation({
-    mutationFn: async ({ productId, newQuantity }: { productId: string; newQuantity: number }) => {
-      const { error } = await supabase
-        .from("live_products")
-        .update({ prepared_quantity: newQuantity })
-        .eq("id", productId);
-
+    mutationFn: async ({
+      productId,
+      newQuantity
+    }: {
+      productId: string;
+      newQuantity: number;
+    }) => {
+      const {
+        error
+      } = await supabase.from("live_products").update({
+        prepared_quantity: newQuantity
+      }).eq("id", productId);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["live-products", selectedPhase, selectedSession] });
+      queryClient.invalidateQueries({
+        queryKey: ["live-products", selectedPhase, selectedSession]
+      });
       toast.success("Đã cập nhật số lượng chuẩn bị");
     },
-    onError: (error) => {
+    onError: error => {
       console.error("Error updating prepared quantity:", error);
       toast.error("Lỗi cập nhật số lượng chuẩn bị: " + error.message);
-    },
+    }
   });
 
   // Fetch live sessions
-  const { data: liveSessions = [], isLoading } = useQuery({
+  const {
+    data: liveSessions = [],
+    isLoading
+  } = useQuery({
     queryKey: ["live-sessions"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("live_sessions")
-        .select("*")
-        .order("session_date", { ascending: false });
-      
+      const {
+        data,
+        error
+      } = await supabase.from("live_sessions").select("*").order("session_date", {
+        ascending: false
+      });
       if (error) throw error;
       return data as LiveSession[];
-    },
+    }
   });
 
   // Fetch live phases for selected session
-  const { data: livePhases = [] } = useQuery({
+  const {
+    data: livePhases = []
+  } = useQuery({
     queryKey: ["live-phases", selectedSession],
     queryFn: async () => {
       if (!selectedSession) return [];
-      
-      const { data, error } = await supabase
-        .from("live_phases")
-        .select("*")
-        .eq("live_session_id", selectedSession)
-        .order("phase_date", { ascending: true })
-        .order("phase_type", { ascending: true });
-      
+      const {
+        data,
+        error
+      } = await supabase.from("live_phases").select("*").eq("live_session_id", selectedSession).order("phase_date", {
+        ascending: true
+      }).order("phase_type", {
+        ascending: true
+      });
       if (error) throw error;
       return data as LivePhase[];
     },
-    enabled: !!selectedSession,
+    enabled: !!selectedSession
   });
 
   // Fetch live products for selected phase (or all phases if "all" selected)
-  const { data: allLiveProducts = [] } = useQuery({
+  const {
+    data: allLiveProducts = []
+  } = useQuery({
     queryKey: ["live-products", selectedPhase, selectedSession],
     queryFn: async () => {
       if (!selectedPhase) return [];
-      
       if (selectedPhase === "all") {
         // Fetch all products for the session
-        const { data, error } = await supabase
-          .from("live_products")
-          .select("*")
-          .eq("live_session_id", selectedSession)
-          .order("created_at", { ascending: true });
-        
+        const {
+          data,
+          error
+        } = await supabase.from("live_products").select("*").eq("live_session_id", selectedSession).order("created_at", {
+          ascending: true
+        });
         if (error) throw error;
-        
+
         // Aggregate products by product_code
         const aggregated = (data as LiveProduct[]).reduce((acc, product) => {
           if (!acc[product.product_code]) {
             acc[product.product_code] = {
-              id: product.id, // Keep first id for reference
+              id: product.id,
+              // Keep first id for reference
               live_session_id: product.live_session_id,
               live_phase_id: product.live_phase_id,
               product_code: product.product_code,
               product_name: product.product_name,
               prepared_quantity: 0,
               sold_quantity: 0,
-              earliest_created_at: product.created_at,
+              earliest_created_at: product.created_at
             };
           }
-          
+
           // Update product_name if found earlier record
           const currentCreatedAt = new Date(product.created_at || 0).getTime();
           const earliestCreatedAt = new Date(acc[product.product_code].earliest_created_at || 0).getTime();
-          
           if (currentCreatedAt < earliestCreatedAt) {
             acc[product.product_code].product_name = product.product_name;
             acc[product.product_code].earliest_created_at = product.created_at;
           }
-          
+
           // Sum quantities
           acc[product.product_code].prepared_quantity += product.prepared_quantity;
           acc[product.product_code].sold_quantity += product.sold_quantity;
-          
           return acc;
-        }, {} as Record<string, LiveProduct & { earliest_created_at?: string }>);
-        
-        return Object.values(aggregated).map(({ earliest_created_at, ...product }) => product);
+        }, {} as Record<string, LiveProduct & {
+          earliest_created_at?: string;
+        }>);
+        return Object.values(aggregated).map(({
+          earliest_created_at,
+          ...product
+        }) => product);
       } else {
         // Fetch products for single phase
-        const { data, error } = await supabase
-          .from("live_products")
-          .select("*")
-          .eq("live_phase_id", selectedPhase)
-          .order("created_at", { ascending: false })
-          .order("product_code", { ascending: true })
-          .order("variant", { ascending: true });
-        
+        const {
+          data,
+          error
+        } = await supabase.from("live_products").select("*").eq("live_phase_id", selectedPhase).order("created_at", {
+          ascending: false
+        }).order("product_code", {
+          ascending: true
+        }).order("variant", {
+          ascending: true
+        });
         if (error) throw error;
         return data as LiveProduct[];
       }
     },
-    enabled: !!selectedPhase && !!selectedSession,
+    enabled: !!selectedPhase && !!selectedSession
   });
 
   // State to manage prepared quantities in the input fields
   const [preparedQuantities, setPreparedQuantities] = useState<Record<string, number>>({});
-
   const handlePreparedQuantityChange = (productId: string, value: string) => {
     const newQuantity = parseInt(value);
     if (!isNaN(newQuantity) && newQuantity >= 0) {
@@ -442,7 +416,8 @@ export default function LiveProducts() {
         ...prev,
         [productId]: newQuantity
       }));
-    } else if (value === "") { // Allow empty string for user to clear input
+    } else if (value === "") {
+      // Allow empty string for user to clear input
       setPreparedQuantities(prev => ({
         ...prev,
         [productId]: 0 // Or keep it as empty string if preferred for UX
@@ -460,27 +435,17 @@ export default function LiveProducts() {
   }, [allLiveProducts]);
 
   // Filter products by type using useMemo to avoid reference errors
-  const liveProducts = useMemo(() => 
-    allLiveProducts.filter(p => !p.product_type || p.product_type === 'hang_dat'), 
-    [allLiveProducts]
-  );
-  
+  const liveProducts = useMemo(() => allLiveProducts.filter(p => !p.product_type || p.product_type === 'hang_dat'), [allLiveProducts]);
   const productsHangDat = useMemo(() => liveProducts, [liveProducts]);
-  
-  const productsHangLe = useMemo(() => 
-    allLiveProducts.filter(p => p.product_type === 'hang_le'), 
-    [allLiveProducts]
-  );
+  const productsHangLe = useMemo(() => allLiveProducts.filter(p => p.product_type === 'hang_le'), [allLiveProducts]);
 
   // Memoized filtered products for better performance
   const filteredProductsHangDat = useMemo(() => {
     return filterProductsBySearch(productsHangDat, debouncedProductSearch);
   }, [productsHangDat, debouncedProductSearch]);
-
   const filteredProductsHangLe = useMemo(() => {
     return filterProductsBySearch(productsHangLe, debouncedProductSearch);
   }, [productsHangLe, debouncedProductSearch]);
-
   const filteredLiveProducts = useMemo(() => {
     return filterProductsBySearch(liveProducts, debouncedProductSearch);
   }, [liveProducts, debouncedProductSearch]);
@@ -488,26 +453,21 @@ export default function LiveProducts() {
   // Barcode scanner listener - chỉ hoạt động khi enabledPages bao gồm 'live-products'
   useEffect(() => {
     if (!enabledPages.includes('live-products')) return;
-
     const handleBarcodeScanned = async (event: CustomEvent) => {
       const code = event.detail.code;
-      
+
       // Kiểm tra xem có session và phase được chọn không
       if (!selectedSession || !selectedPhase || selectedPhase === 'all') {
         toast.error("Vui lòng chọn session và phase cụ thể để thêm sản phẩm");
         return;
       }
-
       try {
         // 1. Tìm sản phẩm được quét (lấy cả product_name để kiểm tra)
-        const { data: scannedProduct, error: productError } = await supabase
-          .from("products")
-          .select("*")
-          .eq("product_code", code.trim())
-          .maybeSingle();
-
+        const {
+          data: scannedProduct,
+          error: productError
+        } = await supabase.from("products").select("*").eq("product_code", code.trim()).maybeSingle();
         if (productError) throw productError;
-
         if (!scannedProduct) {
           toast.error(`Không tìm thấy sản phẩm: ${code}`);
           return;
@@ -521,47 +481,36 @@ export default function LiveProducts() {
             id: scannedProduct.id,
             name: scannedProduct.product_name,
             image_url: getProductImageUrl(scannedProduct.product_images, scannedProduct.tpos_image_url),
-            product_code: scannedProduct.product_code,
+            product_code: scannedProduct.product_code
           }
         });
-
         let productsToAdd = [];
 
         // 2. Kiểm tra xem tên sản phẩm có dấu "-" không
         if (scannedProduct.product_name.includes('-')) {
           // CASE 1: Tên có dấu "-" → Split và tìm theo tên
           // Ưu tiên split theo ' - ' (với space) nếu có, fallback về '-' nếu không
-          const baseNamePrefix = scannedProduct.product_name.includes(' - ')
-            ? scannedProduct.product_name.split(' - ')[0].trim()
-            : scannedProduct.product_name.split('-')[0].trim();
-          
-          const { data: matchingProducts, error: matchError } = await supabase
-            .from("products")
-            .select("*")
-            .ilike("product_name", `${baseNamePrefix}%`);
-          
+          const baseNamePrefix = scannedProduct.product_name.includes(' - ') ? scannedProduct.product_name.split(' - ')[0].trim() : scannedProduct.product_name.split('-')[0].trim();
+          const {
+            data: matchingProducts,
+            error: matchError
+          } = await supabase.from("products").select("*").ilike("product_name", `${baseNamePrefix}%`);
           if (matchError) throw matchError;
           productsToAdd = matchingProducts || [];
-          
         } else {
           // CASE 2: Không có "-" → Dùng base_product_code như cũ
           const baseCode = scannedProduct.base_product_code || scannedProduct.product_code;
 
           // Lấy TẤT CẢ biến thể (loại trừ sản phẩm gốc mặc định)
-          const { data: variants, error: variantsError } = await supabase
-            .from("products")
-            .select("*")
-            .eq("base_product_code", baseCode)
-            .not("variant", "is", null)
-            .neq("variant", "")
-            .neq("product_code", baseCode);
-
+          const {
+            data: variants,
+            error: variantsError
+          } = await supabase.from("products").select("*").eq("base_product_code", baseCode).not("variant", "is", null).neq("variant", "").neq("product_code", baseCode);
           if (variantsError) throw variantsError;
 
           // Nếu không tìm thấy biến thể, sử dụng chính sản phẩm được quét
           productsToAdd = variants && variants.length > 0 ? variants : [scannedProduct];
         }
-
         if (productsToAdd.length === 0) {
           toast.error("Không tìm thấy sản phẩm hoặc biến thể nào");
           return;
@@ -569,25 +518,18 @@ export default function LiveProducts() {
 
         // 4. Kiểm tra tất cả biến thể đã có trong live_products chưa
         const variantCodes = productsToAdd.map(v => v.product_code);
-        const { data: existingProducts, error: existingError } = await supabase
-          .from("live_products")
-          .select("id, product_code, prepared_quantity")
-          .eq("live_phase_id", selectedPhase)
-          .in("product_code", variantCodes);
-
+        const {
+          data: existingProducts,
+          error: existingError
+        } = await supabase.from("live_products").select("id, product_code, prepared_quantity").eq("live_phase_id", selectedPhase).in("product_code", variantCodes);
         if (existingError) throw existingError;
-
-        const existingMap = new Map(
-          (existingProducts || []).map(p => [p.product_code, p])
-        );
+        const existingMap = new Map((existingProducts || []).map(p => [p.product_code, p]));
 
         // 5. Chuẩn bị batch insert và update
         const toInsert = [];
         const toUpdate = [];
-
         for (const variant of productsToAdd) {
           const existing = existingMap.get(variant.product_code);
-          
           if (existing) {
             // Đẩy lên đầu bằng cách update created_at
             toUpdate.push({
@@ -606,25 +548,25 @@ export default function LiveProducts() {
               prepared_quantity: 1,
               sold_quantity: 0,
               image_url: getProductImageUrl(variant.product_images, variant.tpos_image_url),
-              product_type: 'hang_dat',
+              product_type: 'hang_dat'
             });
           }
         }
 
         // 6. Thực hiện batch operations
         if (toInsert.length > 0) {
-          const { error: insertError } = await supabase
-            .from("live_products")
-            .insert(toInsert);
+          const {
+            error: insertError
+          } = await supabase.from("live_products").insert(toInsert);
           if (insertError) throw insertError;
         }
-
         if (toUpdate.length > 0) {
           for (const update of toUpdate) {
-            const { error: updateError } = await supabase
-              .from("live_products")
-              .update({ created_at: update.created_at })
-              .eq("id", update.id);
+            const {
+              error: updateError
+            } = await supabase.from("live_products").update({
+              created_at: update.created_at
+            }).eq("id", update.id);
             if (updateError) throw updateError;
           }
         }
@@ -632,19 +574,19 @@ export default function LiveProducts() {
         // 7. Toast thông báo với format mới
         const insertedCount = toInsert.length;
         const updatedCount = toUpdate.length;
-        
+
         // Lấy thông tin sản phẩm gốc
         const baseProductCode = productsToAdd[0]?.base_product_code || productsToAdd[0]?.product_code.split('X')[0];
         const baseProductName = productsToAdd[0]?.product_name;
         const allVariantCodes = productsToAdd.map(v => v.product_code).join(", ");
-        
         const message = `Đã thêm ${baseProductCode} ${baseProductName} (${allVariantCodes})`;
         toast.success(message);
 
         // 8. Broadcast message to all users
-        const { data: currentUserData } = await supabase.auth.getUser();
+        const {
+          data: currentUserData
+        } = await supabase.auth.getUser();
         const currentUserId = currentUserData.user?.id;
-        
         const broadcastChannel = supabase.channel(`live-session-${selectedSession}`);
         await broadcastChannel.send({
           type: 'broadcast',
@@ -657,17 +599,15 @@ export default function LiveProducts() {
         });
 
         // 9. Refresh data
-        queryClient.invalidateQueries({ 
-          queryKey: ["live-products", selectedPhase, selectedSession] 
+        queryClient.invalidateQueries({
+          queryKey: ["live-products", selectedPhase, selectedSession]
         });
       } catch (error: any) {
         console.error("Barcode add product error:", error);
         toast.error("Lỗi thêm sản phẩm: " + error.message);
       }
     };
-
     window.addEventListener('barcode-scanned' as any, handleBarcodeScanned as any);
-
     return () => {
       window.removeEventListener('barcode-scanned' as any, handleBarcodeScanned as any);
     };
@@ -677,23 +617,18 @@ export default function LiveProducts() {
   useEffect(() => {
     localStorage.setItem('liveProducts_selectedSession', selectedSession);
   }, [selectedSession]);
-
   useEffect(() => {
     localStorage.setItem('liveProducts_selectedPhase', selectedPhase);
   }, [selectedPhase]);
-
   useEffect(() => {
     localStorage.setItem('liveProducts_activeTab', activeTab);
   }, [activeTab]);
-
   useEffect(() => {
     localStorage.setItem('liveProducts_commentsPageId', commentsPageId);
   }, [commentsPageId]);
-
   useEffect(() => {
     localStorage.setItem('liveProducts_commentsVideoId', commentsVideoId);
   }, [commentsVideoId]);
-
   useEffect(() => {
     localStorage.setItem('liveProducts_selectedFacebookVideo', JSON.stringify(selectedFacebookVideo));
   }, [selectedFacebookVideo]);
@@ -706,157 +641,144 @@ export default function LiveProducts() {
   };
 
   // Fetch live orders for selected phase (or all phases if "all" selected)
-  const { data: liveOrders = [] } = useQuery({
+  const {
+    data: liveOrders = []
+  } = useQuery({
     queryKey: ["live-orders", selectedPhase, selectedSession],
     queryFn: async () => {
       if (!selectedPhase) return [];
-      
       if (selectedPhase === "all") {
         // Fetch all orders for the session
-        const { data, error } = await supabase
-          .from("live_orders")
-          .select("*")
-          .eq("live_session_id", selectedSession)
-          .order("created_at", { ascending: false });
-        
+        const {
+          data,
+          error
+        } = await supabase.from("live_orders").select("*").eq("live_session_id", selectedSession).order("created_at", {
+          ascending: false
+        });
         if (error) throw error;
         return data as LiveOrder[];
       } else {
-        const { data, error } = await supabase
-          .from("live_orders")
-          .select("*")
-          .eq("live_phase_id", selectedPhase)
-          .order("created_at", { ascending: false });
-        
+        const {
+          data,
+          error
+        } = await supabase.from("live_orders").select("*").eq("live_phase_id", selectedPhase).order("created_at", {
+          ascending: false
+        });
         if (error) throw error;
         return data as LiveOrder[];
       }
     },
-    enabled: !!selectedPhase && !!selectedSession,
+    enabled: !!selectedPhase && !!selectedSession
   });
 
   // Fetch orders with product details for selected phase (or all phases if "all" selected)
-  const { data: ordersWithProducts = [] } = useQuery({
+  const {
+    data: ordersWithProducts = []
+  } = useQuery({
     queryKey: ["orders-with-products", selectedPhase, selectedSession],
     queryFn: async () => {
       if (!selectedPhase) return [];
-      
       if (selectedPhase === "all") {
         // Fetch all orders for the session
-        const { data, error } = await supabase
-          .from("live_orders")
-          .select(`
+        const {
+          data,
+          error
+        } = await supabase.from("live_orders").select(`
             *,
             live_products (
               product_code,
               product_name
             )
-          `)
-          .eq("live_session_id", selectedSession)
-          .order("created_at", { ascending: false });
-        
+          `).eq("live_session_id", selectedSession).order("created_at", {
+          ascending: false
+        });
         if (error) throw error;
-        
         return data.map(order => ({
           ...order,
           product_code: order.live_products?.product_code || "",
-          product_name: order.live_products?.product_name || "",
+          product_name: order.live_products?.product_name || ""
         })) as OrderWithProduct[];
       } else {
-        const { data, error } = await supabase
-          .from("live_orders")
-          .select(`
+        const {
+          data,
+          error
+        } = await supabase.from("live_orders").select(`
             *,
             live_products (
               product_code,
               product_name
             )
-          `)
-          .eq("live_phase_id", selectedPhase)
-          .order("created_at", { ascending: false });
-        
+          `).eq("live_phase_id", selectedPhase).order("created_at", {
+          ascending: false
+        });
         if (error) throw error;
-        
         return data.map(order => ({
           ...order,
           product_code: order.live_products?.product_code || "",
-          product_name: order.live_products?.product_name || "",
+          product_name: order.live_products?.product_name || ""
         })) as OrderWithProduct[];
       }
     },
-    enabled: !!selectedPhase && !!selectedSession,
+    enabled: !!selectedPhase && !!selectedSession
   });
 
   // Real-time subscriptions for live data updates
   useEffect(() => {
     if (!selectedSession || !selectedPhase) return;
-
-    const channel = supabase
-      .channel('live-products-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'live_sessions'
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["live-sessions"] });
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'live_phases',
-          filter: `live_session_id=eq.${selectedSession}`
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["live-phases", selectedSession] });
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'live_products',
-          filter: `live_session_id=eq.${selectedSession}`
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["live-products", selectedPhase, selectedSession] });
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'live_orders',
-          filter: `live_session_id=eq.${selectedSession}`
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["live-orders", selectedPhase, selectedSession] });
-          queryClient.invalidateQueries({ queryKey: ["orders-with-products", selectedPhase, selectedSession] });
-        }
-      )
-      .subscribe();
+    const channel = supabase.channel('live-products-changes').on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'live_sessions'
+    }, () => {
+      queryClient.invalidateQueries({
+        queryKey: ["live-sessions"]
+      });
+    }).on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'live_phases',
+      filter: `live_session_id=eq.${selectedSession}`
+    }, () => {
+      queryClient.invalidateQueries({
+        queryKey: ["live-phases", selectedSession]
+      });
+    }).on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'live_products',
+      filter: `live_session_id=eq.${selectedSession}`
+    }, () => {
+      queryClient.invalidateQueries({
+        queryKey: ["live-products", selectedPhase, selectedSession]
+      });
+    }).on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'live_orders',
+      filter: `live_session_id=eq.${selectedSession}`
+    }, () => {
+      queryClient.invalidateQueries({
+        queryKey: ["live-orders", selectedPhase, selectedSession]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["orders-with-products", selectedPhase, selectedSession]
+      });
+    }).subscribe();
 
     // Subscribe to broadcast channel for barcode scanned notifications
-    const broadcastChannel = supabase
-      .channel(`live-session-${selectedSession}`)
-      .on('broadcast', { event: 'barcode-scanned' }, async (payload: any) => {
-        const { data: currentUserData } = await supabase.auth.getUser();
-        const currentUserId = currentUserData.user?.id;
-        
-        // Chỉ hiện toast nếu KHÔNG phải người quét
-        if (payload.payload.scannedBy !== currentUserId) {
-          toast.success(payload.payload.message);
-        }
-      })
-      .subscribe();
+    const broadcastChannel = supabase.channel(`live-session-${selectedSession}`).on('broadcast', {
+      event: 'barcode-scanned'
+    }, async (payload: any) => {
+      const {
+        data: currentUserData
+      } = await supabase.auth.getUser();
+      const currentUserId = currentUserData.user?.id;
 
+      // Chỉ hiện toast nếu KHÔNG phải người quét
+      if (payload.payload.scannedBy !== currentUserId) {
+        toast.success(payload.payload.message);
+      }
+    }).subscribe();
     return () => {
       supabase.removeChannel(channel);
       supabase.removeChannel(broadcastChannel);
@@ -865,251 +787,263 @@ export default function LiveProducts() {
 
   // Delete order item mutation (delete single product from order)
   const deleteOrderItemMutation = useMutation({
-    mutationFn: async ({ orderId, productId, quantity }: { orderId: string; productId: string; quantity: number }) => {
+    mutationFn: async ({
+      orderId,
+      productId,
+      quantity
+    }: {
+      orderId: string;
+      productId: string;
+      quantity: number;
+    }) => {
       // Update product sold quantity first
-      const { data: product, error: productFetchError } = await supabase
-        .from("live_products")
-        .select("sold_quantity")
-        .eq("id", productId)
-        .single();
-
+      const {
+        data: product,
+        error: productFetchError
+      } = await supabase.from("live_products").select("sold_quantity").eq("id", productId).single();
       if (productFetchError) throw productFetchError;
-
-      const { error: updateError } = await supabase
-        .from("live_products")
-        .update({ 
-          sold_quantity: Math.max(0, product.sold_quantity - quantity) 
-        })
-        .eq("id", productId);
-      
+      const {
+        error: updateError
+      } = await supabase.from("live_products").update({
+        sold_quantity: Math.max(0, product.sold_quantity - quantity)
+      }).eq("id", productId);
       if (updateError) throw updateError;
 
       // Delete the order item
-      const { error } = await supabase
-        .from("live_orders")
-        .delete()
-        .eq("id", orderId);
-      
+      const {
+        error
+      } = await supabase.from("live_orders").delete().eq("id", orderId);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["live-orders", selectedPhase] });
-      queryClient.invalidateQueries({ queryKey: ["live-products", selectedPhase] });
-      queryClient.invalidateQueries({ queryKey: ["orders-with-products", selectedPhase] });
+      queryClient.invalidateQueries({
+        queryKey: ["live-orders", selectedPhase]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["live-products", selectedPhase]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["orders-with-products", selectedPhase]
+      });
       toast.success("Đã xóa sản phẩm khỏi đơn hàng");
     },
-    onError: (error) => {
+    onError: error => {
       console.error("Error deleting order item:", error);
       toast.error("Có lỗi xảy ra khi xóa sản phẩm");
-    },
+    }
   });
 
   // Delete product mutation (cascading delete orders)
   const deleteProductMutation = useMutation({
     mutationFn: async (productId: string) => {
       // First delete all orders for this product
-      const { error: deleteOrdersError } = await supabase
-        .from("live_orders")
-        .delete()
-        .eq("live_product_id", productId);
-      
+      const {
+        error: deleteOrdersError
+      } = await supabase.from("live_orders").delete().eq("live_product_id", productId);
       if (deleteOrdersError) throw deleteOrdersError;
 
       // Then delete the product
-      const { error } = await supabase
-        .from("live_products")
-        .delete()
-        .eq("id", productId);
-      
+      const {
+        error
+      } = await supabase.from("live_products").delete().eq("id", productId);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["live-products", selectedPhase] });
-      queryClient.invalidateQueries({ queryKey: ["live-orders", selectedPhase] });
-      queryClient.invalidateQueries({ queryKey: ["orders-with-products", selectedPhase] });
+      queryClient.invalidateQueries({
+        queryKey: ["live-products", selectedPhase]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["live-orders", selectedPhase]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["orders-with-products", selectedPhase]
+      });
       toast.success("Đã xóa sản phẩm và các đơn hàng liên quan thành công");
     },
-    onError: (error) => {
+    onError: error => {
       console.error("Error deleting product:", error);
       toast.error("Có lỗi xảy ra khi xóa sản phẩm");
-    },
+    }
   });
 
   // Delete all variants of a product (by product_code)
   const deleteAllVariantsMutation = useMutation({
-    mutationFn: async ({ product_code, live_phase_id, live_session_id }: { 
-      product_code: string; 
-      live_phase_id: string | null; 
+    mutationFn: async ({
+      product_code,
+      live_phase_id,
+      live_session_id
+    }: {
+      product_code: string;
+      live_phase_id: string | null;
       live_session_id: string;
     }) => {
       // Get all products with this product_code in the session
-      let query = supabase
-        .from("live_products")
-        .select("id")
-        .eq("product_code", product_code)
-        .eq("live_session_id", live_session_id);
-
+      let query = supabase.from("live_products").select("id").eq("product_code", product_code).eq("live_session_id", live_session_id);
       if (live_phase_id) {
         query = query.eq("live_phase_id", live_phase_id);
       }
-
-      const { data: productsToDelete, error: fetchError } = await query;
-      
+      const {
+        data: productsToDelete,
+        error: fetchError
+      } = await query;
       if (fetchError) throw fetchError;
       if (!productsToDelete || productsToDelete.length === 0) return;
-
       const productIds = productsToDelete.map(p => p.id);
 
       // First delete all orders for these products
-      const { error: deleteOrdersError } = await supabase
-        .from("live_orders")
-        .delete()
-        .in("live_product_id", productIds);
-      
+      const {
+        error: deleteOrdersError
+      } = await supabase.from("live_orders").delete().in("live_product_id", productIds);
       if (deleteOrdersError) throw deleteOrdersError;
 
       // Then delete all the products
-      const { error: deleteProductsError } = await supabase
-        .from("live_products")
-        .delete()
-        .in("id", productIds);
-      
+      const {
+        error: deleteProductsError
+      } = await supabase.from("live_products").delete().in("id", productIds);
       if (deleteProductsError) throw deleteProductsError;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["live-products", selectedPhase] });
-      queryClient.invalidateQueries({ queryKey: ["live-orders", selectedPhase] });
-      queryClient.invalidateQueries({ queryKey: ["orders-with-products", selectedPhase] });
+      queryClient.invalidateQueries({
+        queryKey: ["live-products", selectedPhase]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["live-orders", selectedPhase]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["orders-with-products", selectedPhase]
+      });
       toast.success("Đã xóa toàn bộ sản phẩm và các đơn hàng liên quan");
     },
-    onError: (error) => {
+    onError: error => {
       console.error("Error deleting all variants:", error);
       toast.error("Có lỗi xảy ra khi xóa sản phẩm");
-    },
+    }
   });
 
   // Delete all phases and data for a live session
   const deleteAllPhasesForSessionMutation = useMutation({
     mutationFn: async (sessionId: string) => {
       // First get all phases for this session
-      const { data: phases, error: phasesError } = await supabase
-        .from("live_phases")
-        .select("id")
-        .eq("live_session_id", sessionId);
-      
+      const {
+        data: phases,
+        error: phasesError
+      } = await supabase.from("live_phases").select("id").eq("live_session_id", sessionId);
       if (phasesError) throw phasesError;
-
       const phaseIds = phases.map(p => p.id);
 
       // Delete all orders for all phases in this session
       if (phaseIds.length > 0) {
-        const { error: deleteOrdersError } = await supabase
-          .from("live_orders")
-          .delete()
-          .in("live_phase_id", phaseIds);
-        
+        const {
+          error: deleteOrdersError
+        } = await supabase.from("live_orders").delete().in("live_phase_id", phaseIds);
         if (deleteOrdersError) throw deleteOrdersError;
 
         // Delete all products for all phases in this session
-        const { error: deleteProductsError } = await supabase
-          .from("live_products")
-          .delete()
-          .in("live_phase_id", phaseIds);
-        
+        const {
+          error: deleteProductsError
+        } = await supabase.from("live_products").delete().in("live_phase_id", phaseIds);
         if (deleteProductsError) throw deleteProductsError;
       }
 
       // Delete all phases for this session
-      const { error: deletePhasesError } = await supabase
-        .from("live_phases")
-        .delete()
-        .eq("live_session_id", sessionId);
-      
+      const {
+        error: deletePhasesError
+      } = await supabase.from("live_phases").delete().eq("live_session_id", sessionId);
       if (deletePhasesError) throw deletePhasesError;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["live-phases"] });
-      queryClient.invalidateQueries({ queryKey: ["live-products"] });
-      queryClient.invalidateQueries({ queryKey: ["live-orders"] });
-      queryClient.invalidateQueries({ queryKey: ["orders-with-products"] });
+      queryClient.invalidateQueries({
+        queryKey: ["live-phases"]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["live-products"]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["live-orders"]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["orders-with-products"]
+      });
       setSelectedPhase("");
       toast.success("Đã xóa toàn bộ phiên live và dữ liệu thành công");
     },
-    onError: (error) => {
+    onError: error => {
       console.error("Error deleting all phases for session:", error);
       toast.error("Có lỗi xảy ra khi xóa phiên live");
-    },
+    }
   });
 
   // Delete live session mutation (cascading delete products and orders)
   const deleteSessionMutation = useMutation({
     mutationFn: async (sessionId: string) => {
       // First get all phases for this session
-      const { data: phases, error: phasesError } = await supabase
-        .from("live_phases")
-        .select("id")
-        .eq("live_session_id", sessionId);
-      
+      const {
+        data: phases,
+        error: phasesError
+      } = await supabase.from("live_phases").select("id").eq("live_session_id", sessionId);
       if (phasesError) throw phasesError;
-
       const phaseIds = phases.map(p => p.id);
 
       // Delete all orders for all phases in this session
       if (phaseIds.length > 0) {
-        const { error: deleteOrdersError } = await supabase
-          .from("live_orders")
-          .delete()
-          .in("live_phase_id", phaseIds);
-        
+        const {
+          error: deleteOrdersError
+        } = await supabase.from("live_orders").delete().in("live_phase_id", phaseIds);
         if (deleteOrdersError) throw deleteOrdersError;
 
         // Delete all products for all phases in this session
-        const { error: deleteProductsError } = await supabase
-          .from("live_products")
-          .delete()
-          .in("live_phase_id", phaseIds);
-        
+        const {
+          error: deleteProductsError
+        } = await supabase.from("live_products").delete().in("live_phase_id", phaseIds);
         if (deleteProductsError) throw deleteProductsError;
       }
 
       // Delete all phases for this session
-      const { error: deletePhasesError } = await supabase
-        .from("live_phases")
-        .delete()
-        .eq("live_session_id", sessionId);
-      
+      const {
+        error: deletePhasesError
+      } = await supabase.from("live_phases").delete().eq("live_session_id", sessionId);
       if (deletePhasesError) throw deletePhasesError;
 
       // Finally delete the session
-      const { error } = await supabase
-        .from("live_sessions")
-        .delete()
-        .eq("id", sessionId);
-      
+      const {
+        error
+      } = await supabase.from("live_sessions").delete().eq("id", sessionId);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["live-sessions"] });
-      queryClient.invalidateQueries({ queryKey: ["live-phases"] });
-      queryClient.invalidateQueries({ queryKey: ["live-products"] });
-      queryClient.invalidateQueries({ queryKey: ["live-orders"] });
-      queryClient.invalidateQueries({ queryKey: ["orders-with-products"] });
+      queryClient.invalidateQueries({
+        queryKey: ["live-sessions"]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["live-phases"]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["live-products"]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["live-orders"]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["orders-with-products"]
+      });
       setSelectedSession("");
       setSelectedPhase("");
       toast.success("Đã xóa đợt live và tất cả dữ liệu liên quan thành công");
     },
-    onError: (error) => {
+    onError: error => {
       console.error("Error deleting live session:", error);
       toast.error("Có lỗi xảy ra khi xóa đợt live");
-    },
+    }
   });
-
   const handleDeleteOrderItem = async (orderId: string, productId: string, quantity: number) => {
     if (window.confirm("Bạn có chắc chắn muốn xóa sản phẩm này khỏi đơn hàng?")) {
-      await deleteOrderItemMutation.mutateAsync({ orderId, productId, quantity });
+      await deleteOrderItemMutation.mutateAsync({
+        orderId,
+        productId,
+        quantity
+      });
     }
   };
-
   const handleEditOrderItem = (aggregatedProduct: {
     product_code: string;
     product_name: string;
@@ -1124,12 +1058,11 @@ export default function LiveProducts() {
       quantity: aggregatedProduct.total_quantity,
       orders: aggregatedProduct.orders.map((o: OrderWithProduct) => ({
         ...o,
-        customer_status: o.customer_status || 'normal',
-      })),
+        customer_status: o.customer_status || 'normal'
+      }))
     });
     setIsEditOrderItemOpen(true);
   };
-
   const handleDeleteAggregatedProduct = async (aggregatedProduct: {
     product_code: string;
     product_name: string;
@@ -1139,38 +1072,36 @@ export default function LiveProducts() {
   }) => {
     if (window.confirm(`Bạn có chắc muốn xóa tất cả ${aggregatedProduct.total_quantity} sản phẩm ${aggregatedProduct.product_name}?`)) {
       const orderIds = aggregatedProduct.orders.map(o => o.id);
-      
       try {
         // Delete all orders
-        const { error: deleteError } = await supabase
-          .from("live_orders")
-          .delete()
-          .in("id", orderIds);
-        
+        const {
+          error: deleteError
+        } = await supabase.from("live_orders").delete().in("id", orderIds);
         if (deleteError) throw deleteError;
-        
+
         // Fetch current sold_quantity
-        const { data: product, error: productFetchError } = await supabase
-          .from("live_products")
-          .select("sold_quantity")
-          .eq("id", aggregatedProduct.live_product_id)
-          .single();
-        
+        const {
+          data: product,
+          error: productFetchError
+        } = await supabase.from("live_products").select("sold_quantity").eq("id", aggregatedProduct.live_product_id).single();
         if (productFetchError) throw productFetchError;
-        
+
         // Update sold_quantity
-        const { error: productError } = await supabase
-          .from("live_products")
-          .update({ 
-            sold_quantity: Math.max(0, product.sold_quantity - aggregatedProduct.total_quantity)
-          })
-          .eq("id", aggregatedProduct.live_product_id);
-        
+        const {
+          error: productError
+        } = await supabase.from("live_products").update({
+          sold_quantity: Math.max(0, product.sold_quantity - aggregatedProduct.total_quantity)
+        }).eq("id", aggregatedProduct.live_product_id);
         if (productError) throw productError;
-        
-        queryClient.invalidateQueries({ queryKey: ["live-orders", selectedPhase] });
-        queryClient.invalidateQueries({ queryKey: ["live-products", selectedPhase] });
-        queryClient.invalidateQueries({ queryKey: ["orders-with-products", selectedPhase] });
+        queryClient.invalidateQueries({
+          queryKey: ["live-orders", selectedPhase]
+        });
+        queryClient.invalidateQueries({
+          queryKey: ["live-products", selectedPhase]
+        });
+        queryClient.invalidateQueries({
+          queryKey: ["orders-with-products", selectedPhase]
+        });
         toast.success("Đã xóa sản phẩm khỏi đơn hàng");
       } catch (error) {
         console.error("Error deleting aggregated product:", error);
@@ -1178,29 +1109,25 @@ export default function LiveProducts() {
       }
     }
   };
-
   const handleDeleteAllPhasesForSession = async (sessionId: string) => {
     if (window.confirm("Bạn có chắc chắn muốn xóa toàn bộ phiên live và dữ liệu của đợt này? Hành động này không thể hoàn tác.")) {
       await deleteAllPhasesForSessionMutation.mutateAsync(sessionId);
     }
   };
-
   const handleDeleteProduct = async (productId: string) => {
     if (window.confirm("Bạn có chắc chắn muốn xóa sản phẩm này? Tất cả đơn hàng liên quan cũng sẽ bị xóa.")) {
       await deleteProductMutation.mutateAsync(productId);
     }
   };
-
   const handleDeleteAllVariants = async (product_code: string, product_name: string) => {
     if (window.confirm(`Bạn có chắc chắn muốn xóa toàn bộ sản phẩm "${product_name}" (${product_code}) và tất cả biến thể? Tất cả đơn hàng liên quan cũng sẽ bị xóa.`)) {
       await deleteAllVariantsMutation.mutateAsync({
         product_code,
         live_phase_id: selectedPhase === "all" ? null : selectedPhase,
-        live_session_id: selectedSession,
+        live_session_id: selectedSession
       });
     }
   };
-
   const handleDeleteSession = async (sessionId: string) => {
     if (window.confirm("Bạn có chắc chắn muốn xóa đợt live này? Tất cả phiên live, sản phẩm và đơn hàng liên quan sẽ bị xóa.")) {
       await deleteSessionMutation.mutateAsync(sessionId);
@@ -1211,44 +1138,44 @@ export default function LiveProducts() {
   const changeToHangLeMutation = useMutation({
     mutationFn: async (productIds: string[]) => {
       // 1. Kiểm tra từng sản phẩm xem có đơn hàng không
-      const { data: ordersData } = await supabase
-        .from('live_orders')
-        .select('live_product_id')
-        .in('live_product_id', productIds);
-      
-      const productIdsWithOrders = new Set(
-        (ordersData || []).map(order => order.live_product_id)
-      );
-      
+      const {
+        data: ordersData
+      } = await supabase.from('live_orders').select('live_product_id').in('live_product_id', productIds);
+      const productIdsWithOrders = new Set((ordersData || []).map(order => order.live_product_id));
+
       // 2. Chia thành 2 nhóm: có đơn và không có đơn
       const productsToConvert = productIds.filter(id => productIdsWithOrders.has(id));
       const productsToDelete = productIds.filter(id => !productIdsWithOrders.has(id));
-      
+
       // 3. Chuyển sang Hàng Lẻ cho các sản phẩm có đơn
       if (productsToConvert.length > 0) {
-        const { error: updateError } = await supabase
-          .from('live_products')
-          .update({ product_type: 'hang_le' })
-          .in('id', productsToConvert);
-        
+        const {
+          error: updateError
+        } = await supabase.from('live_products').update({
+          product_type: 'hang_le'
+        }).in('id', productsToConvert);
         if (updateError) throw updateError;
       }
-      
+
       // 4. Xóa các sản phẩm không có đơn
       if (productsToDelete.length > 0) {
-        const { error: deleteError } = await supabase
-          .from('live_products')
-          .delete()
-          .in('id', productsToDelete);
-        
+        const {
+          error: deleteError
+        } = await supabase.from('live_products').delete().in('id', productsToDelete);
         if (deleteError) throw deleteError;
       }
-      
-      return { converted: productsToConvert.length, deleted: productsToDelete.length };
+      return {
+        converted: productsToConvert.length,
+        deleted: productsToDelete.length
+      };
     },
-    onSuccess: ({ converted, deleted }) => {
-      queryClient.invalidateQueries({ queryKey: ['live-products'] });
-      
+    onSuccess: ({
+      converted,
+      deleted
+    }) => {
+      queryClient.invalidateQueries({
+        queryKey: ['live-products']
+      });
       if (converted > 0 && deleted > 0) {
         toast.success(`Đã chuyển ${converted} biến thể có đơn sang Hàng Lẻ, xóa ${deleted} biến thể không có đơn`);
       } else if (converted > 0) {
@@ -1259,7 +1186,7 @@ export default function LiveProducts() {
         toast.info('Không có thay đổi nào');
       }
     },
-    onError: (error) => {
+    onError: error => {
       toast.error(`Lỗi: ${error.message}`);
     }
   });
@@ -1267,23 +1194,23 @@ export default function LiveProducts() {
   // Mutation chuyển về Hàng Đặt
   const changeToHangDatMutation = useMutation({
     mutationFn: async (productId: string) => {
-      const { error } = await supabase
-        .from('live_products')
-        .update({ product_type: 'hang_dat' })
-        .eq('id', productId);
-      
+      const {
+        error
+      } = await supabase.from('live_products').update({
+        product_type: 'hang_dat'
+      }).eq('id', productId);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['live-products'] });
+      queryClient.invalidateQueries({
+        queryKey: ['live-products']
+      });
       toast.success('Đã chuyển về Hàng Đặt');
     },
-    onError: (error) => {
+    onError: error => {
       toast.error(`Lỗi: ${error.message}`);
     }
   });
-
-
   const handleEditProduct = (product: LiveProduct) => {
     setEditingProduct({
       id: product.id,
@@ -1292,30 +1219,32 @@ export default function LiveProducts() {
       variant: product.variant || undefined,
       prepared_quantity: product.prepared_quantity,
       live_phase_id: product.live_phase_id || selectedPhase,
-      live_session_id: product.live_session_id || selectedSession,
+      live_session_id: product.live_session_id || selectedSession
     });
     setIsEditProductOpen(true);
   };
-
   const handleEditSession = (session: LiveSession) => {
     setEditingSession(session);
     setIsEditSessionOpen(true);
   };
-
   const handleRefreshProducts = () => {
-    queryClient.invalidateQueries({ queryKey: ["live-products", selectedPhase, selectedSession] });
-    queryClient.invalidateQueries({ queryKey: ["live-orders", selectedPhase, selectedSession] });
-    queryClient.invalidateQueries({ queryKey: ["orders-with-products", selectedPhase, selectedSession] });
+    queryClient.invalidateQueries({
+      queryKey: ["live-products", selectedPhase, selectedSession]
+    });
+    queryClient.invalidateQueries({
+      queryKey: ["live-orders", selectedPhase, selectedSession]
+    });
+    queryClient.invalidateQueries({
+      queryKey: ["orders-with-products", selectedPhase, selectedSession]
+    });
     toast.success("Đã làm mới danh sách sản phẩm");
   };
-
   const getPhaseDisplayName = (phase: LivePhase) => {
     const date = new Date(phase.phase_date);
     const dayNumber = Math.floor((date.getTime() - new Date(livePhases[0]?.phase_date || phase.phase_date).getTime()) / (1000 * 60 * 60 * 24)) + 1;
     const phaseType = phase.phase_type === 'morning' ? 'Sáng' : 'Chiều';
     return `Ngày ${dayNumber} - ${phaseType} (${format(date, "dd/MM/yyyy")})`;
   };
-
   const getSessionDisplayName = (session: LiveSession) => {
     const sessionName = session.session_name || session.supplier_name;
     if (session.start_date && session.end_date) {
@@ -1323,86 +1252,48 @@ export default function LiveProducts() {
     }
     return `${sessionName} - ${format(new Date(session.session_date), "dd/MM/yyyy")}`;
   };
-
   if (isLoading) {
-    return (
-      <div className="container mx-auto p-6">
+    return <div className="container mx-auto p-6">
         <div className="text-center">Đang tải...</div>
-      </div>
-    );
+      </div>;
   }
-
-  return (
-    <div className="w-full py-6 px-4 space-y-6">
+  return <div className="w-full py-6 px-4 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Order Live</h1>
-          <p className="text-muted-foreground">
-            Quản lý các phiên live, sản phẩm và đơn hàng
-          </p>
-        </div>
-        
-        <div className="flex gap-2">
-          <Button 
-            onClick={() => setIsCreateSessionOpen(true)}
-            className="flex items-center gap-2"
-          >
-            <Plus className="h-4 w-4" />
-            Tạo đợt Live mới
-          </Button>
-        </div>
-      </div>
+      
 
       {/* Main content wrapper - pushes left when sidebar opens */}
-      <div className={cn(
-        "transition-all duration-300 ease-in-out",
-        isCommentsPanelOpen && !isMobile ? 'mr-[450px]' : 'mr-0'
-      )}>
+      <div className={cn("transition-all duration-300 ease-in-out", isCommentsPanelOpen && !isMobile ? 'mr-[450px]' : 'mr-0')}>
         {/* Session Selection */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5" />
-                Chọn đợt Live
-              </CardTitle>
-              <Button 
-                onClick={() => setIsCreateSessionOpen(true)}
-                className="flex items-center gap-2"
-              >
+              
+              <Button onClick={() => setIsCreateSessionOpen(true)} className="flex items-center gap-2">
                 <Plus className="h-4 w-4" />
                 Tạo đợt Live mới
               </Button>
             </div>
           </CardHeader>
           <CardContent>
-            {liveSessions.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {liveSessions.length > 0 ? <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium mb-2 block">Đợt Live</label>
-                  <Select 
-                    value={selectedSession} 
-                    onValueChange={(value) => {
-                      setSelectedSession(value);
-                      setSelectedPhase(""); // Reset phase selection
-                    }}
-                  >
+                  <Select value={selectedSession} onValueChange={value => {
+                setSelectedSession(value);
+                setSelectedPhase(""); // Reset phase selection
+              }}>
                     <SelectTrigger>
                       <SelectValue placeholder="Chọn một đợt live" />
                     </SelectTrigger>
                     <SelectContent>
-                      {liveSessions.map((session) => (
-                        <SelectItem key={session.id} value={session.id}>
+                      {liveSessions.map(session => <SelectItem key={session.id} value={session.id}>
                           {getSessionDisplayName(session)}
-                        </SelectItem>
-                      ))}
+                        </SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
 
-                {selectedSession && livePhases.length > 0 && (
-                  <div>
+                {selectedSession && livePhases.length > 0 && <div>
                     <label className="text-sm font-medium mb-2 block">Phiên Live</label>
                     <Select value={selectedPhase} onValueChange={setSelectedPhase}>
                       <SelectTrigger>
@@ -1410,62 +1301,38 @@ export default function LiveProducts() {
                       </SelectTrigger>
                       <SelectContent className="bg-background z-50">
                         <SelectItem value="all">📊 Tất cả phiên live</SelectItem>
-                        {livePhases.map((phase) => (
-                          <SelectItem key={phase.id} value={phase.id}>
+                        {livePhases.map(phase => <SelectItem key={phase.id} value={phase.id}>
                             {getPhaseDisplayName(phase)}
-                          </SelectItem>
-                        ))}
+                          </SelectItem>)}
                       </SelectContent>
                     </Select>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-center py-6 text-muted-foreground">
+                  </div>}
+              </div> : <div className="text-center py-6 text-muted-foreground">
                 Chưa có đợt live nào. Nhấn nút "Tạo đợt Live mới" để bắt đầu.
-              </div>
-            )}
+              </div>}
 
-            {selectedSession && (
-              <div className="flex gap-2 mt-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const session = liveSessions.find(s => s.id === selectedSession);
-                    if (session) handleEditSession(session);
-                  }}
-                  className="flex items-center gap-2"
-                >
+            {selectedSession && <div className="flex gap-2 mt-4">
+                <Button variant="outline" size="sm" onClick={() => {
+              const session = liveSessions.find(s => s.id === selectedSession);
+              if (session) handleEditSession(session);
+            }} className="flex items-center gap-2">
                   <Edit className="h-4 w-4" />
                   Chỉnh sửa đợt live
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleDeleteAllPhasesForSession(selectedSession)}
-                  className="flex items-center gap-2 text-orange-600 hover:text-orange-700"
-                >
+                <Button variant="outline" size="sm" onClick={() => handleDeleteAllPhasesForSession(selectedSession)} className="flex items-center gap-2 text-orange-600 hover:text-orange-700">
                   <Trash2 className="h-4 w-4" />
                   Xóa toàn bộ phiên live
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleDeleteSession(selectedSession)}
-                  className="flex items-center gap-2 text-red-600 hover:text-red-700"
-                >
+                <Button variant="outline" size="sm" onClick={() => handleDeleteSession(selectedSession)} className="flex items-center gap-2 text-red-600 hover:text-red-700">
                   <Trash2 className="h-4 w-4" />
                   Xóa đợt live
                 </Button>
-              </div>
-            )}
+              </div>}
           </CardContent>
         </Card>
 
       {/* Stats and Content */}
-      {selectedPhase && (
-        <>
+      {selectedPhase && <>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <div ref={tabsRef} className="flex items-center justify-between">
               <TabsList>
@@ -1488,42 +1355,24 @@ export default function LiveProducts() {
               </TabsList>
 
               <div className="flex gap-2">
-                {activeTab === "products" && (
-                  <>
-                    {commentsVideoId && (
-                      <>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex items-center gap-2"
-                          onClick={() => setIsCommentsPanelOpen(!isCommentsPanelOpen)}
-                        >
+                {activeTab === "products" && <>
+                    {commentsVideoId && <>
+                        <Button variant="outline" size="sm" className="flex items-center gap-2" onClick={() => setIsCommentsPanelOpen(!isCommentsPanelOpen)}>
                           <MessageSquare className="h-4 w-4" />
                           Comments
-                          {isCommentsPanelOpen && (
-                            <Badge variant="secondary" className="ml-1">Đang mở</Badge>
-                          )}
+                          {isCommentsPanelOpen && <Badge variant="secondary" className="ml-1">Đang mở</Badge>}
                         </Button>
-                      </>
-                    )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleRefreshProducts}
-                      disabled={liveProducts.length === 0}
-                      className="flex items-center gap-2"
-                    >
+                      </>}
+                    <Button variant="outline" size="sm" onClick={handleRefreshProducts} disabled={liveProducts.length === 0} className="flex items-center gap-2">
                       <RefreshCw className="h-4 w-4" />
                       Làm mới
                     </Button>
-                  </>
-                )}
+                  </>}
               </div>
             </div>
 
             <TabsContent value="products" className="space-y-4">
-              {liveProducts.length === 0 ? (
-                <Card>
+              {liveProducts.length === 0 ? <Card>
                   <CardContent className="flex flex-col items-center justify-center py-12">
                     <Package className="h-12 w-12 text-muted-foreground mb-4" />
                     <h3 className="text-lg font-semibold mb-2">Chưa có sản phẩm nào</h3>
@@ -1531,29 +1380,14 @@ export default function LiveProducts() {
                       Thêm sản phẩm đầu tiên cho phiên live này
                     </p>
                   </CardContent>
-                </Card>
-              ) : (
-                <>
+                </Card> : <>
                   {/* Search box */}
                   <div className="flex items-center gap-2 px-4 py-3 bg-muted/50 rounded-lg border">
                     <Search className="h-4 w-4 text-muted-foreground" />
-                    <input
-                      type="text"
-                      placeholder="Tìm kiếm theo mã SP, tên sản phẩm, biến thể..."
-                      value={productSearch}
-                      onChange={(e) => setProductSearch(e.target.value)}
-                      className="flex-1 bg-transparent border-none outline-none text-sm placeholder:text-muted-foreground"
-                    />
-                    {productSearch && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setProductSearch("")}
-                        className="h-6 px-2"
-                      >
+                    <input type="text" placeholder="Tìm kiếm theo mã SP, tên sản phẩm, biến thể..." value={productSearch} onChange={e => setProductSearch(e.target.value)} className="flex-1 bg-transparent border-none outline-none text-sm placeholder:text-muted-foreground" />
+                    {productSearch && <Button variant="ghost" size="sm" onClick={() => setProductSearch("")} className="h-6 px-2">
                         Xóa
-                      </Button>
-                    )}
+                      </Button>}
                   </div>
 
                   <div ref={productListRef}>
@@ -1574,241 +1408,162 @@ export default function LiveProducts() {
                         </TableHeader>
                         <TableBody>
                           {(() => {
-                            // Use memoized filtered products
-                            const filteredProducts = filteredProductsHangDat;
+                        // Use memoized filtered products
+                        const filteredProducts = filteredProductsHangDat;
 
-                            // Group products by base_product_code (or unique key for manual products)
-                            const productGroups = filteredProducts.reduce((groups, product) => {
-                              // Use base_product_code for inventory items, unique key for manual items
-                              const key = product.base_product_code 
-                                ? product.base_product_code 
-                                : `single_${product.id}`;
-                              
-                              if (!groups[key]) {
-                                groups[key] = {
-                                  product_code: product.base_product_code || product.product_code,
-                                  product_name: product.base_product_code 
-                                    ? product.product_name.split('(')[0].trim()
-                                    : product.product_name,
-                                  products: [],
-                                  earliest_created_at: product.created_at,
-                                  base_product_code: product.base_product_code
-                                };
-                              }
-                              groups[key].products.push(product);
-                              // Track earliest created_at for group sorting
-                              if (product.created_at && product.created_at < groups[key].earliest_created_at!) {
-                                groups[key].earliest_created_at = product.created_at;
-                              }
-                              return groups;
-                            }, {} as Record<string, {
-                              product_code: string;
-                              product_name: string;
-                              products: LiveProduct[];
-                              earliest_created_at?: string;
-                              base_product_code?: string | null;
-                            }>);
+                        // Group products by base_product_code (or unique key for manual products)
+                        const productGroups = filteredProducts.reduce((groups, product) => {
+                          // Use base_product_code for inventory items, unique key for manual items
+                          const key = product.base_product_code ? product.base_product_code : `single_${product.id}`;
+                          if (!groups[key]) {
+                            groups[key] = {
+                              product_code: product.base_product_code || product.product_code,
+                              product_name: product.base_product_code ? product.product_name.split('(')[0].trim() : product.product_name,
+                              products: [],
+                              earliest_created_at: product.created_at,
+                              base_product_code: product.base_product_code
+                            };
+                          }
+                          groups[key].products.push(product);
+                          // Track earliest created_at for group sorting
+                          if (product.created_at && product.created_at < groups[key].earliest_created_at!) {
+                            groups[key].earliest_created_at = product.created_at;
+                          }
+                          return groups;
+                        }, {} as Record<string, {
+                          product_code: string;
+                          product_name: string;
+                          products: LiveProduct[];
+                          earliest_created_at?: string;
+                          base_product_code?: string | null;
+                        }>);
 
-                            // Sort groups by earliest created_at (newest first)
-                            const sortedGroups = Object.values(productGroups).sort((a, b) => {
-                              const timeA = new Date(a.earliest_created_at || 0).getTime();
-                              const timeB = new Date(b.earliest_created_at || 0).getTime();
-                              return timeB - timeA; // Descending: newest first
-                            });
+                        // Sort groups by earliest created_at (newest first)
+                        const sortedGroups = Object.values(productGroups).sort((a, b) => {
+                          const timeA = new Date(a.earliest_created_at || 0).getTime();
+                          const timeB = new Date(b.earliest_created_at || 0).getTime();
+                          return timeB - timeA; // Descending: newest first
+                        });
+                        return sortedGroups.flatMap(group => {
+                          // Sort products within group by variant name first, then by created_at
+                          const sortedProducts = [...group.products].sort((a, b) => {
+                            // Primary sort: variant name (alphabetically)
+                            const variantA = (a.variant || '').toLowerCase();
+                            const variantB = (b.variant || '').toLowerCase();
+                            const variantCompare = variantA.localeCompare(variantB);
+                            if (variantCompare !== 0) return variantCompare;
 
-                            return sortedGroups.flatMap((group) => {
-                              // Sort products within group by variant name first, then by created_at
-                              const sortedProducts = [...group.products].sort((a, b) => {
-                                // Primary sort: variant name (alphabetically)
-                                const variantA = (a.variant || '').toLowerCase();
-                                const variantB = (b.variant || '').toLowerCase();
-                                const variantCompare = variantA.localeCompare(variantB);
-                                
-                                if (variantCompare !== 0) return variantCompare;
-                                
-                                // Secondary sort: created_at (if variants are the same)
-                                const timeA = new Date(a.created_at || 0).getTime();
-                                const timeB = new Date(b.created_at || 0).getTime();
-                                return timeA - timeB;
-                              });
-
-                              return sortedProducts.map((product, productIndex) => (
-                                <TableRow key={product.id}>
-                                  {productIndex === 0 && (
-                                    <>
-                                      <TableCell 
-                                        rowSpan={group.products.length} 
-                                        className="font-medium align-top border-r"
-                                      >
+                            // Secondary sort: created_at (if variants are the same)
+                            const timeA = new Date(a.created_at || 0).getTime();
+                            const timeB = new Date(b.created_at || 0).getTime();
+                            return timeA - timeB;
+                          });
+                          return sortedProducts.map((product, productIndex) => <TableRow key={product.id}>
+                                  {productIndex === 0 && <>
+                                      <TableCell rowSpan={group.products.length} className="font-medium align-top border-r">
                                         {group.product_code}
                                       </TableCell>
-                                       <TableCell 
-                                         rowSpan={group.products.length}
-                                         className="align-top border-r"
-                                       >
+                                       <TableCell rowSpan={group.products.length} className="align-top border-r">
                                          {group.product_name}
                                        </TableCell>
-                                     </>
-                                   )}
+                                     </>}
                                    <TableCell className="text-muted-foreground">
                                      {getVariantName(product.variant)}
                                    </TableCell>
-                                   {productIndex === 0 && (
-                                     <>
-                                       <TableCell 
-                                         rowSpan={group.products.length}
-                                         className="align-top border-r"
-                                       >
-                                         {product.image_url ? (
-                                           <img 
-                                             src={product.image_url} 
-                                             alt={group.product_name}
-                                             className="w-12 h-12 object-cover rounded cursor-pointer transition-transform duration-200 hover:scale-[14] hover:z-50 relative origin-left"
-                                           />
-                                         ) : (
-                                           <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
+                                   {productIndex === 0 && <>
+                                       <TableCell rowSpan={group.products.length} className="align-top border-r">
+                                         {product.image_url ? <img src={product.image_url} alt={group.product_name} className="w-12 h-12 object-cover rounded cursor-pointer transition-transform duration-200 hover:scale-[14] hover:z-50 relative origin-left" /> : <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
                                              <Package className="h-6 w-6 text-muted-foreground" />
-                                           </div>
-                                         )}
+                                           </div>}
                                        </TableCell>
-                                      </>
-                                   )}
+                                      </>}
                                   <TableCell className="text-center">
                                     <div className="flex flex-col items-center gap-1">
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-7 w-7 p-0"
-                                        onClick={async () => {
-                                          const qty = orderQuantities[product.id] || 0;
-                                          if (qty === 0) {
-                                            toast.error("Số lượng phải lớn hơn 0");
-                                            return;
-                                          }
-                                          if (!product.image_url) {
-                                            toast.error("Sản phẩm chưa có hình ảnh");
-                                            return;
-                                          }
-                                          await generateOrderImage(
-                                            product.image_url,
-                                            product.variant || "",
-                                            qty,
-                                            product.product_name
-                                          );
-                                          // Update copy total
-                                          setCopyTotals(prev => ({
-                                            ...prev,
-                                            [product.id]: (prev[product.id] || 0) + qty
-                                          }));
-                                          // Reset orderQuantities to 0
-                                          setOrderQuantities(prev => ({
-                                            ...prev,
-                                            [product.id]: 0
-                                          }));
-                                        }}
-                                        disabled={!product.image_url}
-                                        title={product.image_url ? "Copy hình order" : "Chưa có hình ảnh"}
-                                      >
+                                      <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={async () => {
+                                  const qty = orderQuantities[product.id] || 0;
+                                  if (qty === 0) {
+                                    toast.error("Số lượng phải lớn hơn 0");
+                                    return;
+                                  }
+                                  if (!product.image_url) {
+                                    toast.error("Sản phẩm chưa có hình ảnh");
+                                    return;
+                                  }
+                                  await generateOrderImage(product.image_url, product.variant || "", qty, product.product_name);
+                                  // Update copy total
+                                  setCopyTotals(prev => ({
+                                    ...prev,
+                                    [product.id]: (prev[product.id] || 0) + qty
+                                  }));
+                                  // Reset orderQuantities to 0
+                                  setOrderQuantities(prev => ({
+                                    ...prev,
+                                    [product.id]: 0
+                                  }));
+                                }} disabled={!product.image_url} title={product.image_url ? "Copy hình order" : "Chưa có hình ảnh"}>
                                         <Copy className="h-3 w-3" />
                                       </Button>
-                                      <input
-                                        type="number"
-                                        min="1"
-                                        value={orderQuantities[product.id] || 0}
-                                        onChange={(e) => {
-                                          const value = parseInt(e.target.value) || 0;
-                                          setOrderQuantities(prev => ({
-                                            ...prev,
-                                            [product.id]: value
-                                          }));
-                                        }}
-                                        className="w-12 h-6 text-center text-xs border rounded px-1"
-                                        placeholder="SL"
-                                      />
-                                      {copyTotals[product.id] > 0 && (
-                                        <div className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${getCopyStatusColor(copyTotals[product.id], product.sold_quantity)}`}>
+                                      <input type="number" min="1" value={orderQuantities[product.id] || 0} onChange={e => {
+                                  const value = parseInt(e.target.value) || 0;
+                                  setOrderQuantities(prev => ({
+                                    ...prev,
+                                    [product.id]: value
+                                  }));
+                                }} className="w-12 h-6 text-center text-xs border rounded px-1" placeholder="SL" />
+                                      {copyTotals[product.id] > 0 && <div className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${getCopyStatusColor(copyTotals[product.id], product.sold_quantity)}`}>
                                           Đã copy: {copyTotals[product.id]}
-                                        </div>
-                                      )}
+                                        </div>}
                                     </div>
                                   </TableCell>
                                   <TableCell className="text-center">
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      value={preparedQuantities[product.id] ?? product.prepared_quantity} // Use local state, fallback to prop
-                                      onChange={(e) => handlePreparedQuantityChange(product.id, e.target.value)}
-                                      onBlur={() => {
-                                        const newQuantity = preparedQuantities[product.id];
-                                        if (newQuantity !== undefined && newQuantity !== product.prepared_quantity) {
-                                          updatePreparedQuantityMutation.mutate({ productId: product.id, newQuantity });
-                                        }
-                                      }}
-                                      className="w-20 text-center h-8"
-                                      disabled={updatePreparedQuantityMutation.isPending}
-                                    />
+                                    <Input type="number" min="0" value={preparedQuantities[product.id] ?? product.prepared_quantity} // Use local state, fallback to prop
+                              onChange={e => handlePreparedQuantityChange(product.id, e.target.value)} onBlur={() => {
+                                const newQuantity = preparedQuantities[product.id];
+                                if (newQuantity !== undefined && newQuantity !== product.prepared_quantity) {
+                                  updatePreparedQuantityMutation.mutate({
+                                    productId: product.id,
+                                    newQuantity
+                                  });
+                                }
+                              }} className="w-20 text-center h-8" disabled={updatePreparedQuantityMutation.isPending} />
                                   </TableCell>
                                   <TableCell className="text-center">{product.sold_quantity}</TableCell>
                                   <TableCell>
                                     <div className="flex flex-wrap items-center gap-1.5">
                                       {(() => {
-                                        const productOrders = selectedPhase === "all"
-                                          ? ordersWithProducts.filter(order => order.product_code === product.product_code)
-                                          : ordersWithProducts.filter(order => order.live_product_id === product.id);
-                                        
-                                        // Reverse to show newest on the right
-                                        const ordersReversed = [...productOrders].reverse();
-                                        
-                                        return (
-                                          <>
+                                  const productOrders = selectedPhase === "all" ? ordersWithProducts.filter(order => order.product_code === product.product_code) : ordersWithProducts.filter(order => order.live_product_id === product.id);
+
+                                  // Reverse to show newest on the right
+                                  const ordersReversed = [...productOrders].reverse();
+                                  return <>
                                             {ordersReversed.map(order => {
-                                              const isOversell = calculateIsOversell(
-                                                order.live_product_id,
-                                                order.id,
-                                                liveProducts,
-                                                ordersWithProducts
-                                              );
-                                              
-                                              const badgeVariant = isOversell 
-                                                ? "destructive" 
-                                                : order.uploaded_at 
-                                                  ? "secondary" 
-                                                  : "default";
-                                              
-                                              const getCustomerStatusColor = (status?: string) => {
-                                                switch (status) {
-                                                  case 'bom_hang':
-                                                    return 'bg-red-500 text-white border-red-600';
-                                                  case 'thieu_thong_tin':
-                                                    return 'bg-yellow-500 text-white border-yellow-600';
-                                                  default:
-                                                    return '';
-                                                }
-                                              };
-
-                                              const customerStatusColor = getCustomerStatusColor(order.customer_status);
-
-                                              return (
-                                                <TooltipProvider key={order.id}>
+                                      const isOversell = calculateIsOversell(order.live_product_id, order.id, liveProducts, ordersWithProducts);
+                                      const badgeVariant = isOversell ? "destructive" : order.uploaded_at ? "secondary" : "default";
+                                      const getCustomerStatusColor = (status?: string) => {
+                                        switch (status) {
+                                          case 'bom_hang':
+                                            return 'bg-red-500 text-white border-red-600';
+                                          case 'thieu_thong_tin':
+                                            return 'bg-yellow-500 text-white border-yellow-600';
+                                          default:
+                                            return '';
+                                        }
+                                      };
+                                      const customerStatusColor = getCustomerStatusColor(order.customer_status);
+                                      return <TooltipProvider key={order.id}>
                                                   <Tooltip>
                                                     <TooltipTrigger asChild>
-                                                      <Badge 
-                                                        variant={badgeVariant}
-                                                        className={`cursor-pointer text-xs ${customerStatusColor}`}
-                                                        onClick={() => {
-                                                          const ordersWithSameCode = productOrders.filter(
-                                                            o => o.order_code === order.order_code
-                                                          );
-                                                          const aggregatedProduct = {
-                                                            product_code: product.product_code,
-                                                            product_name: product.product_name,
-                                                            live_product_id: product.id,
-                                                            total_quantity: ordersWithSameCode.reduce((sum, o) => sum + o.quantity, 0),
-                                                            orders: ordersWithSameCode
-                                                          };
-                                                          handleEditOrderItem(aggregatedProduct);
-                                                        }}
-                                                      >
+                                                      <Badge variant={badgeVariant} className={`cursor-pointer text-xs ${customerStatusColor}`} onClick={() => {
+                                              const ordersWithSameCode = productOrders.filter(o => o.order_code === order.order_code);
+                                              const aggregatedProduct = {
+                                                product_code: product.product_code,
+                                                product_name: product.product_name,
+                                                live_product_id: product.id,
+                                                total_quantity: ordersWithSameCode.reduce((sum, o) => sum + o.quantity, 0),
+                                                orders: ordersWithSameCode
+                                              };
+                                              handleEditOrderItem(aggregatedProduct);
+                                            }}>
                                                         {order.order_code}
                                                         {isOversell && " ⚠️"}
                                                         {order.uploaded_at && " ✓"}
@@ -1819,104 +1574,59 @@ export default function LiveProducts() {
                                                         <div>Mã: {order.order_code}</div>
                                                         <div>SL: {order.quantity}</div>
                                                         {isOversell && <div className="text-red-500 font-semibold">⚠️ Vượt số lượng chuẩn bị</div>}
-                                                        {order.uploaded_at && (
-                                                          <div className="text-green-600 font-semibold">
-                                                            ✓ Đã đẩy lên TPOS {format(new Date(order.uploaded_at), 'dd/MM HH:mm', { locale: vi })}
-                                                          </div>
-                                                        )}
-                                                        {order.customer_status === 'bom_hang' && (
-                                                          <div className="text-red-600 font-semibold">🚫 BOM HÀNG</div>
-                                                        )}
-                                                        {order.customer_status === 'thieu_thong_tin' && (
-                                                          <div className="text-yellow-600 font-semibold">⚠️ THIẾU THÔNG TIN</div>
-                                                        )}
+                                                        {order.uploaded_at && <div className="text-green-600 font-semibold">
+                                                            ✓ Đã đẩy lên TPOS {format(new Date(order.uploaded_at), 'dd/MM HH:mm', {
+                                                  locale: vi
+                                                })}
+                                                          </div>}
+                                                        {order.customer_status === 'bom_hang' && <div className="text-red-600 font-semibold">🚫 BOM HÀNG</div>}
+                                                        {order.customer_status === 'thieu_thong_tin' && <div className="text-yellow-600 font-semibold">⚠️ THIẾU THÔNG TIN</div>}
                                                       </div>
                                                     </TooltipContent>
                                                   </Tooltip>
-                                                </TooltipProvider>
-                                              );
-                                            })}
-                                            {productOrders.length === 0 && (
-                                              <span className="text-xs text-muted-foreground">
+                                                </TooltipProvider>;
+                                    })}
+                                            {productOrders.length === 0 && <span className="text-xs text-muted-foreground">
                                                 Chưa có đơn
-                                              </span>
-                                            )}
-                                            {selectedPhase !== "all" && (
-                                              <QuickAddOrder 
-                                                productId={product.id}
-                                                phaseId={selectedPhase}
-                                                sessionId={selectedSession}
-                                                availableQuantity={product.prepared_quantity - product.sold_quantity}
-                                                onOrderAdded={(qty) => handleOrderAdded(product.id, qty)}
-                                              />
-                                            )}
-                                          </>
-                                        );
-                                      })()}
+                                              </span>}
+                                            {selectedPhase !== "all" && <QuickAddOrder productId={product.id} phaseId={selectedPhase} sessionId={selectedSession} availableQuantity={product.prepared_quantity - product.sold_quantity} onOrderAdded={qty => handleOrderAdded(product.id, qty)} />}
+                                          </>;
+                                })()}
                                     </div>
                                   </TableCell>
-                                  {productIndex === 0 && (
-                                    <TableCell 
-                                      rowSpan={group.products.length}
-                                      className="align-top border-l"
-                                    >
+                                  {productIndex === 0 && <TableCell rowSpan={group.products.length} className="align-top border-l">
                                       <div className="flex items-center gap-2 justify-center">
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          onClick={() => handleEditProduct(product)}
-                                        >
+                                        <Button variant="ghost" size="sm" onClick={() => handleEditProduct(product)}>
                                           <Edit className="h-4 w-4" />
                                         </Button>
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          onClick={() => handleDeleteAllVariants(group.product_code, group.product_name)}
-                                          className="text-red-600 hover:text-red-700"
-                                        >
+                                        <Button variant="ghost" size="sm" onClick={() => handleDeleteAllVariants(group.product_code, group.product_name)} className="text-red-600 hover:text-red-700">
                                           <Trash2 className="h-4 w-4" />
                                         </Button>
                                       </div>
-                                    </TableCell>
-                                  )}
-                                </TableRow>
-                              ));
-                            });
-                          })()}
+                                    </TableCell>}
+                                </TableRow>);
+                        });
+                      })()}
                         </TableBody>
                       </Table>
                     </Card>
                   </div>
-                </>
-              )}
+                </>}
             </TabsContent>
 
             <TabsContent value="individual" className="space-y-4">
-              {!selectedPhase ? (
-                <Card>
+              {!selectedPhase ? <Card>
                   <CardContent className="p-8 text-center text-muted-foreground">
                     <Package className="mx-auto h-12 w-12 mb-2" />
                     <p>Vui lòng chọn phiên live để xem sản phẩm</p>
                   </CardContent>
-                </Card>
-              ) : (
-              <>
+                </Card> : <>
                 <div className="flex items-center gap-2 mb-4">
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Tìm kiếm theo mã SP, tên sản phẩm, biến thể..."
-                      value={productSearch}
-                      onChange={(e) => setProductSearch(e.target.value)}
-                      className="pl-10"
-                    />
+                    <Input placeholder="Tìm kiếm theo mã SP, tên sản phẩm, biến thể..." value={productSearch} onChange={e => setProductSearch(e.target.value)} className="pl-10" />
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={handleRefreshProducts}
-                    title="Làm mới"
-                  >
+                  <Button variant="ghost" size="icon" onClick={handleRefreshProducts} title="Làm mới">
                     <RefreshCw className="h-4 w-4" />
                   </Button>
                 </div>
@@ -1938,155 +1648,105 @@ export default function LiveProducts() {
                     </TableHeader>
                     <TableBody>
                       {(() => {
-                        // Use memoized filtered products
-                        const filteredProducts = filteredLiveProducts;
+                      // Use memoized filtered products
+                      const filteredProducts = filteredLiveProducts;
 
-                        // Sort by created_at (newest first)
-                        const sortedProducts = [...filteredProducts].sort((a, b) => {
-                          const timeA = new Date(a.created_at || 0).getTime();
-                          const timeB = new Date(b.created_at || 0).getTime();
-                          return timeB - timeA;
-                        });
-
-                        return sortedProducts.map((product) => (
-                          <TableRow key={product.id}>
+                      // Sort by created_at (newest first)
+                      const sortedProducts = [...filteredProducts].sort((a, b) => {
+                        const timeA = new Date(a.created_at || 0).getTime();
+                        const timeB = new Date(b.created_at || 0).getTime();
+                        return timeB - timeA;
+                      });
+                      return sortedProducts.map(product => <TableRow key={product.id}>
                             <TableCell className="font-medium">{product.product_code}</TableCell>
                             <TableCell>{product.product_name}</TableCell>
                             <TableCell className="text-muted-foreground">
                               {getVariantName(product.variant)}
                             </TableCell>
                             <TableCell>
-                              {product.image_url ? (
-                                <img 
-                                  src={product.image_url} 
-                                  alt={product.product_name}
-                                  className="w-12 h-12 object-cover rounded cursor-pointer transition-transform duration-200 hover:scale-[14] hover:z-50 relative origin-left"
-                                />
-                              ) : (
-                                <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
+                              {product.image_url ? <img src={product.image_url} alt={product.product_name} className="w-12 h-12 object-cover rounded cursor-pointer transition-transform duration-200 hover:scale-[14] hover:z-50 relative origin-left" /> : <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
                                   <Package className="h-6 w-6 text-muted-foreground" />
-                                </div>
-                              )}
+                                </div>}
                             </TableCell>
                             <TableCell className="text-center">
                               <div className="flex flex-col items-center gap-1">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7 w-7 p-0"
-                                  onClick={async () => {
-                                    const qty = orderQuantities[product.id] || 0;
-                                    if (qty === 0) {
-                                      toast.error("Số lượng phải lớn hơn 0");
-                                      return;
-                                    }
-                                    if (!product.image_url) {
-                                      toast.error("Sản phẩm chưa có hình ảnh");
-                                      return;
-                                    }
-                                    await generateOrderImage(
-                                      product.image_url,
-                                      product.variant || "",
-                                      qty,
-                                      product.product_name
-                                    );
-                                    setCopyTotals(prev => ({
-                                      ...prev,
-                                      [product.id]: (prev[product.id] || 0) + qty
-                                    }));
-                                    // Reset orderQuantities to 0
-                                    setOrderQuantities(prev => ({
-                                      ...prev,
-                                      [product.id]: 0
-                                    }));
-                                  }}
-                                  disabled={!product.image_url}
-                                  title={product.image_url ? "Copy hình order" : "Chưa có hình ảnh"}
-                                >
+                                <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={async () => {
+                              const qty = orderQuantities[product.id] || 0;
+                              if (qty === 0) {
+                                toast.error("Số lượng phải lớn hơn 0");
+                                return;
+                              }
+                              if (!product.image_url) {
+                                toast.error("Sản phẩm chưa có hình ảnh");
+                                return;
+                              }
+                              await generateOrderImage(product.image_url, product.variant || "", qty, product.product_name);
+                              setCopyTotals(prev => ({
+                                ...prev,
+                                [product.id]: (prev[product.id] || 0) + qty
+                              }));
+                              // Reset orderQuantities to 0
+                              setOrderQuantities(prev => ({
+                                ...prev,
+                                [product.id]: 0
+                              }));
+                            }} disabled={!product.image_url} title={product.image_url ? "Copy hình order" : "Chưa có hình ảnh"}>
                                   <Copy className="h-3 w-3" />
                                 </Button>
-                                 <input
-                                   type="number"
-                                   min="1"
-                                   value={orderQuantities[product.id] || 0}
-                                   onChange={(e) => {
-                                     const value = parseInt(e.target.value) || 0;
-                                    setOrderQuantities(prev => ({
-                                      ...prev,
-                                      [product.id]: value
-                                    }));
-                                  }}
-                                  className="w-12 h-6 text-center text-xs border rounded px-1"
-                                  placeholder="SL"
-                                />
-                                {copyTotals[product.id] > 0 && (
-                                  <div className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${getCopyStatusColor(copyTotals[product.id], product.sold_quantity)}`}>
+                                 <input type="number" min="1" value={orderQuantities[product.id] || 0} onChange={e => {
+                              const value = parseInt(e.target.value) || 0;
+                              setOrderQuantities(prev => ({
+                                ...prev,
+                                [product.id]: value
+                              }));
+                            }} className="w-12 h-6 text-center text-xs border rounded px-1" placeholder="SL" />
+                                {copyTotals[product.id] > 0 && <div className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${getCopyStatusColor(copyTotals[product.id], product.sold_quantity)}`}>
                                     Đã copy: {copyTotals[product.id]}
-                                  </div>
-                                )}
+                                  </div>}
                               </div>
                             </TableCell>
                             <TableCell className="text-center">
-                              <Input
-                                type="number"
-                                min="0"
-                                value={preparedQuantities[product.id] ?? product.prepared_quantity} // Use local state, fallback to prop
-                                onChange={(e) => handlePreparedQuantityChange(product.id, e.target.value)}
-                                onBlur={() => {
-                                  const newQuantity = preparedQuantities[product.id];
-                                  if (newQuantity !== undefined && newQuantity !== product.prepared_quantity) {
-                                    updatePreparedQuantityMutation.mutate({ productId: product.id, newQuantity });
-                                  }
-                                }}
-                                className="w-20 text-center h-8"
-                                disabled={updatePreparedQuantityMutation.isPending}
-                              />
+                              <Input type="number" min="0" value={preparedQuantities[product.id] ?? product.prepared_quantity} // Use local state, fallback to prop
+                          onChange={e => handlePreparedQuantityChange(product.id, e.target.value)} onBlur={() => {
+                            const newQuantity = preparedQuantities[product.id];
+                            if (newQuantity !== undefined && newQuantity !== product.prepared_quantity) {
+                              updatePreparedQuantityMutation.mutate({
+                                productId: product.id,
+                                newQuantity
+                              });
+                            }
+                          }} className="w-20 text-center h-8" disabled={updatePreparedQuantityMutation.isPending} />
                             </TableCell>
                             <TableCell className="text-center">{product.sold_quantity}</TableCell>
                             <TableCell>
                               <div className="flex flex-wrap items-center gap-1.5">
                                 {(() => {
-                                  const productOrders = ordersWithProducts.filter(order => order.live_product_id === product.id);
-                                  const ordersReversed = [...productOrders].reverse();
-                                  
-                                  return (
-                                    <>
+                              const productOrders = ordersWithProducts.filter(order => order.live_product_id === product.id);
+                              const ordersReversed = [...productOrders].reverse();
+                              return <>
                                       {ordersReversed.map(order => {
-                                        const isOversell = calculateIsOversell(
-                                          order.live_product_id,
-                                          order.id,
-                                          liveProducts || [],
-                                          ordersWithProducts
-                                        );
-                                        
-                                        let badgeColor = "bg-blue-100 text-blue-700 hover:bg-blue-200";
-                                        
-                                        if (isOversell) {
-                                          badgeColor = "bg-yellow-500 text-white hover:bg-yellow-600 font-bold shadow-md";
-                                        } else if (order.customer_status === 'bom_hang') {
-                                          badgeColor = "bg-red-600 text-white hover:bg-red-700 font-bold";
-                                        } else if (order.customer_status === 'thieu_thong_tin') {
-                                          badgeColor = "bg-gray-500 text-white hover:bg-gray-600";
-                                        }
-                                        
-                                        return (
-                                          <TooltipProvider key={order.id}>
+                                  const isOversell = calculateIsOversell(order.live_product_id, order.id, liveProducts || [], ordersWithProducts);
+                                  let badgeColor = "bg-blue-100 text-blue-700 hover:bg-blue-200";
+                                  if (isOversell) {
+                                    badgeColor = "bg-yellow-500 text-white hover:bg-yellow-600 font-bold shadow-md";
+                                  } else if (order.customer_status === 'bom_hang') {
+                                    badgeColor = "bg-red-600 text-white hover:bg-red-700 font-bold";
+                                  } else if (order.customer_status === 'thieu_thong_tin') {
+                                    badgeColor = "bg-gray-500 text-white hover:bg-gray-600";
+                                  }
+                                  return <TooltipProvider key={order.id}>
                                             <Tooltip>
                                               <TooltipTrigger asChild>
-                                                <Badge
-                                                  variant="secondary"
-                                                  className={`text-xs cursor-pointer hover:scale-105 transition-transform ${badgeColor}`}
-                                                  onClick={() => {
-                                                    const aggregatedProduct = {
-                                                      product_code: order.product_code,
-                                                      product_name: order.product_name,
-                                                      live_product_id: order.live_product_id,
-                                                      total_quantity: order.quantity,
-                                                      orders: [order]
-                                                    };
-                                                    handleEditOrderItem(aggregatedProduct);
-                                                  }}
-                                                >
+                                                <Badge variant="secondary" className={`text-xs cursor-pointer hover:scale-105 transition-transform ${badgeColor}`} onClick={() => {
+                                          const aggregatedProduct = {
+                                            product_code: order.product_code,
+                                            product_name: order.product_name,
+                                            live_product_id: order.live_product_id,
+                                            total_quantity: order.quantity,
+                                            orders: [order]
+                                          };
+                                          handleEditOrderItem(aggregatedProduct);
+                                        }}>
                                                   {isOversell && <AlertTriangle className="h-3 w-3 mr-1" />}
                                                   {order.quantity === 1 ? order.order_code : `${order.order_code} x${order.quantity}`}
                                                 </Badge>
@@ -2095,78 +1755,45 @@ export default function LiveProducts() {
                                                 <p>{isOversell ? "⚠️ Đơn quá số" : `Đơn: ${order.order_code} - SL: ${order.quantity}`}</p>
                                               </TooltipContent>
                                             </Tooltip>
-                                          </TooltipProvider>
-                                        );
-                                      })}
-                                      {selectedPhase !== "all" && (
-                                        <div className="flex items-center gap-2 ml-2">
-                                          <QuickAddOrder 
-                                            productId={product.id}
-                                            phaseId={selectedPhase}
-                                            sessionId={selectedSession}
-                                            availableQuantity={product.prepared_quantity - product.sold_quantity}
-                                            onOrderAdded={(qty) => handleOrderAdded(product.id, qty)}
-                                          />
-                                        </div>
-                                      )}
-                                    </>
-                                  );
-                                })()}
+                                          </TooltipProvider>;
+                                })}
+                                      {selectedPhase !== "all" && <div className="flex items-center gap-2 ml-2">
+                                          <QuickAddOrder productId={product.id} phaseId={selectedPhase} sessionId={selectedSession} availableQuantity={product.prepared_quantity - product.sold_quantity} onOrderAdded={qty => handleOrderAdded(product.id, qty)} />
+                                        </div>}
+                                    </>;
+                            })()}
                               </div>
                             </TableCell>
                             <TableCell className="text-center">
                               <div className="flex items-center justify-center gap-2">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleEditProduct(product)}
-                                  disabled={selectedPhase === "all"}
-                                  title={selectedPhase === "all" ? "Chọn phiên live cụ thể để chỉnh sửa" : ""}
-                                >
+                                <Button variant="ghost" size="sm" onClick={() => handleEditProduct(product)} disabled={selectedPhase === "all"} title={selectedPhase === "all" ? "Chọn phiên live cụ thể để chỉnh sửa" : ""}>
                                   <Edit className="h-4 w-4" />
                                 </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDeleteProduct(product.id)}
-                                  disabled={selectedPhase === "all"}
-                                  className="text-red-600 hover:text-red-700"
-                                  title={selectedPhase === "all" ? "Chọn phiên live cụ thể để xóa" : ""}
-                                >
+                                <Button variant="ghost" size="sm" onClick={() => handleDeleteProduct(product.id)} disabled={selectedPhase === "all"} className="text-red-600 hover:text-red-700" title={selectedPhase === "all" ? "Chọn phiên live cụ thể để xóa" : ""}>
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
                               </div>
                             </TableCell>
-                          </TableRow>
-                        ));
-                      })()}
+                          </TableRow>);
+                    })()}
                     </TableBody>
                   </Table>
                 </Card>
-              </>
-              )}
+              </>}
             </TabsContent>
 
             {/* Hàng Lẻ Tab */}
             <TabsContent value="hang-le" className="space-y-4">
-              {!selectedPhase ? (
-                <Card>
+              {!selectedPhase ? <Card>
                   <CardContent className="p-8 text-center text-muted-foreground">
                     <ShoppingBag className="mx-auto h-12 w-12 mb-4" />
                     <p>Vui lòng chọn phiên live để xem hàng lẻ</p>
                   </CardContent>
-                </Card>
-              ) : (
-                <>
+                </Card> : <>
                   <div className="flex items-center gap-2 mb-4">
                     <div className="relative flex-1">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Tìm kiếm hàng lẻ..."
-                        value={productSearch}
-                        onChange={(e) => setProductSearch(e.target.value)}
-                        className="pl-10"
-                      />
+                      <Input placeholder="Tìm kiếm hàng lẻ..." value={productSearch} onChange={e => setProductSearch(e.target.value)} className="pl-10" />
                     </div>
                     <Button variant="ghost" size="icon" onClick={handleRefreshProducts}>
                       <RefreshCw className="h-4 w-4" />
@@ -2188,39 +1815,23 @@ export default function LiveProducts() {
                       </TableHeader>
                       <TableBody>
                         {(() => {
-                          const filteredHangLe = filteredProductsHangLe;
-
-                          if (filteredHangLe.length === 0) {
-                            return (
-                              <TableRow>
+                      const filteredHangLe = filteredProductsHangLe;
+                      if (filteredHangLe.length === 0) {
+                        return <TableRow>
                                 <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                                   {productSearch.trim() ? "Không tìm thấy sản phẩm" : "Chưa có hàng lẻ"}
                                 </TableCell>
-                              </TableRow>
-                            );
-                          }
-
-                          return filteredHangLe.map(product => {
-                            const productOrders = ordersWithProducts.filter(
-                              order => order.live_product_id === product.id
-                            );
-
-                            return (
-                              <TableRow key={product.id}>
+                              </TableRow>;
+                      }
+                      return filteredHangLe.map(product => {
+                        const productOrders = ordersWithProducts.filter(order => order.live_product_id === product.id);
+                        return <TableRow key={product.id}>
                                 <TableCell className="font-medium">{product.product_code}</TableCell>
                                 <TableCell>{product.product_name}</TableCell>
                                 <TableCell>
-                                  {product.image_url ? (
-                                    <img 
-                                      src={product.image_url} 
-                                      alt={product.product_name} 
-                                      className="w-12 h-12 object-cover rounded cursor-pointer transition-transform duration-200 hover:scale-[14] hover:z-50 relative origin-left"
-                                    />
-                                  ) : (
-                                    <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
+                                  {product.image_url ? <img src={product.image_url} alt={product.product_name} className="w-12 h-12 object-cover rounded cursor-pointer transition-transform duration-200 hover:scale-[14] hover:z-50 relative origin-left" /> : <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
                                       <Package className="h-6 w-6 text-muted-foreground" />
-                                    </div>
-                                  )}
+                                    </div>}
                                 </TableCell>
                                 
                                 <TableCell className="text-center">{product.prepared_quantity}</TableCell>
@@ -2228,27 +1839,21 @@ export default function LiveProducts() {
                                 <TableCell>
                                   <div className="flex flex-wrap gap-1">
                                     {productOrders.map(order => {
-                                      const isOversell = calculateIsOversell(product.id, order.id, allLiveProducts, ordersWithProducts);
-                                      const badgeColor = order.customer_status === "vip" ? "bg-yellow-100 text-yellow-800" : "";
-                                      
-                                      return (
-                                        <TooltipProvider key={order.id}>
+                                const isOversell = calculateIsOversell(product.id, order.id, allLiveProducts, ordersWithProducts);
+                                const badgeColor = order.customer_status === "vip" ? "bg-yellow-100 text-yellow-800" : "";
+                                return <TooltipProvider key={order.id}>
                                           <Tooltip>
                                             <TooltipTrigger asChild>
-                                              <Badge
-                                                variant="secondary"
-                                                className={`text-xs cursor-pointer hover:scale-105 transition-transform ${badgeColor}`}
-                                                onClick={() => {
-                                                  const aggregatedProduct = {
-                                                    product_code: product.product_code,
-                                                    product_name: product.product_name,
-                                                    live_product_id: order.live_product_id,
-                                                    total_quantity: order.quantity,
-                                                    orders: [order]
-                                                  };
-                                                  handleEditOrderItem(aggregatedProduct);
-                                                }}
-                                              >
+                                              <Badge variant="secondary" className={`text-xs cursor-pointer hover:scale-105 transition-transform ${badgeColor}`} onClick={() => {
+                                        const aggregatedProduct = {
+                                          product_code: product.product_code,
+                                          product_name: product.product_name,
+                                          live_product_id: order.live_product_id,
+                                          total_quantity: order.quantity,
+                                          orders: [order]
+                                        };
+                                        handleEditOrderItem(aggregatedProduct);
+                                      }}>
                                                 {isOversell && <AlertTriangle className="h-3 w-3 mr-1" />}
                                                 {order.quantity === 1 ? order.order_code : `${order.order_code} x${order.quantity}`}
                                               </Badge>
@@ -2257,67 +1862,35 @@ export default function LiveProducts() {
                                               <p>{isOversell ? "⚠️ Đơn quá số" : `Đơn: ${order.order_code} - SL: ${order.quantity}`}</p>
                                             </TooltipContent>
                                           </Tooltip>
-                                        </TooltipProvider>
-                                      );
-                                    })}
-                                    {selectedPhase !== "all" && (
-                                      <QuickAddOrder 
-                                        productId={product.id}
-                                        phaseId={selectedPhase}
-                                        sessionId={selectedSession}
-                                        availableQuantity={product.prepared_quantity - product.sold_quantity}
-                                        onOrderAdded={(qty) => handleOrderAdded(product.id, qty)}
-                                      />
-                                    )}
+                                        </TooltipProvider>;
+                              })}
+                                    {selectedPhase !== "all" && <QuickAddOrder productId={product.id} phaseId={selectedPhase} sessionId={selectedSession} availableQuantity={product.prepared_quantity - product.sold_quantity} onOrderAdded={qty => handleOrderAdded(product.id, qty)} />}
                                   </div>
                                 </TableCell>
                                 <TableCell className="text-center">
                                   <div className="flex items-center justify-center gap-2">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => changeToHangDatMutation.mutate(product.id)}
-                                      disabled={selectedPhase === "all"}
-                                      className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                      title={selectedPhase === "all" ? "Chọn phiên live cụ thể" : "Chuyển về Hàng Đặt"}
-                                    >
+                                    <Button variant="ghost" size="sm" onClick={() => changeToHangDatMutation.mutate(product.id)} disabled={selectedPhase === "all"} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50" title={selectedPhase === "all" ? "Chọn phiên live cụ thể" : "Chuyển về Hàng Đặt"}>
                                       <Package className="h-4 w-4" />
                                     </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => handleEditProduct(product)}
-                                      disabled={selectedPhase === "all"}
-                                      title={selectedPhase === "all" ? "Chọn phiên live cụ thể" : "Chỉnh sửa"}
-                                    >
+                                    <Button variant="ghost" size="sm" onClick={() => handleEditProduct(product)} disabled={selectedPhase === "all"} title={selectedPhase === "all" ? "Chọn phiên live cụ thể" : "Chỉnh sửa"}>
                                       <Edit className="h-4 w-4" />
                                     </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => handleDeleteProduct(product.id)}
-                                      disabled={selectedPhase === "all"}
-                                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                      title={selectedPhase === "all" ? "Chọn phiên live cụ thể" : "Xóa"}
-                                    >
+                                    <Button variant="ghost" size="sm" onClick={() => handleDeleteProduct(product.id)} disabled={selectedPhase === "all"} className="text-red-600 hover:text-red-700 hover:bg-red-50" title={selectedPhase === "all" ? "Chọn phiên live cụ thể" : "Xóa"}>
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
                                   </div>
                                 </TableCell>
-                              </TableRow>
-                            );
-                          });
-                        })()}
+                              </TableRow>;
+                      });
+                    })()}
                       </TableBody>
                     </Table>
                   </Card>
-                </>
-              )}
+                </>}
             </TabsContent>
 
             <TabsContent value="orders" className="space-y-4">
-              {ordersWithProducts.length === 0 ? (
-                <Card>
+              {ordersWithProducts.length === 0 ? <Card>
                   <CardContent className="flex flex-col items-center justify-center py-12">
                     <ShoppingCart className="h-12 w-12 text-muted-foreground mb-4" />
                     <h3 className="text-lg font-semibold mb-2">Chưa có đơn hàng nào</h3>
@@ -2325,19 +1898,13 @@ export default function LiveProducts() {
                       Đơn hàng sẽ xuất hiện ở đây khi có người mua sản phẩm
                     </p>
                   </CardContent>
-                </Card>
-              ) : (
-                <>
+                </Card> : <>
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                       <h3 className="text-lg font-semibold">Danh sách đơn hàng</h3>
                       <Badge variant="outline">{ordersWithProducts.length} đơn</Badge>
                     </div>
-                    <Button
-                      variant="default"
-                      onClick={() => setIsUploadLiveOrdersOpen(true)}
-                      disabled={!selectedSession || selectedPhase !== "all" || ordersWithProducts.length === 0}
-                    >
+                    <Button variant="default" onClick={() => setIsUploadLiveOrdersOpen(true)} disabled={!selectedSession || selectedPhase !== "all" || ordersWithProducts.length === 0}>
                       <Upload className="h-4 w-4 mr-2" />
                       Upload TPOS
                     </Button>
@@ -2357,86 +1924,60 @@ export default function LiveProducts() {
               </TableHeader>
                     <TableBody>
                       {(() => {
-                        // Group orders by order_code
-                        const orderGroups = ordersWithProducts.reduce((groups, order) => {
-                          if (!groups[order.order_code]) {
-                            groups[order.order_code] = [];
+                      // Group orders by order_code
+                      const orderGroups = ordersWithProducts.reduce((groups, order) => {
+                        if (!groups[order.order_code]) {
+                          groups[order.order_code] = [];
+                        }
+                        groups[order.order_code].push(order);
+                        return groups;
+                      }, {} as Record<string, typeof ordersWithProducts>);
+                      return Object.entries(orderGroups).flatMap(([orderCode, orders], groupIndex) => {
+                        // Group by product_code within order_code
+                        const productGroups = orders.reduce((groups, order) => {
+                          const key = order.product_code;
+                          if (!groups[key]) {
+                            groups[key] = {
+                              product_code: order.product_code,
+                              product_name: order.product_name,
+                              live_product_id: order.live_product_id,
+                              total_quantity: 0,
+                              orders: [] as OrderWithProduct[]
+                            };
                           }
-                          groups[order.order_code].push(order);
+                          groups[key].total_quantity += order.quantity;
+                          groups[key].orders.push(order);
                           return groups;
-                        }, {} as Record<string, typeof ordersWithProducts>);
+                        }, {} as Record<string, {
+                          product_code: string;
+                          product_name: string;
+                          live_product_id: string;
+                          total_quantity: number;
+                          orders: OrderWithProduct[];
+                        }>);
+                        const aggregatedProducts = Object.values(productGroups);
 
-                        return Object.entries(orderGroups).flatMap(([orderCode, orders], groupIndex) => {
-                          // Group by product_code within order_code
-                          const productGroups = orders.reduce((groups, order) => {
-                            const key = order.product_code;
-                            if (!groups[key]) {
-                              groups[key] = {
-                                product_code: order.product_code,
-                                product_name: order.product_name,
-                                live_product_id: order.live_product_id,
-                                total_quantity: 0,
-                                orders: [] as OrderWithProduct[]
-                              };
-                            }
-                            groups[key].total_quantity += order.quantity;
-                            groups[key].orders.push(order);
-                            return groups;
-                          }, {} as Record<string, {
-                            product_code: string;
-                            product_name: string;
-                            live_product_id: string;
-                            total_quantity: number;
-                            orders: OrderWithProduct[];
-                          }>);
+                        // Check if any order in this group is oversell
+                        const hasOversell = aggregatedProducts.some(p => p.orders.some(order => order.is_oversell));
+                        return aggregatedProducts.map((product, index) => {
+                          // Only show oversell color in Orders tab
+                          let bgColorClass = groupIndex % 2 === 1 ? 'bg-muted/30' : '';
 
-                          const aggregatedProducts = Object.values(productGroups);
-
-                          // Check if any order in this group is oversell
-                          const hasOversell = aggregatedProducts.some(p => 
-                            p.orders.some(order => order.is_oversell)
-                          );
-                          
-                            return aggregatedProducts.map((product, index) => {
-                             // Only show oversell color in Orders tab
-                             let bgColorClass = groupIndex % 2 === 1 ? 'bg-muted/30' : '';
-                             
-                             // Check if any order in this product group has oversell
-                             if (hasOversell) {
-                               bgColorClass = 'bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-900';
-                             }
-                            
-                            return (
-                            <TableRow 
-                              key={`${orderCode}-${product.product_code}`}
-                              id={orders[0]?.tpos_order_id || undefined}
-                              className={`h-12 ${
-                                index === aggregatedProducts.length - 1 
-                                  ? 'border-b-2 border-border/60' 
-                                  : 'border-b border-border/20'
-                              } ${bgColorClass}`}
-                            >
-                    {index === 0 && (
-                      <TableCell 
-                        rowSpan={aggregatedProducts.length} 
-                        className="font-medium align-middle border-r border-l text-center"
-                      >
+                          // Check if any order in this product group has oversell
+                          if (hasOversell) {
+                            bgColorClass = 'bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-900';
+                          }
+                          return <TableRow key={`${orderCode}-${product.product_code}`} id={orders[0]?.tpos_order_id || undefined} className={`h-12 ${index === aggregatedProducts.length - 1 ? 'border-b-2 border-border/60' : 'border-b border-border/20'} ${bgColorClass}`}>
+                    {index === 0 && <TableCell rowSpan={aggregatedProducts.length} className="font-medium align-middle border-r border-l text-center">
                         <div className="flex flex-col items-center justify-center gap-2">
                           <div className="flex items-center gap-2">
-                            {hasOversell && (
-                              <AlertTriangle className="h-5 w-5 text-yellow-500" />
-                            )}
-                            <Badge className={`text-base font-bold font-mono px-3 py-1.5 ${
-                              hasOversell 
-                                ? 'bg-yellow-500 text-white hover:bg-yellow-600 dark:bg-yellow-600 dark:hover:bg-yellow-700'
-                                : 'bg-primary text-primary-foreground'
-                            }`}>
+                            {hasOversell && <AlertTriangle className="h-5 w-5 text-yellow-500" />}
+                            <Badge className={`text-base font-bold font-mono px-3 py-1.5 ${hasOversell ? 'bg-yellow-500 text-white hover:bg-yellow-600 dark:bg-yellow-600 dark:hover:bg-yellow-700' : 'bg-primary text-primary-foreground'}`}>
                               {orderCode}
                             </Badge>
                           </div>
                         </div>
-                      </TableCell>
-                    )}
+                      </TableCell>}
                               <TableCell className="py-2 border-r">
                                 <div className="font-medium text-sm">{product.product_name}</div>
                               </TableCell>
@@ -2448,128 +1989,85 @@ export default function LiveProducts() {
                               </TableCell>
                               <TableCell className="text-center py-2 border-r">
                                 <div className="flex items-center justify-center gap-1">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleEditOrderItem(product)}
-                                    className="h-7 w-7 p-0"
-                                  >
+                                  <Button variant="ghost" size="sm" onClick={() => handleEditOrderItem(product)} className="h-7 w-7 p-0">
                                     <Pencil className="h-3.5 w-3.5" />
                                   </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleDeleteAggregatedProduct(product)}
-                                    className="text-red-600 hover:text-red-700 h-7 w-7 p-0"
-                                  >
+                                  <Button variant="ghost" size="sm" onClick={() => handleDeleteAggregatedProduct(product)} className="text-red-600 hover:text-red-700 h-7 w-7 p-0">
                                     <Trash2 className="h-3.5 w-3.5" />
                                   </Button>
                                 </div>
                               </TableCell>
-                              {index === 0 && (
-                                  <TableCell 
-                                    rowSpan={aggregatedProducts.length}
-                                    className="text-center py-2 align-middle border-r"
-                                  >
+                              {index === 0 && <TableCell rowSpan={aggregatedProducts.length} className="text-center py-2 align-middle border-r">
                                     <div className="flex items-center justify-center">
                                       <label className="flex items-center gap-1.5 cursor-pointer">
-                                        <input
-                                          type="checkbox"
-                                          className="sr-only"
-                                          defaultChecked={false}
-                                          onChange={(e) => {
-                                            const statusElement = e.target.nextElementSibling;
-                                            const dot = statusElement?.querySelector('.status-dot');
-                                            const text = statusElement?.querySelector('.status-text');
-                                            if (e.target.checked) {
-                                              dot?.classList.remove('bg-red-500');
-                                              dot?.classList.add('bg-green-500');
-                                              text?.classList.remove('text-red-600');
-                                              text?.classList.add('text-green-600');
-                                              if (text) text.textContent = 'Hoàn tất';
-                                            } else {
-                                              dot?.classList.remove('bg-green-500');
-                                              dot?.classList.add('bg-red-500');
-                                              text?.classList.remove('text-green-600');
-                                              text?.classList.add('text-red-600');
-                                              if (text) text.textContent = 'Đang chờ';
-                                            }
-                                          }}
-                                        />
+                                        <input type="checkbox" className="sr-only" defaultChecked={false} onChange={e => {
+                                    const statusElement = e.target.nextElementSibling;
+                                    const dot = statusElement?.querySelector('.status-dot');
+                                    const text = statusElement?.querySelector('.status-text');
+                                    if (e.target.checked) {
+                                      dot?.classList.remove('bg-red-500');
+                                      dot?.classList.add('bg-green-500');
+                                      text?.classList.remove('text-red-600');
+                                      text?.classList.add('text-green-600');
+                                      if (text) text.textContent = 'Hoàn tất';
+                                    } else {
+                                      dot?.classList.remove('bg-green-500');
+                                      dot?.classList.add('bg-red-500');
+                                      text?.classList.remove('text-green-600');
+                                      text?.classList.add('text-red-600');
+                                      if (text) text.textContent = 'Đang chờ';
+                                    }
+                                  }} />
                                         <div className="flex items-center gap-1">
                                           <div className="status-dot w-2.5 h-2.5 rounded-full bg-red-500"></div>
                                           <span className="status-text text-xs text-red-600 font-medium">Đang chờ</span>
                                         </div>
                                       </label>
                                     </div>
-                                  </TableCell>
-                              )}
-                              {index === 0 && (
-                                <TableCell 
-                                  rowSpan={aggregatedProducts.length}
-                                  className="text-center py-2 align-middle border-r"
-                                >
+                                  </TableCell>}
+                              {index === 0 && <TableCell rowSpan={aggregatedProducts.length} className="text-center py-2 align-middle border-r">
                                   <div className="flex flex-col gap-1 items-center">
                                     {(() => {
-                                      const uploadStatus = orders[0]?.upload_status;
-                                      const uploadedAt = orders[0]?.uploaded_at;
-
-                                      if (!uploadStatus) {
-                                        return <span className="text-xs text-muted-foreground">Chưa upload</span>;
-                                      }
-
-                                      const timestamp = uploadedAt ? new Date(uploadedAt) : null;
-                                      const timeStr = timestamp ? timestamp.toLocaleString('vi-VN', {
-                                        day: '2-digit',
-                                        month: '2-digit',
-                                        hour: '2-digit',
-                                        minute: '2-digit'
-                                      }) : '';
-
-                                      return (
-                                        <div className="flex flex-col gap-1 items-center">
-                                          <Badge 
-                                            variant={uploadStatus === 'success' ? 'default' : 'destructive'}
-                                            className={uploadStatus === 'success' ? 'bg-green-600' : ''}
-                                          >
+                                  const uploadStatus = orders[0]?.upload_status;
+                                  const uploadedAt = orders[0]?.uploaded_at;
+                                  if (!uploadStatus) {
+                                    return <span className="text-xs text-muted-foreground">Chưa upload</span>;
+                                  }
+                                  const timestamp = uploadedAt ? new Date(uploadedAt) : null;
+                                  const timeStr = timestamp ? timestamp.toLocaleString('vi-VN', {
+                                    day: '2-digit',
+                                    month: '2-digit',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  }) : '';
+                                  return <div className="flex flex-col gap-1 items-center">
+                                          <Badge variant={uploadStatus === 'success' ? 'default' : 'destructive'} className={uploadStatus === 'success' ? 'bg-green-600' : ''}>
                                             {uploadStatus === 'success' ? 'Thành công' : 'Thất bại'}
                                           </Badge>
-                                          {timeStr && (
-                                            <span className="text-xs text-muted-foreground">{timeStr}</span>
-                                          )}
-                                        </div>
-                                      );
-                                    })()}
+                                          {timeStr && <span className="text-xs text-muted-foreground">{timeStr}</span>}
+                                        </div>;
+                                })()}
                                   </div>
-                                </TableCell>
-                              )}
-                            </TableRow>
-                            );
-                          });
+                                </TableCell>}
+                            </TableRow>;
                         });
-                      })()}
+                      });
+                    })()}
                     </TableBody>
                   </Table>
                 </Card>
-                </>
-              )}
+                </>}
             </TabsContent>
 
             {/* Supplier Stats Tab */}
             <TabsContent value="supplier-stats" className="space-y-4">
-              <LiveSupplierStats 
-                liveProducts={liveProducts}
-                sessionId={selectedSession}
-                phaseId={selectedPhase}
-              />
+              <LiveSupplierStats liveProducts={liveProducts} sessionId={selectedSession} phaseId={selectedPhase} />
             </TabsContent>
           </Tabs>
-        </>
-      )}
+        </>}
 
       {/* Empty States */}
-      {liveSessions.length === 0 && (
-        <Card>
+      {liveSessions.length === 0 && <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">Chưa có đợt live nào</h3>
@@ -2581,11 +2079,9 @@ export default function LiveProducts() {
               Tạo đợt Live mới
             </Button>
           </CardContent>
-        </Card>
-      )}
+        </Card>}
 
-      {selectedSession && !selectedPhase && livePhases.length === 0 && (
-        <Card>
+      {selectedSession && !selectedPhase && livePhases.length === 0 && <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <ListOrdered className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">Đợt live chưa có phiên nào</h3>
@@ -2593,75 +2089,42 @@ export default function LiveProducts() {
               Có vẻ như đợt live này được tạo bằng hệ thống cũ. Vui lòng tạo đợt live mới để sử dụng tính năng mới.
             </p>
           </CardContent>
-        </Card>
-      )}
+        </Card>}
 
       {/* Dialogs */}
-      <CreateLiveSessionDialog 
-        open={isCreateSessionOpen} 
-        onOpenChange={setIsCreateSessionOpen} 
-      />
+      <CreateLiveSessionDialog open={isCreateSessionOpen} onOpenChange={setIsCreateSessionOpen} />
       
-      <EditLiveSessionDialog 
-        open={isEditSessionOpen}
-        onOpenChange={setIsEditSessionOpen}
-        session={editingSession}
-      />
+      <EditLiveSessionDialog open={isEditSessionOpen} onOpenChange={setIsEditSessionOpen} session={editingSession} />
 
-      <AddProductToLiveDialog 
-        open={isAddProductOpen}
-        onOpenChange={setIsAddProductOpen}
-        phaseId={selectedPhase}
-        sessionId={selectedSession}
-        onProductAdded={() => {
-          productListRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
-      />
+      <AddProductToLiveDialog open={isAddProductOpen} onOpenChange={setIsAddProductOpen} phaseId={selectedPhase} sessionId={selectedSession} onProductAdded={() => {
+        productListRef.current?.scrollTo({
+          top: 0,
+          behavior: 'smooth'
+        });
+      }} />
 
-      <SelectProductFromInventoryDialog
-        open={isSelectFromInventoryOpen}
-        onOpenChange={setIsSelectFromInventoryOpen}
-        phaseId={selectedPhase}
-        sessionId={selectedSession}
-      />
+      <SelectProductFromInventoryDialog open={isSelectFromInventoryOpen} onOpenChange={setIsSelectFromInventoryOpen} phaseId={selectedPhase} sessionId={selectedSession} />
 
-      <EditProductDialog 
-        open={isEditProductOpen}
-        onOpenChange={setIsEditProductOpen}
-        product={editingProduct}
-      />
+      <EditProductDialog open={isEditProductOpen} onOpenChange={setIsEditProductOpen} product={editingProduct} />
 
-      <EditOrderItemDialog 
-        open={isEditOrderItemOpen}
-        onOpenChange={setIsEditOrderItemOpen}
-        orderItem={editingOrderItem}
-        phaseId={selectedPhase}
-      />
+      <EditOrderItemDialog open={isEditOrderItemOpen} onOpenChange={setIsEditOrderItemOpen} orderItem={editingOrderItem} phaseId={selectedPhase} />
 
-      <UploadLiveOrdersToTPOSDialog
-        open={isUploadLiveOrdersOpen}
-        onOpenChange={setIsUploadLiveOrdersOpen}
-        ordersWithProducts={ordersWithProducts}
-        sessionId={selectedSession}
-      />
+      <UploadLiveOrdersToTPOSDialog open={isUploadLiveOrdersOpen} onOpenChange={setIsUploadLiveOrdersOpen} ordersWithProducts={ordersWithProducts} sessionId={selectedSession} />
 
       {/* Floating Action Buttons */}
-      {selectedPhase && selectedPhase !== "all" && (
-        <div className="fixed top-6 right-6 flex flex-col gap-3 z-50">
+      {selectedPhase && selectedPhase !== "all" && <div className="fixed top-6 right-6 flex flex-col gap-3 z-50">
           {/* Thêm sản phẩm mới */}
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  size="lg"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    tabsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    setIsAddProductOpen(true);
-                  }}
-                  className="h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-shadow"
-                >
+                <Button type="button" size="lg" onClick={e => {
+                e.preventDefault();
+                tabsRef.current?.scrollIntoView({
+                  behavior: 'smooth',
+                  block: 'start'
+                });
+                setIsAddProductOpen(true);
+              }} className="h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-shadow">
                   <Plus className="h-6 w-6" />
                 </Button>
               </TooltipTrigger>
@@ -2675,16 +2138,10 @@ export default function LiveProducts() {
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  size="lg"
-                  variant="secondary"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setIsSelectFromInventoryOpen(true);
-                  }}
-                  className="h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-shadow"
-                >
+                <Button type="button" size="lg" variant="secondary" onClick={e => {
+                e.preventDefault();
+                setIsSelectFromInventoryOpen(true);
+              }} className="h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-shadow">
                   <Package className="h-6 w-6" />
                 </Button>
               </TooltipTrigger>
@@ -2693,31 +2150,12 @@ export default function LiveProducts() {
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-        </div>
-      )}
+        </div>}
       </div>
 
       {/* Comments Sidebar - outside content wrapper */}
-      {commentsVideoId && (
-        <CommentsSidebar
-          isOpen={isCommentsPanelOpen}
-          onClose={() => setIsCommentsPanelOpen(false)}
-        >
-          <LiveCommentsPanel
-            pageId={commentsPageId}
-            videoId={commentsVideoId}
-            comments={comments}
-            ordersData={ordersData}
-            newCommentIds={newCommentIds}
-            showOnlyWithOrders={showOnlyWithOrders}
-            hideNames={hideNames}
-            isLoading={commentsLoading || isFetchingNextPage}
-            onLoadMore={() => fetchNextPage()}
-            hasMore={hasNextPage}
-            onRefresh={refetchComments}
-          />
-        </CommentsSidebar>
-      )}
-    </div>
-  );
+      {commentsVideoId && <CommentsSidebar isOpen={isCommentsPanelOpen} onClose={() => setIsCommentsPanelOpen(false)}>
+          <LiveCommentsPanel pageId={commentsPageId} videoId={commentsVideoId} comments={comments} ordersData={ordersData} newCommentIds={newCommentIds} showOnlyWithOrders={showOnlyWithOrders} hideNames={hideNames} isLoading={commentsLoading || isFetchingNextPage} onLoadMore={() => fetchNextPage()} hasMore={hasNextPage} onRefresh={refetchComments} />
+        </CommentsSidebar>}
+    </div>;
 }
