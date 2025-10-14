@@ -209,11 +209,6 @@ export function SelectProductFromInventoryDialog({
                                 )}
                               </div>
                             </div>
-                            {product.purchase_price && (
-                              <div className="text-xs text-muted-foreground mt-1">
-                                Giá nhập: {product.purchase_price.toLocaleString('vi-VN')}đ
-                              </div>
-                            )}
                           </div>
                         </div>
                       </CardContent>
