@@ -10,6 +10,7 @@ import { OrderBillNotification } from './OrderBillNotification';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { getActivePrinter, printToXC80 } from '@/lib/printer-utils';
 
 interface QuickAddOrderProps {
   productId: string;
@@ -236,7 +237,7 @@ export function QuickAddOrder({ productId, phaseId, sessionId, availableQuantity
         } : null
       };
     },
-    onSuccess: ({ sessionIndex, isOversell, billData }) => {
+    onSuccess: async ({ sessionIndex, isOversell, billData }) => {
       setInputValue('');
       // Force refetch all related queries immediately
       queryClient.invalidateQueries({ queryKey: ['live-orders', phaseId] });
@@ -250,84 +251,124 @@ export function QuickAddOrder({ productId, phaseId, sessionId, availableQuantity
       queryClient.refetchQueries({ queryKey: ['orders-with-products', phaseId] });
       queryClient.refetchQueries({ queryKey: ['facebook-pending-orders', phaseData?.phase_date] });
       
-      // Print bill automatically
+      // Auto-print bill
       if (billData) {
-        const billHtml = `
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <meta charset="UTF-8">
-            <style>
-              body { 
-                margin: 0; 
-                padding: 20px; 
-                font-family: Tahoma, sans-serif; 
-              }
-              .bill-container {
-                display: flex;
-                flex-direction: column;
-                gap: 0;
-                text-align: center;
-                line-height: 2.0;
-              }
-              .session-name {
-                font-size: 19.5pt;
-                font-weight: bold;
-                line-height: 2.0;
-              }
-              .phone {
-                font-size: 8pt;
-                font-weight: bold;
-                line-height: 2.0;
-              }
-              .product {
-                font-size: 10pt;
-                font-weight: bold;
-                line-height: 2.0;
-              }
-              .comment {
-                font-size: 15pt;
-                font-weight: bold;
-                font-style: italic;
-                color: #000;
-                line-height: 2.0;
-              }
-              .time {
-                font-size: 6pt;
-                font-weight: bold;
-                color: #000;
-                line-height: 2.0;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="bill-container">
-              <div class="session-name">#${billData.sessionIndex} - ${billData.customerName}</div>
-              <div class="phone">${billData.phone || 'Chưa có SĐT'}</div>
-              <div class="product">${billData.productCode} - ${billData.productName.replace(/^\d+\s+/, '')}</div>
-              ${billData.comment ? `<div class="comment">${billData.comment}</div>` : ''}
-              <div class="time">${new Date(billData.createdTime).toLocaleString('vi-VN', { 
-                timeZone: 'Asia/Bangkok',
-                day: '2-digit',
-                month: '2-digit', 
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              })}</div>
-            </div>
-          </body>
-          </html>
-        `;
+        const activePrinter = getActivePrinter();
         
-        const printWindow = window.open('', '_blank', 'width=400,height=600');
-        if (printWindow) {
-          printWindow.document.write(billHtml);
-          printWindow.document.close();
-          printWindow.focus();
+        if (activePrinter) {
+          // Print to XC80 thermal printer
+          const billContent = `
+#${billData.sessionIndex} - ${billData.customerName}
+${billData.phone || 'Chưa có SĐT'}
+
+${billData.productCode} - ${billData.productName.replace(/^\d+\s+/, '')}
+
+${billData.comment ? `${billData.comment}\n` : ''}${new Date(billData.createdTime).toLocaleString('vi-VN', { 
+  timeZone: 'Asia/Bangkok',
+  day: '2-digit',
+  month: '2-digit', 
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit'
+})}
+--------------------------------
+          `.trim();
           
-          printWindow.onload = () => {
-            printWindow.print();
-          };
+          console.log(`🖨️ Printing to ${activePrinter.name} (${activePrinter.ipAddress}:${activePrinter.port})`);
+          
+          const printResult = await printToXC80(activePrinter, billContent);
+          
+          if (!printResult.success) {
+            console.error("Print failed:", printResult.error);
+            toast({
+              title: "⚠️ Lỗi in bill",
+              description: `Không thể in lên ${activePrinter.name}. Lỗi: ${printResult.error}`,
+              variant: "destructive",
+            });
+          } else {
+            console.log("✅ Bill printed successfully");
+          }
+        } else {
+          // Fallback: Browser print dialog nếu không có máy in active
+          console.log("⚠️ No active printer found, using browser dialog");
+          
+          const billHtml = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="UTF-8">
+              <style>
+                body { 
+                  margin: 0; 
+                  padding: 20px; 
+                  font-family: Tahoma, sans-serif; 
+                }
+                .bill-container {
+                  display: flex;
+                  flex-direction: column;
+                  gap: 0;
+                  text-align: center;
+                  line-height: 2.0;
+                }
+                .session-name {
+                  font-size: 19.5pt;
+                  font-weight: bold;
+                  line-height: 2.0;
+                }
+                .phone {
+                  font-size: 8pt;
+                  font-weight: bold;
+                  line-height: 2.0;
+                }
+                .product {
+                  font-size: 10pt;
+                  font-weight: bold;
+                  line-height: 2.0;
+                }
+                .comment {
+                  font-size: 15pt;
+                  font-weight: bold;
+                  font-style: italic;
+                  color: #000;
+                  line-height: 2.0;
+                }
+                .time {
+                  font-size: 6pt;
+                  font-weight: bold;
+                  color: #000;
+                  line-height: 2.0;
+                }
+              </style>
+            </head>
+            <body>
+              <div class="bill-container">
+                <div class="session-name">#${billData.sessionIndex} - ${billData.customerName}</div>
+                <div class="phone">${billData.phone || 'Chưa có SĐT'}</div>
+                <div class="product">${billData.productCode} - ${billData.productName.replace(/^\d+\s+/, '')}</div>
+                ${billData.comment ? `<div class="comment">${billData.comment}</div>` : ''}
+                <div class="time">${new Date(billData.createdTime).toLocaleString('vi-VN', { 
+                  timeZone: 'Asia/Bangkok',
+                  day: '2-digit',
+                  month: '2-digit', 
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}</div>
+              </div>
+            </body>
+            </html>
+          `;
+          
+          const printWindow = window.open('', '_blank', 'width=400,height=600');
+          if (printWindow) {
+            printWindow.document.write(billHtml);
+            printWindow.document.close();
+            printWindow.focus();
+            
+            printWindow.onload = () => {
+              printWindow.print();
+            };
+          }
         }
       }
       
