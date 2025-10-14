@@ -29,47 +29,38 @@ interface NetworkPrinter {
 }
 
 // XC80 Print Bridge Server Code
-const BRIDGE_SERVER_CODE = `// XC80 Print Bridge Server - TCP Socket Version with Vietnamese Support
-// Dependencies: express + cors + iconv-lite
+const BRIDGE_SERVER_CODE = `// XC80 Print Bridge Server - TCP Socket Version
+// Chỉ cần: express + cors (KHÔNG cần package 'printer')
 const express = require('express');
 const cors = require('cors');
 const net = require('net'); // Built-in Node.js module
-const iconv = require('iconv-lite'); // For Vietnamese encoding
 const app = express();
 
 app.use(cors());
-app.use(express.json({ 
-  type: 'application/json',
-  limit: '10mb',
-  verify: (req, res, buf) => {
-    // Force UTF-8 decoding
-    req.rawBody = buf.toString('utf8');
-  }
-}));
+app.use(express.json());
 
 // Store printer configurations
 const printers = new Map();
 
-// Helper: Convert text to ESC/POS commands for XC80 with Vietnamese support
+// Helper: Convert text to ESC/POS commands for XC80
 function textToESCPOS(text) {
-    // Convert UTF-8 text to Windows-1258 (Vietnamese codepage)
-    const vietnameseText = iconv.encode(text, 'win1258');
+    const ESC = '\\x1B';
+    const GS = '\\x1D';
     
-    // ESC/POS initialization commands
-    const initCommands = Buffer.from([
-        0x1B, 0x40,          // ESC @ - Initialize printer
-        0x1B, 0x74, 0x16,    // ESC t 22 - Set codepage 22 (Windows-1258)
-        0x1B, 0x61, 0x01,    // ESC a 1 - Center align
-    ]);
+    // ESC/POS commands
+    const commands = [
+        ESC + '@',           // Initialize printer
+        ESC + 'a' + '\\x01',  // Center align
+    ];
     
-    // Paper cut and feed commands
-    const cutCommands = Buffer.from([
-        0x0A, 0x0A, 0x0A,    // Line feeds
-        0x1D, 0x56, 0x41, 0x03  // GS V 65 3 - Partial cut
-    ]);
+    // Add text content
+    commands.push(text);
     
-    // Combine: init + text + cut
-    return Buffer.concat([initCommands, vietnameseText, cutCommands]);
+    // Add paper cut and feed
+    commands.push('\\n\\n\\n');
+    commands.push(GS + 'V' + '\\x41' + '\\x03'); // Partial cut
+    
+    return commands.join('');
 }
 
 // Print via TCP Socket
@@ -85,19 +76,15 @@ async function printToNetwork(ipAddress, port, data) {
             clearTimeout(timeout);
             console.log(\`✅ Connected to printer at \${ipAddress}:\${port}\`);
             
-            // Convert text to ESC/POS Buffer
-            const printData = typeof data === 'string' 
-                ? textToESCPOS(data) 
-                : (Buffer.isBuffer(data) ? data : Buffer.from(data));
-            
-            console.log(\`📄 Sending \${printData.length} bytes to printer\`);
+            // Convert text to ESC/POS if needed
+            const printData = typeof data === 'string' ? textToESCPOS(data) : data;
             
             client.write(printData, (err) => {
                 if (err) {
                     client.destroy();
                     reject(err);
                 } else {
-                    console.log('✅ Data sent successfully');
+                    console.log('📄 Data sent to printer');
                     client.end();
                 }
             });
@@ -359,16 +346,15 @@ app.listen(PORT, () => {
 
 const PACKAGE_JSON = `{
   "name": "xc80-print-bridge",
-  "version": "2.0.1",
-  "description": "TCP-based print bridge for XC80 thermal printers with Vietnamese support",
+  "version": "2.0.0",
+  "description": "Simple TCP-based print bridge for XC80 thermal printers",
   "main": "xc80-print-bridge.js",
   "scripts": {
     "start": "node xc80-print-bridge.js"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "cors": "^2.8.5",
-    "iconv-lite": "^0.6.3"
+    "cors": "^2.8.5"
   }
 }`;
 

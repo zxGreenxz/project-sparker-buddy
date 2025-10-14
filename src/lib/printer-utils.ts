@@ -40,9 +40,7 @@ export const printToXC80 = async (
   try {
     const response = await fetch(`${printer.bridgeUrl}/print`, {
       method: "POST",
-      headers: { 
-        "Content-Type": "application/json; charset=utf-8" 
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ipAddress: printer.ipAddress,
         port: printer.port,
