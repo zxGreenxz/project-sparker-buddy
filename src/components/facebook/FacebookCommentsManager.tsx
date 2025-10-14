@@ -1179,7 +1179,7 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
                                 </div>
                                   <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="font-semibold text-sm">{comment.from?.name}</span>
+                                    <span className="font-semibold text-lg">{comment.from?.name}</span>
                                     {comment.partnerStatus && comment.partnerStatus !== 'Khách lạ' && comment.partnerStatus !== 'Cần thêm TT' && (
                                       <Badge 
                                         variant={
@@ -1213,7 +1213,7 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
                                     </span>
                                   </div>
                                   
-                                  <p className="text-sm font-semibold whitespace-pre-wrap break-words mt-1.5">
+                                  <p className="text-lg font-semibold whitespace-pre-wrap break-words mt-1.5">
                                     {comment.message}
                                   </p>
                                   
