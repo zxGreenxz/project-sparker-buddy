@@ -33,9 +33,10 @@ interface SelectProductDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelect: (product: Product) => void;
+  hidePurchasePrice?: boolean;
 }
 
-export function SelectProductDialog({ open, onOpenChange, onSelect }: SelectProductDialogProps) {
+export function SelectProductDialog({ open, onOpenChange, onSelect, hidePurchasePrice = false }: SelectProductDialogProps) {
   const isMobile = useIsMobile();
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearch = useDebounce(searchQuery, 300);
@@ -125,11 +126,13 @@ export function SelectProductDialog({ open, onOpenChange, onSelect }: SelectProd
                           {product.product_code}
                           {product.variant && ` - ${product.variant}`}
                         </div>
-                        <div className="grid grid-cols-2 gap-2 text-sm">
-                          <div>
-                            <span className="text-muted-foreground">Giá mua: </span>
-                            <span className="font-medium">{formatVND(product.purchase_price)}</span>
-                          </div>
+                        <div className={hidePurchasePrice ? "text-sm" : "grid grid-cols-2 gap-2 text-sm"}>
+                          {!hidePurchasePrice && (
+                            <div>
+                              <span className="text-muted-foreground">Giá mua: </span>
+                              <span className="font-medium">{formatVND(product.purchase_price)}</span>
+                            </div>
+                          )}
                           <div>
                             <span className="text-muted-foreground">Giá bán: </span>
                             <span className="font-medium">{formatVND(product.selling_price)}</span>
@@ -178,7 +181,7 @@ export function SelectProductDialog({ open, onOpenChange, onSelect }: SelectProd
                   <TableHead>Mã SP</TableHead>
                   <TableHead>Tên sản phẩm</TableHead>
                   <TableHead>Variant</TableHead>
-                  <TableHead>Giá mua</TableHead>
+                  {!hidePurchasePrice && <TableHead>Giá mua</TableHead>}
                   <TableHead>Giá bán</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
@@ -198,7 +201,7 @@ export function SelectProductDialog({ open, onOpenChange, onSelect }: SelectProd
                   ))
                 ) : products.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={hidePurchasePrice ? 6 : 7} className="text-center py-8 text-muted-foreground">
                       {debouncedSearch.length >= 2 ? "Không tìm thấy sản phẩm phù hợp" : "Chưa có sản phẩm nào"}
                     </TableCell>
                   </TableRow>
@@ -219,7 +222,7 @@ export function SelectProductDialog({ open, onOpenChange, onSelect }: SelectProd
                       <TableCell className="text-muted-foreground">
                         {product.variant || "-"}
                       </TableCell>
-                      <TableCell>{formatVND(product.purchase_price)}</TableCell>
+                      {!hidePurchasePrice && <TableCell>{formatVND(product.purchase_price)}</TableCell>}
                       <TableCell>{formatVND(product.selling_price)}</TableCell>
                       <TableCell>
                         <Button

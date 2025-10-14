@@ -855,6 +855,7 @@ export function AddProductToLiveDialog({ open, onOpenChange, phaseId, sessionId,
         open={isSelectProductOpen}
         onOpenChange={setIsSelectProductOpen}
         onSelect={handleSelectProduct}
+        hidePurchasePrice={true}
       />
     </Dialog>
   );
