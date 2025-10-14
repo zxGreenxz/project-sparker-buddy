@@ -18,10 +18,11 @@ export function CommentsSidebar({ isOpen, onClose, children }: CommentsSidebarPr
         "fixed top-0 right-0 h-full bg-background border-l shadow-lg z-50",
         isMobile ? "w-full" : "w-[400px] sm:w-[450px]",
         "transition-transform duration-300 ease-in-out",
-        isOpen ? "translate-x-0" : "translate-x-full"
+        isOpen ? "translate-x-0" : "translate-x-full",
+        !isOpen && "pointer-events-none"
       )}
       onMouseLeave={() => {
-        if (isOpen && !isMobile) {
+        if (!isMobile) {
           onClose();
         }
       }}
