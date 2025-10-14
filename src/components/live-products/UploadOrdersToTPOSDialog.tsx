@@ -71,6 +71,18 @@ export function UploadOrdersToTPOSDialog({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<Map<string, { status: 'pending' | 'uploading' | 'success' | 'failed'; message: string }>>(new Map());
 
+  // Get session_index from orders
+  const getSessionIndexFromOrders = () => {
+    if (orders.length === 0) return null;
+    
+    // Lấy order_code đầu tiên làm session_index
+    const firstOrderCode = orders[0].order_code;
+    
+    // Parse số từ order_code
+    const match = firstOrderCode.match(/\d+/);
+    return match ? parseInt(match[0]) : null;
+  };
+
   // Fetch session info
   const { data: sessionData } = useQuery({
     queryKey: ['live-session', sessionId],
@@ -85,13 +97,7 @@ export function UploadOrdersToTPOSDialog({
 
       if (error) throw error;
       
-      // Extract session index from session_name (e.g., "Đợt 3" -> 3)
-      const sessionIndex = data.session_name?.match(/\d+/)?.[0] || '1';
-      
-      return {
-        ...data,
-        session_index: parseInt(sessionIndex),
-      };
+      return data;
     },
     enabled: !!sessionId && open,
   });
@@ -131,6 +137,12 @@ export function UploadOrdersToTPOSDialog({
   const handleFetchTPOSOrders = async () => {
     if (!sessionData) return;
 
+    const sessionIndex = getSessionIndexFromOrders();
+    if (!sessionIndex) {
+      toast.error("Không tìm thấy session index từ đơn hàng");
+      return;
+    }
+
     setIsFetchingOrders(true);
     setTPOSOrders([]);
     
@@ -146,12 +158,12 @@ export function UploadOrdersToTPOSDialog({
       console.log('📅 Fetching TPOS orders:', {
         start_date: sessionData.start_date,
         end_date: sessionData.end_date,
-        session_index: sessionData.session_index,
+        session_index: sessionIndex,
         startDateTime,
         endDateTime,
       });
       
-      const url = `https://tomato.tpos.vn/odata/SaleOnline_Order/ODataService.GetView?$top=50&$orderby=DateCreated desc&$filter=(DateCreated ge ${startDateTime} and DateCreated le ${endDateTime} and SessionIndex eq ${sessionData.session_index})&$count=true`;
+      const url = `https://tomato.tpos.vn/odata/SaleOnline_Order/ODataService.GetView?$top=50&$orderby=DateCreated desc&$filter=(DateCreated ge ${startDateTime} and DateCreated le ${endDateTime} and SessionIndex eq ${sessionIndex})&$count=true`;
       
       const response = await fetch(url, {
         method: 'GET',
@@ -351,7 +363,7 @@ export function UploadOrdersToTPOSDialog({
           {sessionData && (
             <p className="text-sm text-muted-foreground">
               Khoảng ngày: {new Date(sessionData.start_date).toLocaleDateString('vi-VN')} - {new Date(sessionData.end_date).toLocaleDateString('vi-VN')} | 
-              Session Index: {sessionData.session_index}
+              Session Index: {getSessionIndexFromOrders() || 'N/A'}
             </p>
           )}
         </DialogHeader>
