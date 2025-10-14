@@ -83,7 +83,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
-import { useLiveCommentsSync } from "@/hooks/useLiveCommentsSync";
 
 // ============================================================================
 // TYPES & INTERFACES

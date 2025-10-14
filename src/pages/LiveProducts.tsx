@@ -1360,57 +1360,71 @@ export default function LiveProducts() {
         isCommentsPanelOpen && !isMobile ? 'mr-[450px]' : 'mr-0'
       )}>
         {/* Session Selection */}
-        {liveSessions.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Chọn đợt Live
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                Chọn đợt Live
+              </CardTitle>
+              <Button 
+                onClick={() => setIsCreateSessionOpen(true)}
+                className="flex items-center gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Tạo đợt Live mới
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium mb-2 block">Đợt Live</label>
-                <Select 
-                  value={selectedSession} 
-                  onValueChange={(value) => {
-                    setSelectedSession(value);
-                    setSelectedPhase(""); // Reset phase selection
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Chọn một đợt live" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {liveSessions.map((session) => (
-                      <SelectItem key={session.id} value={session.id}>
-                        {getSessionDisplayName(session)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {selectedSession && livePhases.length > 0 && (
+            {liveSessions.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium mb-2 block">Phiên Live</label>
-                  <Select value={selectedPhase} onValueChange={setSelectedPhase}>
+                  <label className="text-sm font-medium mb-2 block">Đợt Live</label>
+                  <Select 
+                    value={selectedSession} 
+                    onValueChange={(value) => {
+                      setSelectedSession(value);
+                      setSelectedPhase(""); // Reset phase selection
+                    }}
+                  >
                     <SelectTrigger>
-                      <SelectValue placeholder="Chọn phiên live" />
+                      <SelectValue placeholder="Chọn một đợt live" />
                     </SelectTrigger>
-                    <SelectContent className="bg-background z-50">
-                      <SelectItem value="all">📊 Tất cả phiên live</SelectItem>
-                      {livePhases.map((phase) => (
-                        <SelectItem key={phase.id} value={phase.id}>
-                          {getPhaseDisplayName(phase)}
+                    <SelectContent>
+                      {liveSessions.map((session) => (
+                        <SelectItem key={session.id} value={session.id}>
+                          {getSessionDisplayName(session)}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-              )}
-            </div>
+
+                {selectedSession && livePhases.length > 0 && (
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Phiên Live</label>
+                    <Select value={selectedPhase} onValueChange={setSelectedPhase}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Chọn phiên live" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background z-50">
+                        <SelectItem value="all">📊 Tất cả phiên live</SelectItem>
+                        {livePhases.map((phase) => (
+                          <SelectItem key={phase.id} value={phase.id}>
+                            {getPhaseDisplayName(phase)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-muted-foreground">
+                Chưa có đợt live nào. Nhấn nút "Tạo đợt Live mới" để bắt đầu.
+              </div>
+            )}
 
             {selectedSession && (
               <div className="flex gap-2 mt-4">
@@ -1448,7 +1462,6 @@ export default function LiveProducts() {
             )}
           </CardContent>
         </Card>
-      )}
 
       {/* Stats and Content */}
       {selectedPhase && (
