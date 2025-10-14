@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Video, MessageCircle, Heart, RefreshCw, Pause, Play, Search, Loader2, Facebook, ChevronDown, Copy, Maximize, Minimize, X, Plus, Check, EyeOff } from "lucide-react";
+import { Video, MessageCircle, Heart, RefreshCw, Pause, Play, Search, Loader2, Facebook, ChevronDown, Copy, Maximize, Minimize, X, Plus, Check } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
@@ -98,31 +98,6 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
   // Refs for realtime checking
   const lastKnownCountRef = useRef<number>(0);
   const isCheckingNewCommentsRef = useRef(false);
-  
-  // State for hiding comments (client-side only)
-  const [hiddenCommentIds, setHiddenCommentIds] = useState<Set<string>>(() => {
-    if (!selectedVideo?.objectId) return new Set();
-    const saved = localStorage.getItem(`liveProducts_hiddenComments_${selectedVideo.objectId}`);
-    return saved ? new Set(JSON.parse(saved)) : new Set();
-  });
-  
-  // Persist hidden comments to localStorage when changed
-  useEffect(() => {
-    if (selectedVideo?.objectId) {
-      localStorage.setItem(
-        `liveProducts_hiddenComments_${selectedVideo.objectId}`,
-        JSON.stringify([...hiddenCommentIds])
-      );
-    }
-  }, [hiddenCommentIds, selectedVideo?.objectId]);
-  
-  // Reset hidden comments when video changes
-  useEffect(() => {
-    if (selectedVideo?.objectId) {
-      const saved = localStorage.getItem(`liveProducts_hiddenComments_${selectedVideo.objectId}`);
-      setHiddenCommentIds(saved ? new Set(JSON.parse(saved)) : new Set());
-    }
-  }, [selectedVideo?.objectId]);
   const deletedCountRef = useRef<number>(0); // Track deleted comments by TPOS
 
   // Fetch Facebook pages from database
@@ -909,23 +884,9 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
       });
     }
   };
-  
-  const handleHideComment = (commentId: string) => {
-    setHiddenCommentIds(prev => {
-      const next = new Set(prev);
-      next.add(commentId);
-      return next;
-    });
-    
-    toast({
-      title: "Đã ẩn comment",
-      description: "Comment đã được ẩn khỏi danh sách (có thể hoàn tác)",
-    });
-  };
 
   const filteredComments = useMemo(() => {
     return commentsWithStatus.filter(comment => {
-      const notHiddenById = !hiddenCommentIds.has(comment.id);
       const matchesSearch = !searchQuery ||
         comment.message?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         comment.from?.name?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -933,7 +894,7 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
       const matchesOrderFilter = !showOnlyWithOrders || (comment.orderInfo && comment.orderInfo.Code);
       const notHidden = !hideNames.includes(comment.from?.name || '');
 
-      return notHiddenById && matchesSearch && matchesOrderFilter && notHidden;
+      return matchesSearch && matchesOrderFilter && notHidden;
     });
   }, [commentsWithStatus, searchQuery, showOnlyWithOrders, hideNames]);
 
@@ -1333,23 +1294,6 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
                     <div className="text-sm text-muted-foreground ml-auto">
                       Hiển thị {filteredComments.length} / {commentsWithStatus.length} comments
                     </div>
-                    {hiddenCommentIds.size > 0 && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 text-xs"
-                        onClick={() => {
-                          setHiddenCommentIds(new Set());
-                          toast({
-                            title: "Đã hiện lại tất cả comment",
-                            description: `${hiddenCommentIds.size} comment đã được hiện lại`,
-                          });
-                        }}
-                      >
-                        <EyeOff className="mr-2 h-3 w-3" />
-                        Hiện {hiddenCommentIds.size} comment đã ẩn
-                      </Button>
-                    )}
                   </div>
                 </div>
 
@@ -1622,15 +1566,6 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
                                       onClick={() => handleShowInfo(comment.orderInfo)}
                                     >
                                       Thông tin
-                                    </Button>
-                                    <Button 
-                                      size="sm" 
-                                      variant="ghost" 
-                                      className="h-7 text-xs text-muted-foreground hover:text-destructive"
-                                      onClick={() => handleHideComment(comment.id)}
-                                    >
-                                      <EyeOff className="mr-1 h-3 w-3" />
-                                      Ẩn
                                     </Button>
                                     {comment.like_count > 0 && (
                                       <span className="flex items-center gap-1 text-xs text-muted-foreground ml-auto">

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { MessageCircle, Heart, Search, Loader2, RefreshCw, EyeOff } from "lucide-react";
+import { MessageCircle, Heart, Search, Loader2, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import type { FacebookComment, CommentWithStatus, TPOSOrder } from "@/types/facebook";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -82,33 +82,6 @@ export function LiveCommentsPanel({
   const processedCommentIds = useRef<Set<string>>(new Set());
   const initialFetchDone = useRef(false);
   const [pendingCommentIds, setPendingCommentIds] = useState<Set<string>>(new Set());
-  
-  // State for hiding comments (client-side only)
-  const [hiddenCommentIds, setHiddenCommentIds] = useState<Set<string>>(() => {
-    if (!videoId) return new Set();
-    const saved = localStorage.getItem(`liveComments_hiddenComments_${videoId}`);
-    return saved ? new Set(JSON.parse(saved)) : new Set();
-  });
-  
-  // Persist hidden comments to localStorage
-  useEffect(() => {
-    if (videoId) {
-      localStorage.setItem(
-        `liveComments_hiddenComments_${videoId}`,
-        JSON.stringify([...hiddenCommentIds])
-      );
-    }
-  }, [hiddenCommentIds, videoId]);
-  
-  // Reset when video changes
-  useEffect(() => {
-    if (videoId) {
-      const saved = localStorage.getItem(`liveComments_hiddenComments_${videoId}`);
-      setHiddenCommentIds(saved ? new Set(JSON.parse(saved)) : new Set());
-    } else {
-      setHiddenCommentIds(new Set());
-    }
-  }, [videoId]);
 
   const mapStatusText = (statusText: string | null | undefined): string => {
     if (!statusText) return 'Bình thường';
@@ -501,9 +474,6 @@ export function LiveCommentsPanel({
 
   const filteredComments = useMemo(() => {
     let filtered = commentsWithStatus;
-    
-    // Filter out hidden comments
-    filtered = filtered.filter(comment => !hiddenCommentIds.has(comment.id));
 
     if (showOnlyWithOrders) {
       filtered = filtered.filter(comment => comment.orderInfo);
@@ -524,7 +494,7 @@ export function LiveCommentsPanel({
     }
 
     return filtered;
-  }, [commentsWithStatus, hiddenCommentIds, showOnlyWithOrders, hideNames, searchQuery]);
+  }, [commentsWithStatus, showOnlyWithOrders, hideNames, searchQuery]);
 
   const getStatusColor = (status: string) => {
     const statusColors: Record<string, string> = {
@@ -539,14 +509,6 @@ export function LiveCommentsPanel({
       'VIP': 'bg-amber-500',
     };
     return statusColors[status] || 'bg-gray-500';
-  };
-  
-  const handleHideComment = (commentId: string) => {
-    setHiddenCommentIds(prev => new Set(prev).add(commentId));
-    toast({
-      title: "Đã ẩn comment",
-      description: "Comment đã được ẩn khỏi danh sách",
-    });
   };
 
   return (
@@ -580,23 +542,6 @@ export function LiveCommentsPanel({
             isLoading && "animate-spin"
           )} />
         </Button>
-        {hiddenCommentIds.size > 0 && (
-          <Button
-            variant="outline"
-            size={isMobile ? "sm" : "default"}
-            className={isMobile ? "h-8 px-2 text-xs" : "h-9 px-3"}
-            onClick={() => {
-              setHiddenCommentIds(new Set());
-              toast({
-                title: "Đã hiện lại tất cả comment",
-                description: `${hiddenCommentIds.size} comment đã được hiện lại`,
-              });
-            }}
-          >
-            <EyeOff className={cn(isMobile ? "h-3.5 w-3.5 mr-1" : "h-4 w-4 mr-2")} />
-            {!isMobile && `Hiện ${hiddenCommentIds.size}`}
-          </Button>
-        )}
       </div>
 
       {/* Comments List */}
@@ -754,17 +699,6 @@ export function LiveCommentsPanel({
                       )}
                     >
                       {comment.partnerStatus}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size={isMobile ? "sm" : "default"}
-                      className={cn(
-                        "text-muted-foreground hover:text-destructive",
-                        isMobile ? "h-7 text-xs px-2" : "h-8 text-xs px-3"
-                      )}
-                      onClick={() => handleHideComment(comment.id)}
-                    >
-                      <EyeOff className={cn(isMobile ? "h-3 w-3" : "h-3.5 w-3.5")} />
                     </Button>
                   </div>
                 </div>
