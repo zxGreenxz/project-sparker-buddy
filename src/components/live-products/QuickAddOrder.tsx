@@ -24,6 +24,7 @@ type PendingOrder = {
   name: string | null;
   session_index: string | null;
   code: string | null;
+  tpos_order_id: string | null;
   phone: string | null;
   comment: string | null;
   created_time: string;
@@ -222,6 +223,8 @@ export function QuickAddOrder({ productId, phaseId, sessionId, availableQuantity
         .insert({
           order_code: sessionIndex,
           facebook_comment_id: commentId,
+          tpos_order_id: pendingOrder?.code || null,
+          code_tpos_order_id: pendingOrder?.tpos_order_id || null,
           live_session_id: sessionId,
           live_phase_id: phaseId,
           live_product_id: productId,
