@@ -1499,13 +1499,11 @@ export default function LiveProducts() {
                                    <TableCell className="text-muted-foreground">
                                      {getVariantName(product.variant)}
                                    </TableCell>
-                                   {productIndex === 0 && <>
-                                       <TableCell rowSpan={group.products.length} className="align-top border-r">
-                                         {product.image_url ? <img src={product.image_url} alt={group.product_name} className="w-12 h-12 object-cover rounded cursor-pointer transition-transform duration-200 hover:scale-[14] hover:z-50 relative origin-left" /> : <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
-                                             <Package className="h-6 w-6 text-muted-foreground" />
-                                           </div>}
-                                       </TableCell>
-                                      </>}
+                                   <TableCell className="border-r">
+                                     {product.image_url ? <img src={product.image_url} alt={group.product_name} className="w-12 h-12 object-cover rounded cursor-pointer transition-transform duration-200 hover:scale-[14] hover:z-50 relative origin-left" /> : <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
+                                         <Package className="h-6 w-6 text-muted-foreground" />
+                                       </div>}
+                                   </TableCell>
                                   <TableCell className="text-center">
                                     <div className="flex flex-col items-center gap-1">
                                       <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={async () => {
@@ -1621,19 +1619,23 @@ export default function LiveProducts() {
                                             {selectedPhase !== "all" && <QuickAddOrder productId={product.id} phaseId={selectedPhase} sessionId={selectedSession} availableQuantity={product.prepared_quantity - product.sold_quantity} onOrderAdded={qty => handleOrderAdded(product.id, qty)} />}
                                           </>;
                                 })()}
-                                    </div>
-                                  </TableCell>
-                                  {productIndex === 0 && <TableCell rowSpan={group.products.length} className="align-top border-l">
-                                      <div className="flex items-center gap-2 justify-center">
-                                        <Button variant="ghost" size="sm" onClick={() => handleEditProduct(product)}>
-                                          <Edit className="h-4 w-4" />
-                                        </Button>
-                                        <Button variant="ghost" size="sm" onClick={() => handleDeleteAllVariants(group.product_code, group.product_name)} className="text-red-600 hover:text-red-700">
-                                          <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                      </div>
-                                    </TableCell>}
-                                </TableRow>);
+                                     </div>
+                                   </TableCell>
+                                   <TableCell className="border-l">
+                                     <div className="flex items-center gap-2 justify-center">
+                                       <Button variant="ghost" size="sm" onClick={() => handleEditProduct(product)}>
+                                         <Edit className="h-4 w-4" />
+                                       </Button>
+                                       <Button variant="ghost" size="sm" onClick={() => {
+                                         if (window.confirm(`Bạn có chắc muốn xóa biến thể "${getVariantName(product.variant)}" của sản phẩm "${group.product_name}"?`)) {
+                                           deleteProductMutation.mutate(product.id);
+                                         }
+                                       }} className="text-red-600 hover:text-red-700">
+                                         <Trash2 className="h-4 w-4" />
+                                       </Button>
+                                     </div>
+                                   </TableCell>
+                                 </TableRow>);
                         });
                       })()}
                         </TableBody>
