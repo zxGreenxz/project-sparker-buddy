@@ -1180,17 +1180,14 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
                                   <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <Badge variant="default" className="text-xs font-semibold">{comment.from?.name}</Badge>
-                                    {comment.partnerStatus && comment.partnerStatus !== 'Khách lạ' && comment.partnerStatus !== 'Cần thêm TT' && (
+                                    {comment.partnerStatus && comment.partnerStatus !== 'Khách lạ' && comment.partnerStatus !== 'Cần thêm TT' && comment.partnerStatus !== 'Bình thường' && (
                                       <Badge 
                                         variant={
                                           comment.partnerStatus === 'Cảnh báo' ? 'secondary' :
                                           comment.partnerStatus === 'Bom hàng' || comment.partnerStatus === 'Nguy hiểm' ? 'destructive' :
                                           'default'
                                         }
-                                        className={cn(
-                                          "text-xs",
-                                          comment.partnerStatus === 'Bình thường' && "bg-green-400 hover:bg-green-400 text-white"
-                                        )}
+                                        className="text-xs"
                                       >
                                         {comment.partnerStatus}
                                       </Badge>
