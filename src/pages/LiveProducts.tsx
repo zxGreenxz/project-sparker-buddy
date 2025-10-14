@@ -226,6 +226,7 @@ export default function LiveProducts() {
   const [isCreateSessionOpen, setIsCreateSessionOpen] = useState(false);
   const [isEditSessionOpen, setIsEditSessionOpen] = useState(false);
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
+  const [isSessionCardCollapsed, setIsSessionCardCollapsed] = useState(false);
   const [isSelectFromInventoryOpen, setIsSelectFromInventoryOpen] = useState(false);
   const [isEditProductOpen, setIsEditProductOpen] = useState(false);
   const tabsRef = useRef<HTMLDivElement>(null);
@@ -1267,14 +1268,26 @@ export default function LiveProducts() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              
-              <Button onClick={() => setIsCreateSessionOpen(true)} className="flex items-center gap-2">
-                <Plus className="h-4 w-4" />
-                Tạo đợt Live mới
-              </Button>
+              <CardTitle className="flex items-center gap-2">
+                Đợt Live
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Button onClick={() => setIsCreateSessionOpen(true)} className="flex items-center gap-2">
+                  <Plus className="h-4 w-4" />
+                  Tạo đợt Live mới
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsSessionCardCollapsed(!isSessionCardCollapsed)}
+                  className="h-8 w-8"
+                >
+                  {isSessionCardCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronDown className="h-4 w-4 rotate-180" />}
+                </Button>
+              </div>
             </div>
           </CardHeader>
-          <CardContent>
+          {!isSessionCardCollapsed && <CardContent>
             {liveSessions.length > 0 ? <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium mb-2 block">Đợt Live</label>
@@ -1328,7 +1341,7 @@ export default function LiveProducts() {
                   Xóa đợt live
                 </Button>
               </div>}
-          </CardContent>
+          </CardContent>}
         </Card>
 
       {/* Stats and Content */}
