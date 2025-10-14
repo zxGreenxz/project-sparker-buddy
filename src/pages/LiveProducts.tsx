@@ -1555,7 +1555,6 @@ export default function LiveProducts() {
                             <TableHead>Mã SP</TableHead>
                             <TableHead>Tên sản phẩm</TableHead>
                             <TableHead>Hình ảnh</TableHead>
-                            <TableHead>Biến thể</TableHead>
                             <TableHead className="text-center w-24">Tạo order</TableHead>
                             <TableHead className="text-center">SL chuẩn bị</TableHead>
                             <TableHead className="text-center">SL đã bán</TableHead>
@@ -1657,9 +1656,6 @@ export default function LiveProducts() {
                                       </TableCell>
                                     </>
                                   )}
-                                  <TableCell className="text-muted-foreground">
-                                    {product.variant || "-"}
-                                  </TableCell>
                                   <TableCell className="text-center">
                                     <div className="flex flex-col items-center gap-1">
                                       <Button
