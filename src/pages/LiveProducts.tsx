@@ -34,6 +34,7 @@ import { toast } from "sonner";
 import { generateOrderImage } from "@/lib/order-image-generator";
 import { getProductImageUrl } from "@/lib/tpos-image-loader";
 import { formatVariant, getVariantName } from "@/lib/variant-utils";
+import { ZoomableImage } from "@/components/products/ZoomableImage";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { getTPOSHeaders, getActiveTPOSToken } from "@/lib/tpos-config";
@@ -1499,11 +1500,9 @@ export default function LiveProducts() {
                                    <TableCell className="text-muted-foreground">
                                      {getVariantName(product.variant)}
                                    </TableCell>
-                                   <TableCell className="border-r">
-                                     {product.image_url ? <img src={product.image_url} alt={group.product_name} className="w-12 h-12 object-cover rounded cursor-pointer transition-transform duration-200 hover:scale-[14] hover:z-50 relative origin-left" /> : <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
-                                         <Package className="h-6 w-6 text-muted-foreground" />
-                                       </div>}
-                                   </TableCell>
+                                    <TableCell className="border-r">
+                                      <ZoomableImage src={product.image_url} alt={group.product_name} />
+                                    </TableCell>
                                   <TableCell className="text-center">
                                     <div className="flex flex-col items-center gap-1">
                                       <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={async () => {
@@ -1686,9 +1685,7 @@ export default function LiveProducts() {
                               {getVariantName(product.variant)}
                             </TableCell>
                             <TableCell>
-                              {product.image_url ? <img src={product.image_url} alt={product.product_name} className="w-12 h-12 object-cover rounded cursor-pointer transition-transform duration-200 hover:scale-[14] hover:z-50 relative origin-left" /> : <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
-                                  <Package className="h-6 w-6 text-muted-foreground" />
-                                </div>}
+                              <ZoomableImage src={product.image_url} alt={product.product_name} />
                             </TableCell>
                             <TableCell className="text-center">
                               <div className="flex flex-col items-center gap-1">
@@ -1851,9 +1848,7 @@ export default function LiveProducts() {
                                 <TableCell className="font-medium">{product.product_code}</TableCell>
                                 <TableCell>{product.product_name}</TableCell>
                                 <TableCell>
-                                  {product.image_url ? <img src={product.image_url} alt={product.product_name} className="w-12 h-12 object-cover rounded cursor-pointer transition-transform duration-200 hover:scale-[14] hover:z-50 relative origin-left" /> : <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
-                                      <Package className="h-6 w-6 text-muted-foreground" />
-                                    </div>}
+                                  <ZoomableImage src={product.image_url} alt={product.product_name} />
                                 </TableCell>
                                 
                                 <TableCell className="text-center">{product.prepared_quantity}</TableCell>
