@@ -547,7 +547,7 @@ ${billData.comment ? `${billData.comment}\n` : ''}${new Date(billData.createdTim
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                              className="h-full aspect-[2/1] text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                               onClick={(e) => handleHideComment(e, comment.facebook_comment_id)}
                               title="Ẩn comment"
                             >
