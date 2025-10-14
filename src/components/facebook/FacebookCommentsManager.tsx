@@ -1166,27 +1166,13 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
                             <CardContent className="pt-4">
                               <div className="flex items-start gap-3">
                                 <div className="relative flex-shrink-0">
-                                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center text-white font-bold">
-                                    {comment.from?.name?.charAt(0) || '?'}
+                                  <div className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center text-white font-bold text-sm">
+                                    {comment.orderInfo?.SessionIndex || ''}
                                   </div>
-                                  {comment.orderInfo?.SessionIndex && (
-                                    <Badge 
-                                      variant="destructive" 
-                                      className="absolute -bottom-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-[10px] font-semibold"
-                                    >
-                                      {comment.orderInfo.SessionIndex}
-                                    </Badge>
-                                  )}
                                 </div>
-                                
-                                <div className="flex-1 min-w-0">
+                                  <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <span className="font-semibold text-sm">{comment.from?.name}</span>
-                                    {comment.orderInfo?.Code && (
-                                      <Badge variant="secondary" className="text-xs font-mono bg-gray-600 text-white">
-                                        #{comment.orderInfo.SessionIndex}. {comment.orderInfo.Code}
-                                      </Badge>
-                                    )}
                                     {comment.partnerStatus && comment.partnerStatus !== 'Khách lạ' && comment.partnerStatus !== 'Cần thêm TT' && (
                                       <Badge 
                                         variant={
@@ -1199,28 +1185,28 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
                                         {comment.partnerStatus}
                                       </Badge>
                                     )}
-                                    {comment.orderInfo?.Telephone ? (
+                                    {!isMobile && comment.orderInfo?.Telephone ? (
                                       <Badge variant="outline" className="text-xs">
                                         {comment.orderInfo.Telephone}
                                       </Badge>
-                                    ) : comment.partnerStatus === 'Cần thêm TT' ? (
+                                    ) : !comment.orderInfo?.Telephone && comment.partnerStatus === 'Cần thêm TT' ? (
                                       <Badge variant="secondary" className="text-xs bg-red-500/20 text-red-700">
                                         Cần thêm TT
                                       </Badge>
-                                    ) : (
+                                    ) : !comment.orderInfo?.Telephone ? (
                                       <Badge variant="secondary" className="text-xs bg-orange-500/20 text-orange-700">
                                         Chưa có TT
                                       </Badge>
-                                    )}
+                                    ) : null}
                                     {isNew && (
                                       <Badge variant="default" className="text-xs">✨ MỚI</Badge>
                                     )}
                                     <span className="text-xs text-muted-foreground ml-auto">
-                                      {comment.created_time ? format(new Date(comment.created_time), 'dd/MM/yyyy HH:mm') : 'N/A'}
+                                      {comment.created_time ? format(new Date(comment.created_time), isMobile ? 'HH:mm' : 'dd/MM/yyyy HH:mm') : 'N/A'}
                                     </span>
                                   </div>
                                   
-                                  <p className="text-sm whitespace-pre-wrap break-words mt-1.5">
+                                  <p className="text-sm font-semibold whitespace-pre-wrap break-words mt-1.5">
                                     {comment.message}
                                   </p>
                                   
