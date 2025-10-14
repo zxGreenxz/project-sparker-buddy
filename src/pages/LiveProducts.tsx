@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CreateLiveSessionDialog } from "@/components/live-products/CreateLiveSessionDialog";
 import { EditLiveSessionDialog } from "@/components/live-products/EditLiveSessionDialog";
 import { AddProductToLiveDialog } from "@/components/live-products/AddProductToLiveDialog";
+import { SelectProductFromInventoryDialog } from "@/components/live-products/SelectProductFromInventoryDialog";
 import { UploadTPOSDialog } from "@/components/live-products/UploadTPOSDialog";
 import { EditProductDialog } from "@/components/live-products/EditProductDialog";
 import { EditOrderItemDialog } from "@/components/live-products/EditOrderItemDialog";
@@ -268,6 +269,7 @@ export default function LiveProducts() {
   const [isCreateSessionOpen, setIsCreateSessionOpen] = useState(false);
   const [isEditSessionOpen, setIsEditSessionOpen] = useState(false);
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
+  const [isSelectFromInventoryOpen, setIsSelectFromInventoryOpen] = useState(false);
   const [isEditProductOpen, setIsEditProductOpen] = useState(false);
   const tabsRef = useRef<HTMLDivElement>(null);
   const [editingProduct, setEditingProduct] = useState<{
@@ -2767,6 +2769,13 @@ export default function LiveProducts() {
         }}
       />
 
+      <SelectProductFromInventoryDialog
+        open={isSelectFromInventoryOpen}
+        onOpenChange={setIsSelectFromInventoryOpen}
+        phaseId={selectedPhase}
+        sessionId={selectedSession}
+      />
+
       <EditProductDialog 
         open={isEditProductOpen}
         onOpenChange={setIsEditProductOpen}
@@ -2799,29 +2808,55 @@ export default function LiveProducts() {
         }}
       />
 
-      {/* Floating Action Button - Thêm sản phẩm */}
+      {/* Floating Action Buttons */}
       {selectedPhase && selectedPhase !== "all" && (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                size="lg"
-                onClick={(e) => {
-                  e.preventDefault();
-                  tabsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                  setIsAddProductOpen(true);
-                }}
-                className="fixed top-6 right-6 h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-shadow z-50"
-              >
-                <Plus className="h-6 w-6" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="left">
-              <p>Thêm sản phẩm</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <div className="fixed top-6 right-6 flex flex-col gap-3 z-50">
+          {/* Thêm sản phẩm mới */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  size="lg"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    tabsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    setIsAddProductOpen(true);
+                  }}
+                  className="h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-shadow"
+                >
+                  <Plus className="h-6 w-6" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="left">
+                <p>Thêm sản phẩm mới</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          {/* Thêm từ kho */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  size="lg"
+                  variant="secondary"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setIsSelectFromInventoryOpen(true);
+                  }}
+                  className="h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-shadow"
+                >
+                  <Package className="h-6 w-6" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="left">
+                <p>Thêm từ kho</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
       )}
       </div>
 
