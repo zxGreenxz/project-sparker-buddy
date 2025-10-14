@@ -1266,28 +1266,38 @@ export default function LiveProducts() {
       <div className={cn("transition-all duration-300 ease-in-out", isCommentsPanelOpen && !isMobile ? 'mr-[450px]' : 'mr-0')}>
         {/* Session Selection */}
         <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                Đợt Live
-              </CardTitle>
-              <div className="flex items-center gap-2">
-                <Button onClick={() => setIsCreateSessionOpen(true)} className="flex items-center gap-2">
-                  <Plus className="h-4 w-4" />
-                  Tạo đợt Live mới
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setIsSessionCardCollapsed(!isSessionCardCollapsed)}
-                  className="h-8 w-8"
-                >
-                  {isSessionCardCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronDown className="h-4 w-4 rotate-180" />}
-                </Button>
-              </div>
+          {isSessionCardCollapsed ? (
+            <div className="p-2 flex justify-center">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsSessionCardCollapsed(false)}
+                className="h-8 w-8"
+              >
+                <ChevronDown className="h-4 w-4" />
+              </Button>
             </div>
-          </CardHeader>
-          {!isSessionCardCollapsed && <CardContent>
+          ) : (
+            <>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Button onClick={() => setIsCreateSessionOpen(true)} className="flex items-center gap-2">
+                      <Plus className="h-4 w-4" />
+                      Tạo đợt Live mới
+                    </Button>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setIsSessionCardCollapsed(true)}
+                    className="h-8 w-8"
+                  >
+                    <ChevronDown className="h-4 w-4 rotate-180" />
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
             {liveSessions.length > 0 ? <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium mb-2 block">Đợt Live</label>
@@ -1341,7 +1351,9 @@ export default function LiveProducts() {
                   Xóa đợt live
                 </Button>
               </div>}
-          </CardContent>}
+              </CardContent>
+            </>
+          )}
         </Card>
 
       {/* Stats and Content */}
