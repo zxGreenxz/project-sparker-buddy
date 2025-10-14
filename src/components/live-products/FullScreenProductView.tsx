@@ -1,9 +1,11 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useState } from "react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { QuickAddOrder } from "./QuickAddOrder";
-import { X, Package } from "lucide-react";
+import { X, Search, Pencil, Trash2 } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface LiveProduct {
   id: string;
@@ -12,6 +14,7 @@ interface LiveProduct {
   variant?: string;
   prepared_quantity: number;
   sold_quantity: number;
+  image_url?: string;
 }
 
 interface LiveOrder {
@@ -40,132 +43,216 @@ export function FullScreenProductView({
   selectedPhase,
   selectedSession,
 }: FullScreenProductViewProps) {
-  const midPoint = Math.ceil(products.length / 2);
-  const leftProducts = products.slice(0, midPoint);
-  const rightProducts = products.slice(midPoint);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // Filter products by search term
+  const filteredProducts = products.filter(product => {
+    const search = searchTerm.toLowerCase();
+    return (
+      product.product_code.toLowerCase().includes(search) ||
+      product.product_name.toLowerCase().includes(search) ||
+      (product.variant?.toLowerCase() || "").includes(search)
+    );
+  });
 
   const getProductOrders = (productId: string) => {
     return orders.filter(order => order.live_product_id === productId);
   };
 
-  const renderProductCard = (product: LiveProduct) => {
-    const productOrders = getProductOrders(product.id);
-    const remaining = product.prepared_quantity - product.sold_quantity;
-    const isOutOfStock = remaining <= 0;
-
-    return (
-      <div
-        key={product.id}
-        className="border rounded-lg p-4 space-y-3 bg-card"
-      >
-        {/* Product Info */}
-        <div className="space-y-2">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-sm truncate">{product.product_code}</h3>
-              <p className="text-sm text-muted-foreground line-clamp-2">{product.product_name}</p>
-              {product.variant && (
-                <p className="text-xs text-muted-foreground mt-1">Biến thể: {product.variant}</p>
-              )}
-            </div>
-            {isOutOfStock && (
-              <Badge variant="destructive" className="shrink-0">Hết</Badge>
-            )}
-          </div>
-
-          {/* Quantity Info */}
-          <div className="flex items-center gap-4 text-sm">
-            <div className="flex items-center gap-1">
-              <Package className="h-3 w-3 text-muted-foreground" />
-              <span className="text-muted-foreground">Chuẩn bị:</span>
-              <span className="font-medium">{product.prepared_quantity}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="text-muted-foreground">Đã bán:</span>
-              <span className="font-medium">{product.sold_quantity}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="text-muted-foreground">Còn:</span>
-              <span className={`font-medium ${isOutOfStock ? 'text-destructive' : 'text-primary'}`}>
-                {remaining}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Existing Orders */}
-        {productOrders.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {productOrders.map((order) => (
-              <Badge
-                key={order.id}
-                variant={order.is_oversell ? "destructive" : "secondary"}
-                className="text-xs"
-              >
-                {order.order_code} ({order.quantity})
-              </Badge>
-            ))}
-          </div>
-        )}
-
-        {/* Quick Add Order */}
-        <div className="pt-2 border-t">
-          <QuickAddOrder
-            productId={product.id}
-            phaseId={selectedPhase || ""}
-            sessionId={selectedSession || ""}
-            availableQuantity={remaining}
-          />
-        </div>
-      </div>
-    );
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] w-full h-[95vh] p-0 gap-0">
-        <DialogHeader className="px-6 py-4 border-b">
-          <div className="flex items-center justify-between">
-            <DialogTitle className="text-xl">Danh sách sản phẩm - Chế độ toàn màn hình</DialogTitle>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onOpenChange(false)}
-              className="h-8 w-8"
-            >
-              <X className="h-4 w-4" />
-            </Button>
+      <DialogContent className="max-w-[100vw] max-h-[100vh] w-screen h-screen p-0 gap-0 rounded-none">
+        {/* Header with search */}
+        <div className="flex items-center gap-4 px-6 py-4 border-b bg-background">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Tìm kiếm theo mã SP, tên sản phẩm, biến thế..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9"
+            />
           </div>
-          <p className="text-sm text-muted-foreground mt-2">
-            Tổng số: {products.length} sản phẩm - Hiển thị 2 cột
-          </p>
-        </DialogHeader>
-
-        <div className="flex-1 overflow-hidden p-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
-            {/* Left Column */}
-            <ScrollArea className="h-full pr-4">
-              <div className="space-y-4">
-                {leftProducts.length > 0 ? (
-                  leftProducts.map(renderProductCard)
-                ) : (
-                  <p className="text-center text-muted-foreground py-8">Không có sản phẩm</p>
-                )}
-              </div>
-            </ScrollArea>
-
-            {/* Right Column */}
-            <ScrollArea className="h-full pr-4">
-              <div className="space-y-4">
-                {rightProducts.length > 0 ? (
-                  rightProducts.map(renderProductCard)
-                ) : (
-                  <p className="text-center text-muted-foreground py-8">Không có sản phẩm</p>
-                )}
-              </div>
-            </ScrollArea>
-          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => onOpenChange(false)}
+          >
+            <X className="h-5 w-5" />
+          </Button>
         </div>
+
+        {/* Table */}
+        <ScrollArea className="flex-1">
+          <Table>
+            <TableHeader className="sticky top-0 bg-background z-10">
+              <TableRow>
+                <TableHead className="w-[100px]">Mã SP</TableHead>
+                <TableHead className="min-w-[200px]">Tên sản phẩm</TableHead>
+                <TableHead className="w-[120px]">Biến thế</TableHead>
+                <TableHead className="w-[80px]">Hình ảnh</TableHead>
+                <TableHead className="w-[200px]">Tạo order</TableHead>
+                <TableHead className="w-[100px] text-center">SL chuẩn bị</TableHead>
+                <TableHead className="w-[100px] text-center">SL đã bán</TableHead>
+                <TableHead className="min-w-[250px]">Mã đơn hàng</TableHead>
+                <TableHead className="w-[100px] text-center">Thao tác</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredProducts.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                    Không tìm thấy sản phẩm
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredProducts.map((product) => {
+                  const productOrders = getProductOrders(product.id);
+                  const rowSpan = Math.max(1, productOrders.length);
+                  const remaining = product.prepared_quantity - product.sold_quantity;
+
+                  return productOrders.length > 0 ? (
+                    // Render rows for each order
+                    productOrders.map((order, orderIndex) => (
+                      <TableRow key={`${product.id}-${order.id}`}>
+                        {orderIndex === 0 && (
+                          <>
+                            <TableCell rowSpan={rowSpan} className="font-medium align-top">
+                              {product.product_code}
+                            </TableCell>
+                            <TableCell rowSpan={rowSpan} className="align-top">
+                              {product.product_name}
+                            </TableCell>
+                            <TableCell rowSpan={rowSpan} className="align-top">
+                              {product.variant || (
+                                <span className="text-muted-foreground text-xs">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell rowSpan={rowSpan} className="align-top">
+                              {product.image_url ? (
+                                <img
+                                  src={product.image_url}
+                                  alt={product.product_name}
+                                  className="w-12 h-12 object-cover rounded"
+                                />
+                              ) : (
+                                <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
+                                  <span className="text-xs text-muted-foreground">N/A</span>
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell rowSpan={rowSpan} className="align-top">
+                              <QuickAddOrder
+                                productId={product.id}
+                                phaseId={selectedPhase || ""}
+                                sessionId={selectedSession || ""}
+                                availableQuantity={remaining}
+                              />
+                            </TableCell>
+                            <TableCell rowSpan={rowSpan} className="text-center align-top">
+                              {product.prepared_quantity}
+                            </TableCell>
+                            <TableCell rowSpan={rowSpan} className="text-center align-top">
+                              {product.sold_quantity}
+                            </TableCell>
+                          </>
+                        )}
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <span className={order.is_oversell ? "text-destructive font-medium" : ""}>
+                              {order.order_code}
+                            </span>
+                            <span className="text-muted-foreground">({order.quantity})</span>
+                            {order.tpos_order_id && (
+                              <span className="text-xs text-muted-foreground">
+                                TPOS: {order.tpos_order_id}
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        {orderIndex === 0 && (
+                          <TableCell rowSpan={rowSpan} className="text-center align-top">
+                            <div className="flex items-center justify-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))
+                  ) : (
+                    // Render single row if no orders
+                    <TableRow key={product.id}>
+                      <TableCell className="font-medium">{product.product_code}</TableCell>
+                      <TableCell>{product.product_name}</TableCell>
+                      <TableCell>
+                        {product.variant || (
+                          <span className="text-muted-foreground text-xs">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {product.image_url ? (
+                          <img
+                            src={product.image_url}
+                            alt={product.product_name}
+                            className="w-12 h-12 object-cover rounded"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
+                            <span className="text-xs text-muted-foreground">N/A</span>
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <QuickAddOrder
+                          productId={product.id}
+                          phaseId={selectedPhase || ""}
+                          sessionId={selectedSession || ""}
+                          availableQuantity={remaining}
+                        />
+                      </TableCell>
+                      <TableCell className="text-center">{product.prepared_quantity}</TableCell>
+                      <TableCell className="text-center">{product.sold_quantity}</TableCell>
+                      <TableCell>
+                        <span className="text-muted-foreground text-sm">Chưa có đơn</span>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   );
