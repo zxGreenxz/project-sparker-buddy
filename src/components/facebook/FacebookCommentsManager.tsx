@@ -78,9 +78,6 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
 
   const [showOnlyWithOrders, setShowOnlyWithOrders] = useState(false);
   const [hideNames, setHideNames] = useState<string[]>(["Nhi Judy House"]);
-
-  // State for confirming duplicate order creation
-  const [confirmDuplicateOrderCommentId, setConfirmDuplicateOrderCommentId] = useState<string | null>(null);
   
   // State for fullscreen mode on mobile
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -175,27 +172,10 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
   });
 
   const handleCreateOrderClick = (comment: CommentWithStatus) => {
-    // If comment already has order, show inline confirmation
-    if (comment.orderInfo) {
-      setConfirmDuplicateOrderCommentId(comment.id);
-      return;
-    }
-    
-    // Create order directly
+    // Create order directly without confirmation
     if (selectedVideo) {
       createOrderMutation.mutate({ comment, video: selectedVideo });
     }
-  };
-
-  const handleConfirmDuplicateOrder = (comment: CommentWithStatus) => {
-    if (!selectedVideo) return;
-    
-    setConfirmDuplicateOrderCommentId(null);
-    createOrderMutation.mutate({ comment, video: selectedVideo });
-  };
-
-  const handleCancelDuplicateOrder = () => {
-    setConfirmDuplicateOrderCommentId(null);
   };
 
   // Fetch videos
@@ -1216,33 +1196,6 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
                                   <p className="text-sm font-semibold whitespace-pre-wrap break-words mt-1.5">
                                     {comment.message}
                                   </p>
-                                  
-                                  {/* Inline confirmation for duplicate order */}
-                                  {confirmDuplicateOrderCommentId === comment.id && (
-                                    <div className="mb-3 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-md">
-                                      <p className="text-sm text-orange-800 dark:text-orange-200 mb-2">
-                                        ⚠️ Bình luận này đã có đơn hàng. Tạo thêm đơn mới?
-                                      </p>
-                                      <div className="flex gap-2">
-                                        <Button 
-                                          size="sm" 
-                                          variant="default"
-                                          className="h-7 text-xs"
-                                          onClick={() => handleConfirmDuplicateOrder(comment)}
-                                        >
-                                          Tạo đơn mới
-                                        </Button>
-                                        <Button 
-                                          size="sm" 
-                                          variant="outline"
-                                          className="h-7 text-xs"
-                                          onClick={handleCancelDuplicateOrder}
-                                        >
-                                          Hủy
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  )}
                                   
                                   <div className="flex items-center gap-2 mt-3 flex-wrap">
                                     <Button 
