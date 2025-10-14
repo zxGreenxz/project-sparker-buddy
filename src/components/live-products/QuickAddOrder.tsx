@@ -458,23 +458,23 @@ ${billData.comment ? `${billData.comment}\n` : ''}${new Date(billData.createdTim
   return (
     <div className="w-full flex gap-2">
       <Popover open={isOpen} onOpenChange={setIsOpen}>
-        <div className="flex-1 relative">
-          <Input
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyPress={handleKeyPress}
-            onFocus={() => {
-              setIsOpen(true);
-            }}
-            placeholder={isOutOfStock ? "Quá số (đánh dấu đỏ)" : "Nhập mã đơn..."}
-            className={cn(
-              "text-sm h-9",
-              isOutOfStock && "border-red-500"
-            )}
-            disabled={addOrderMutation.isPending}
-          />
-        </div>
+        <PopoverTrigger asChild>
+          <div className="flex-1 relative">
+            <Input
+              type="text"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyPress={handleKeyPress}
+              onClick={() => setIsOpen(true)}
+              placeholder={isOutOfStock ? "Quá số (đánh dấu đỏ)" : "Nhập mã đơn..."}
+              className={cn(
+                "text-sm h-9",
+                isOutOfStock && "border-red-500"
+              )}
+              disabled={addOrderMutation.isPending}
+            />
+          </div>
+        </PopoverTrigger>
         <PopoverContent 
           className="w-[520px] p-0 z-[100] bg-popover" 
           align="start"
@@ -482,6 +482,12 @@ ${billData.comment ? `${billData.comment}\n` : ''}${new Date(billData.createdTim
           sideOffset={4}
           onOpenAutoFocus={(e) => e.preventDefault()}
           onCloseAutoFocus={(e) => e.preventDefault()}
+          onInteractOutside={(e) => {
+            const target = e.target as HTMLElement;
+            if (target.closest('[role="combobox"]') || target.closest('input[type="text"]')) {
+              e.preventDefault();
+            }
+          }}
         >
           <Command shouldFilter={false} className="bg-popover">
             <div className="flex items-center justify-between px-3 py-2 border-b">
