@@ -65,6 +65,8 @@ export function AddProductToLiveDialog({ open, onOpenChange, phaseId, sessionId,
   const [baseProductCode, setBaseProductCode] = useState<string>("");
   const [selectedVariantIds, setSelectedVariantIds] = useState<Set<string>>(new Set());
   const [isVariantsOpen, setIsVariantsOpen] = useState(false);
+  const [isAutoDetectingVariants, setIsAutoDetectingVariants] = useState(false);
+  const [autoDetectedProducts, setAutoDetectedProducts] = useState<any[]>([]);
   const uploadAreaRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
@@ -124,11 +126,69 @@ export function AddProductToLiveDialog({ open, onOpenChange, phaseId, sessionId,
     }
   }, [detectedVariants, selectedVariantIds.size]);
 
+  // Helper function: Extract base name prefix from product name
+  const extractBaseNamePrefix = (productName: string): string | null => {
+    if (!productName) return null;
+    
+    // Priority 1: Format xxx (y) - extract xxx
+    if (productName.includes('(')) {
+      const basePrefix = productName.split('(')[0].trim();
+      if (basePrefix.length > 0) {
+        return basePrefix;
+      }
+    }
+    
+    // Priority 2: Format xxx - y - extract xxx
+    if (productName.includes(' - ')) {
+      return productName.split(' - ')[0].trim();
+    }
+    
+    // Priority 3: Format xxx-y (no space) - extract xxx
+    if (productName.includes('-')) {
+      return productName.split('-')[0].trim();
+    }
+    
+    return null; // No pattern detected
+  };
+
+  // Helper function: Fetch matching products by name pattern
+  const fetchMatchingProductsByName = async (productName: string) => {
+    const basePrefix = extractBaseNamePrefix(productName);
+    
+    if (!basePrefix) {
+      console.log('[Auto-detect] No base prefix pattern detected');
+      return null;
+    }
+    
+    console.log('[Auto-detect] Base prefix:', basePrefix);
+    
+    const { data: matchingProducts, error } = await supabase
+      .from("products")
+      .select("*")
+      .or(`product_name.ilike.${basePrefix} (%),product_name.ilike.${basePrefix}-%)`);
+    
+    if (error) {
+      console.error('[Auto-detect] Error fetching products:', error);
+      throw error;
+    }
+    
+    // Filter locally to ensure exact base prefix match
+    const filtered = (matchingProducts || []).filter(p => {
+      const pPrefix = extractBaseNamePrefix(p.product_name);
+      return pPrefix === basePrefix;
+    });
+    
+    console.log('[Auto-detect] Found', filtered.length, 'matching products');
+    return filtered;
+  };
+
   // Reset state when dialog closes
   useEffect(() => {
     if (!open) {
       setBaseProductCode("");
       setSelectedVariantIds(new Set());
+      setIsAutoDetectingVariants(false);
+      setAutoDetectedProducts([]);
       setImageUrl("");
       setProductSearchQuery("");
       setShowProductSuggestions(false);
@@ -232,14 +292,40 @@ export function AddProductToLiveDialog({ open, onOpenChange, phaseId, sessionId,
     // Check if it's a base product
     const isBaseProduct = !product.variant || product.base_product_code === product.product_code;
     
-    if (isBaseProduct) {
-      // Set base product code to trigger variant loading
+    // NEW: Auto-detect variants from product name pattern
+    const matchingProducts = await fetchMatchingProductsByName(product.product_name);
+    
+    if (matchingProducts && matchingProducts.length > 1) {
+      // Found multiple variants with same base prefix
+      console.log('[Auto-detect] Found', matchingProducts.length, 'variants');
+      
+      // Set states for auto-detected variants
+      setAutoDetectedProducts(matchingProducts);
+      setIsAutoDetectingVariants(true);
+      
+      // Auto-populate form
+      form.setValue("product_code", product.product_code);
+      form.setValue("product_name", product.product_name);
+      
+      // Auto-populate variants
+      const variantsData = matchingProducts.map(p => ({
+        name: p.variant || p.product_name,
+        quantity: 1
+      }));
+      form.setValue("variants", variantsData);
+      
+      toast.success(`Đã phát hiện ${matchingProducts.length} biến thể`);
+      setIsVariantsOpen(true);
+    } 
+    else if (isBaseProduct) {
+      // Original logic: Set base product code to trigger variant loading
       form.setValue("product_code", product.product_code);
       form.setValue("product_name", product.product_name);
       setBaseProductCode(product.product_code);
       setSelectedVariantIds(new Set()); // Reset selection to trigger auto-population
       setIsVariantsOpen(true); // Auto-open variants section
-    } else {
+    } 
+    else {
       // Single variant selected - just add that one
       form.setValue("product_code", product.product_code);
       form.setValue("product_name", product.product_name);
@@ -260,10 +346,40 @@ export function AddProductToLiveDialog({ open, onOpenChange, phaseId, sessionId,
   };
 
   // Handle blur on product code input to trigger variant loading
-  const handleProductCodeBlur = () => {
+  const handleProductCodeBlur = async () => {
     const productCode = form.getValues("product_code");
     const trimmedCode = productCode?.trim().toUpperCase() || "";
-    if (trimmedCode && trimmedCode !== baseProductCode) {
+    
+    if (!trimmedCode) return;
+    
+    // NEW: Try to fetch product and auto-detect variants
+    const { data: product } = await supabase
+      .from("products")
+      .select("*")
+      .eq("product_code", trimmedCode)
+      .maybeSingle();
+    
+    if (product) {
+      const matchingProducts = await fetchMatchingProductsByName(product.product_name);
+      
+      if (matchingProducts && matchingProducts.length > 1) {
+        setAutoDetectedProducts(matchingProducts);
+        setIsAutoDetectingVariants(true);
+        
+        const variantsData = matchingProducts.map(p => ({
+          name: p.variant || p.product_name,
+          quantity: 1
+        }));
+        form.setValue("variants", variantsData);
+        
+        toast.success(`Đã phát hiện ${matchingProducts.length} biến thể`);
+        setIsVariantsOpen(true);
+        return;
+      }
+    }
+    
+    // Original logic: trigger variant loading by base_product_code
+    if (trimmedCode !== baseProductCode) {
       setBaseProductCode(trimmedCode);
       setSelectedVariantIds(new Set()); // Reset selection to trigger auto-population
       setIsVariantsOpen(true); // Auto-open variants section
@@ -367,8 +483,49 @@ export function AddProductToLiveDialog({ open, onOpenChange, phaseId, sessionId,
             });
           }
         }
-      } 
-      // SCENARIO B: Manual add (no inventory match)
+      }
+      // SCENARIO B: Auto-detected from name pattern (NEW)
+      else if (isAutoDetectingVariants && autoDetectedProducts.length > 0) {
+        for (const variant of data.variants) {
+          // Find matching product by variant name
+          const matchedProduct = autoDetectedProducts.find(p => 
+            p.variant === variant.name || 
+            p.product_name === variant.name ||
+            p.product_name.includes(`(${variant.name})`) ||
+            p.product_name.includes(`- ${variant.name}`)
+          );
+          
+          if (matchedProduct) {
+            // Check for duplicates
+            const { data: existingProducts, error: checkError } = await supabase
+              .from("live_products")
+              .select("id")
+              .eq("live_phase_id", phaseId)
+              .eq("product_code", matchedProduct.product_code);
+
+            if (checkError) throw checkError;
+
+            if (existingProducts && existingProducts.length > 0) {
+              throw new Error(`Sản phẩm "${matchedProduct.product_code}" đã tồn tại trong phiên live này`);
+            }
+            
+            insertData.push({
+              live_session_id: sessionId,
+              live_phase_id: phaseId,
+              product_code: matchedProduct.product_code,
+              product_name: matchedProduct.product_name,
+              variant: formatVariant(matchedProduct.variant, matchedProduct.product_code),
+              base_product_code: matchedProduct.base_product_code,
+              prepared_quantity: variant.quantity,
+              sold_quantity: 0,
+              image_url: imageUrl || matchedProduct.tpos_image_url || null,
+              note: data.note.trim() || null,
+              product_type: 'hang_dat',
+            });
+          }
+        }
+      }
+      // SCENARIO C: Manual add (no inventory match)
       else {
         for (const variant of data.variants) {
           let productCode = data.product_code.trim();
@@ -444,6 +601,10 @@ export function AddProductToLiveDialog({ open, onOpenChange, phaseId, sessionId,
           timestamp: new Date().toISOString()
         }
       });
+      
+      // Reset auto-detection states
+      setIsAutoDetectingVariants(false);
+      setAutoDetectedProducts([]);
       
       form.reset();
       setImageUrl("");
