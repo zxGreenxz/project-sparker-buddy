@@ -8,9 +8,16 @@ import {
   Search,
   History,
   Users,
-  MessageSquare
+  MessageSquare,
+  LogOut,
+  PanelLeftClose,
+  PanelLeft
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Separator } from "@/components/ui/separator";
 
 import {
   Sidebar,
@@ -22,6 +29,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
+  SidebarTrigger,
 } from "@/components/ui/sidebar";
 
 const menuItems = [
@@ -84,6 +92,7 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const location = useLocation();
   const isCollapsed = state === "collapsed";
+  const { user, signOut } = useAuth();
 
   const isActive = (path: string) => {
     if (path === "/") {
@@ -100,9 +109,23 @@ export function AppSidebar() {
     return `${baseClass} text-muted-foreground hover:text-foreground hover:bg-muted`;
   };
 
+  const getInitials = (email: string | undefined) => {
+    if (!email) return "U";
+    const username = email.split('@')[0];
+    return username.slice(0, 2).toUpperCase();
+  };
+
+  const getDisplayName = (email: string | undefined) => {
+    if (!email) return "User";
+    return email.split('@')[0];
+  };
+
   return (
-    <Sidebar className="border-r border-border">
-      <SidebarContent className="p-4">
+    <Sidebar className="border-r border-border relative">
+      {/* Floating Sidebar Trigger */}
+      <SidebarTrigger className="absolute -right-3 top-4 z-50 p-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full shadow-lg transition-all hover:scale-110" />
+      
+      <SidebarContent className="p-4 flex flex-col h-full">
         <div className="mb-8">
           <div className="flex items-center gap-2 px-3">
             <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center">
@@ -163,6 +186,51 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {/* User Profile Section - at the bottom */}
+        <div className="mt-auto pt-4">
+          <Separator className="mb-4" />
+          <div className="px-3 py-2">
+            <div className="flex items-center gap-3">
+              <Avatar className="h-9 w-9">
+                <AvatarFallback className="text-xs bg-gradient-primary text-primary-foreground">
+                  {getInitials(user?.email)}
+                </AvatarFallback>
+              </Avatar>
+              {!isCollapsed && (
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">
+                    {getDisplayName(user?.email)}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {user?.email}
+                  </p>
+                </div>
+              )}
+            </div>
+            {!isCollapsed && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={signOut}
+                className="w-full mt-3 justify-start text-muted-foreground hover:text-foreground hover:bg-muted"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Đăng xuất
+              </Button>
+            )}
+            {isCollapsed && (
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={signOut}
+                className="w-full mt-3 text-muted-foreground hover:text-foreground hover:bg-muted"
+              >
+                <LogOut className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
+        </div>
       </SidebarContent>
     </Sidebar>
   );
