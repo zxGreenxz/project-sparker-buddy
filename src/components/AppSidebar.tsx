@@ -121,8 +121,8 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar className="border-r border-border relative">
-      <SidebarContent className="p-4 flex flex-col h-full">
+    <Sidebar className="border-r border-border h-screen fixed left-0 top-0">
+      <SidebarContent className="p-4 flex flex-col h-full pt-16">
         <div className="mb-8">
           <div className="flex items-center gap-2 px-3">
             <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center">
