@@ -1140,6 +1140,54 @@ export default function LiveProducts() {
     setIsEditOrderItemOpen(true);
   };
 
+  const handleDeleteAggregatedProduct = async (aggregatedProduct: {
+    product_code: string;
+    product_name: string;
+    live_product_id: string;
+    total_quantity: number;
+    orders: OrderWithProduct[];
+  }) => {
+    if (window.confirm(`Bạn có chắc muốn xóa tất cả ${aggregatedProduct.total_quantity} sản phẩm ${aggregatedProduct.product_name}?`)) {
+      const orderIds = aggregatedProduct.orders.map(o => o.id);
+      
+      try {
+        // Delete all orders
+        const { error: deleteError } = await supabase
+          .from("live_orders")
+          .delete()
+          .in("id", orderIds);
+        
+        if (deleteError) throw deleteError;
+        
+        // Fetch current sold_quantity
+        const { data: product, error: productFetchError } = await supabase
+          .from("live_products")
+          .select("sold_quantity")
+          .eq("id", aggregatedProduct.live_product_id)
+          .single();
+        
+        if (productFetchError) throw productFetchError;
+        
+        // Update sold_quantity
+        const { error: productError } = await supabase
+          .from("live_products")
+          .update({ 
+            sold_quantity: Math.max(0, product.sold_quantity - aggregatedProduct.total_quantity)
+          })
+          .eq("id", aggregatedProduct.live_product_id);
+        
+        if (productError) throw productError;
+        
+        queryClient.invalidateQueries({ queryKey: ["live-orders", selectedPhase] });
+        queryClient.invalidateQueries({ queryKey: ["live-products", selectedPhase] });
+        queryClient.invalidateQueries({ queryKey: ["orders-with-products", selectedPhase] });
+        toast.success("Đã xóa sản phẩm khỏi đơn hàng");
+      } catch (error) {
+        console.error("Error deleting aggregated product:", error);
+        toast.error("Có lỗi xảy ra khi xóa sản phẩm");
+      }
+    }
+  };
 
   const handleDeleteAllPhasesForSession = async (sessionId: string) => {
     if (window.confirm("Bạn có chắc chắn muốn xóa toàn bộ phiên live và dữ liệu của đợt này? Hành động này không thể hoàn tác.")) {
@@ -2576,6 +2624,14 @@ export default function LiveProducts() {
                                     className="h-7 w-7 p-0"
                                   >
                                     <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleDeleteAggregatedProduct(product)}
+                                    className="text-red-600 hover:text-red-700 h-7 w-7 p-0"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
                                   </Button>
                                 </div>
                               </TableCell>
