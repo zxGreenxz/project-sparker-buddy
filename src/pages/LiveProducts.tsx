@@ -1359,7 +1359,7 @@ export default function LiveProducts() {
       {/* Stats and Content */}
       {selectedPhase && <>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <div ref={tabsRef} className="flex flex-col items-center gap-4">
+            <div ref={tabsRef} className="flex items-center justify-between">
               <TabsList>
                 <TabsTrigger value="products" className="flex items-center gap-2">
                   <Package className="h-4 w-4" />
@@ -1379,7 +1379,7 @@ export default function LiveProducts() {
                 </TabsTrigger>
               </TabsList>
 
-              <div className="flex gap-2 justify-center w-full">
+              <div className="flex gap-2">
                 {activeTab === "products" && <>
                     {commentsVideoId && <>
                         <Button variant="outline" size="sm" className="flex items-center gap-2" onClick={() => setIsCommentsPanelOpen(!isCommentsPanelOpen)}>
