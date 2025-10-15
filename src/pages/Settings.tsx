@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { RefreshCw, CheckCircle, AlertCircle, Copy, ChevronDown, ChevronUp, ShoppingCart, Key, Save, TestTube2, Code, Download, Upload, Facebook, Printer, MessageSquare } from "lucide-react";
+import { RefreshCw, CheckCircle, AlertCircle, Copy, ChevronDown, ChevronUp, ShoppingCart, Key, Save, TestTube2, Code, Download, Upload, Facebook, Printer, MessageSquare, Image } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -31,6 +31,7 @@ import NetworkPrinterManager from "@/components/settings/NetworkPrinterManager";
 import { FacebookCommentsManager } from "@/components/facebook/FacebookCommentsManager";
 import { CommentsSidebar } from "@/components/live-products/CommentsSidebar";
 import { useCommentsSidebar } from "@/contexts/CommentsSidebarContext";
+import { TextToImagePrinter } from "@/components/settings/TextToImagePrinter";
 
 const Settings = () => {
   const [isChecking, setIsChecking] = useState(false);
@@ -705,6 +706,10 @@ const Settings = () => {
     <TabsTrigger value="facebook-comments-test" className="gap-2 flex-1 min-w-fit">
       <MessageSquare className="h-4 w-4" />
       Livestream Comment Test
+    </TabsTrigger>
+    <TabsTrigger value="text-to-image" className="gap-2 flex-1 min-w-fit">
+      <Image className="h-4 w-4" />
+      Text to Image
     </TabsTrigger>
   </TabsList>
 
@@ -1847,6 +1852,11 @@ const Settings = () => {
               </div>
             </CommentsSidebar>
           </div>
+        </TabsContent>
+
+        {/* Tab: Text to Image */}
+        <TabsContent value="text-to-image" className="space-y-6 mt-4">
+          <TextToImagePrinter />
         </TabsContent>
       </Tabs>
 
