@@ -24,6 +24,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { TextToImagePrinter } from "./TextToImagePrinter";
 
 interface NetworkPrinter {
   id: string;
@@ -1107,6 +1108,9 @@ Date: ${new Date().toLocaleString('vi-VN')}
           </Dialog>
         </CardContent>
       </Card>
+
+      {/* Text to Image Printer */}
+      <TextToImagePrinter />
     </div>
   );
 }
