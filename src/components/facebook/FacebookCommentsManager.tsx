@@ -1708,6 +1708,17 @@ export function FacebookCommentsManager({
                   </div>
                 </div>
 
+                {/* Warning nhỏ khi có comment bị xóa */}
+                {selectedVideo &&
+                  commentsData?.pages[0]?.source === "database" && (
+                    <Alert className="border-orange-500/30 bg-orange-500/5 mb-4">
+                      <AlertCircle className="h-4 w-4 text-orange-600" />
+                      <AlertDescription className="text-sm text-orange-700">
+                        ℹ️ Đang hiển thị từ cache. Một số comment có thể đã bị
+                        Facebook xóa.
+                      </AlertDescription>
+                    </Alert>
+                  )}
 
                 <ScrollArea
                   className={cn(

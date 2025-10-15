@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Upload, CheckCircle, AlertCircle, RefreshCw, Download } from "lucide-react";
+import { Upload, CheckCircle, AlertCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -10,7 +10,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { getTPOSHeaders, getActiveTPOSToken } from "@/lib/tpos-config";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
 
 interface Order {
   Id: string;
@@ -54,9 +53,6 @@ export const UploadOrderLiveTool = () => {
   const [productCodes, setProductCodes] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
   const [updateResult, setUpdateResult] = useState<any>(null);
-  
-  // Image migration
-  const [isMigrating, setIsMigrating] = useState(false);
 
   const formatDateForAPI = (dateStr: string, isEndDate = false) => {
     const date = new Date(dateStr);
@@ -297,50 +293,6 @@ export const UploadOrderLiveTool = () => {
     setOrderDetail(null);
     setProductCodes("");
     setUpdateResult(null);
-  };
-
-  const migrateTPOSImages = async () => {
-    try {
-      setIsMigrating(true);
-      toast({
-        title: "Đang tải ảnh từ TPOS...",
-        description: "Quá trình này có thể mất vài phút",
-      });
-
-      const { data, error } = await supabase.functions.invoke("migrate-tpos-images");
-
-      if (error) throw error;
-
-      const result = data as {
-        success: boolean;
-        message: string;
-        migrated: number;
-        failed: number;
-        total: number;
-      };
-
-      if (result.success) {
-        toast({
-          title: "✅ Hoàn tất migrate ảnh",
-          description: `${result.migrated}/${result.total} ảnh đã tải về Supabase`,
-        });
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Migration thất bại",
-          description: result.message || "Có lỗi xảy ra",
-        });
-      }
-    } catch (error: any) {
-      console.error("Migration error:", error);
-      toast({
-        variant: "destructive",
-        title: "Lỗi khi migrate ảnh",
-        description: error.message,
-      });
-    } finally {
-      setIsMigrating(false);
-    }
   };
 
   return (
@@ -604,39 +556,6 @@ export const UploadOrderLiveTool = () => {
           </CardContent>
         </Card>
       )}
-      
-      {/* TPOS Image Migration Tool */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Download className="h-5 w-5" />
-            Migrate TPOS Images
-          </CardTitle>
-          <CardDescription>
-            Tải tất cả ảnh từ TPOS về Supabase storage của bạn
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button
-            onClick={migrateTPOSImages}
-            disabled={isMigrating}
-            className="w-full"
-            variant="outline"
-          >
-            {isMigrating ? (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                Đang tải ảnh...
-              </>
-            ) : (
-              <>
-                <Download className="mr-2 h-4 w-4" />
-                Tải tất cả ảnh TPOS về Supabase
-              </>
-            )}
-          </Button>
-        </CardContent>
-      </Card>
     </div>
   );
 };
