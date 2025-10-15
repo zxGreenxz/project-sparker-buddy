@@ -67,7 +67,7 @@ export function EditProductDialog({ open, onOpenChange, product }: EditProductDi
         .select("id, variant, prepared_quantity, image_url")
         .eq("live_phase_id", product.live_phase_id)
         .eq("product_code", product.product_code)
-        .order("variant");
+        .order("created_at", { ascending: true });
 
       if (error) throw error;
       return data;

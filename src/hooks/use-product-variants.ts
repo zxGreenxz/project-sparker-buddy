@@ -27,7 +27,7 @@ export function useProductVariants(baseProductCode: string) {
         .not("variant", "is", null)
         .neq("variant", "")
         .neq("product_code", baseProductCode)
-        .order("variant");
+        .order("created_at", { ascending: true });
       
       if (error) throw error;
       return (data || []) as ProductVariant[];
