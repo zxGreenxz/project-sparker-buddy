@@ -284,7 +284,7 @@ export function PrinterTemplateEditor() {
             <TabsContent value="general" className="space-y-4 mt-4">
               {/* Width */}
               <div className="space-y-2">
-                <Label>Chiều rộng giấy in: {editingTemplate.settings.width}px</Label>
+                <Label>Chiều rộng in (px): {editingTemplate.settings.width}px</Label>
                 <Select
                   value={editingTemplate.settings.width.toString()}
                   onValueChange={(value) => setEditingTemplate(prev => ({
@@ -296,15 +296,15 @@ export function PrinterTemplateEditor() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="384">384px - Giấy 48mm</SelectItem>
-                    <SelectItem value="448">448px - Giấy 56mm</SelectItem>
-                    <SelectItem value="512">512px - Giấy 64mm (80mm thermal)</SelectItem>
-                    <SelectItem value="576">576px - Giấy 72mm</SelectItem>
-                    <SelectItem value="640">640px - Giấy 80mm (wide)</SelectItem>
+                    <SelectItem value="384">384px - 48mm</SelectItem>
+                    <SelectItem value="448">448px - 56mm</SelectItem>
+                    <SelectItem value="480">480px - 60mm (XP-K200L - 72mm khả dụng)</SelectItem>
+                    <SelectItem value="512">512px - 64mm</SelectItem>
+                    <SelectItem value="576">576px - 72mm (wide)</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Khổ giấy 80mm thermal: chọn 512px hoặc 640px
+                  ⚠️ XP-K200L (khổ 80mm, in 72mm): dùng 480px
                 </p>
               </div>
 
@@ -530,12 +530,12 @@ export function PrinterTemplateEditor() {
           
           <div className="mt-4 space-y-2 text-sm text-muted-foreground border-t pt-4">
             <div className="font-semibold">Thông số template:</div>
-            <div>📏 Chiều rộng giấy: {editingTemplate.settings.width}px</div>
+            <div>📏 Chiều rộng in: {editingTemplate.settings.width}px</div>
             <div>🔤 Cỡ chữ mặc định: {editingTemplate.settings.fontSize}pt</div>
             <div>📐 Khoảng cách dòng: {editingTemplate.settings.lineHeight}</div>
             <div>📄 Khổ in: {editingTemplate.settings.orientation === 'portrait' ? 'Dọc (Portrait)' : 'Ngang (Landscape)'}</div>
-            <div className="text-xs pt-2 border-t">
-              💡 Khổ giấy 80mm thermal: dùng width 512px
+            <div className="text-xs pt-2 border-t text-orange-600 font-semibold">
+              💡 XP-K200L (giấy 80mm, in 72mm): dùng 480px
             </div>
           </div>
         </CardContent>

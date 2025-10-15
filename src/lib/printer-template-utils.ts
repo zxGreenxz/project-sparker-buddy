@@ -18,23 +18,23 @@ export interface PrinterTemplate {
 }
 
 export const DEFAULT_TEMPLATE: PrinterTemplate = {
-  name: "Mặc định",
+  name: "Mặc định XP-K200L",
   content: "#{{sessionIndex}} - {{phone}}\n{{customerName}}\n{{productCode}} - {{productName}}\n{{comment}}\n{{time}}",
   settings: {
-    width: 512,
-    fontSize: 24,
-    lineHeight: 1.2,
+    width: 480,
+    fontSize: 22,
+    lineHeight: 1.15,
     padding: 2,
     align: 'center',
     fontFamily: 'Tahoma, Arial, sans-serif',
     orientation: 'portrait'
   },
   lineStyles: {
-    line1: { fontSize: 24, bold: true },
-    line2: { fontSize: 24, bold: true },
-    line3: { fontSize: 16, bold: true },
-    line4: { fontSize: 24, bold: true, italic: true },
-    line5: { fontSize: 10, bold: true }
+    line1: { fontSize: 22, bold: true },
+    line2: { fontSize: 22, bold: true },
+    line3: { fontSize: 14, bold: true },
+    line4: { fontSize: 22, bold: true, italic: true },
+    line5: { fontSize: 9, bold: true }
   }
 };
 
