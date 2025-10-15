@@ -8,7 +8,6 @@ import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Dialog,
   DialogContent,
@@ -25,6 +24,8 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { TextToImagePrinter } from "./TextToImagePrinter";
+import { textToESCPOSBitmap } from "@/lib/text-to-bitmap";
+import { useToast } from "@/hooks/use-toast";
 
 interface NetworkPrinter {
   id: string;
@@ -37,6 +38,7 @@ interface NetworkPrinter {
 }
 
 export default function NetworkPrinterManager() {
+  const { toast } = useToast();
   const [printers, setPrinters] = useState<NetworkPrinter[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isTestDialogOpen, setIsTestDialogOpen] = useState(false);
@@ -70,47 +72,10 @@ export default function NetworkPrinterManager() {
   const [isPrinting, setIsPrinting] = useState(false);
   const [printResult, setPrintResult] = useState<any>(null);
   const [isTesting, setIsTesting] = useState<string | null>(null);
-  const [printMode, setPrintMode] = useState<'cp1258' | 'no-accents' | 'utf8'>('cp1258');
 
   useEffect(() => {
     loadPrinters();
   }, []);
-
-  useEffect(() => {
-    if (printMode === 'no-accents') {
-      setTestContent(
-        "================================\n" +
-        "     XC80 TEST TIENG VIET\n" +
-        "================================\n" +
-        "May in: [Printer Name]\n" +
-        "IP: [IP Address]\n" +
-        "Thoi gian: [Time]\n" +
-        "--------------------------------\n" +
-        "In thu tieng Viet (KHONG DAU):\n" +
-        "- Xin chao Viet Nam!\n" +
-        "- Day la ban in thu nghiem.\n" +
-        "- Cac ky tu: aaaaaeeeee\n" +
-        "- Gia: 150,000 VND\n" +
-        "================================\n\n\n"
-      );
-    } else {
-      setTestContent(
-        "================================\n" +
-        "     XC80 TEST TIẾNG VIỆT\n" +
-        "================================\n" +
-        "Máy in: [Printer Name]\n" +
-        "IP: [IP Address]\n" +
-        "Thời gian: [Time]\n" +
-        "--------------------------------\n" +
-        "In thử tiếng Việt (CÓ DẤU):\n" +
-        "- Xin chào Việt Nam!\n" +
-        "- Đây là bản in thử nghiệm.\n" +
-        "- Các ký tự: áàảãạ éèẻẽẹ\n" +
-        "- Giá: 150,000 VNĐ\n" +
-        "================================\n\n\n"
-      );
-    }
-  }, [printMode]);
 
   const loadPrinters = () => {
     const stored = localStorage.getItem("networkPrinters");
@@ -523,12 +488,20 @@ Date: ${new Date().toLocaleString('vi-VN')}
 
   const handleTestPrint = async () => {
     if (!selectedPrinter) {
-      alert("Vui lòng chọn máy in");
+      toast({
+        title: "⚠️ Chưa chọn máy in",
+        description: "Vui lòng chọn máy in",
+        variant: "destructive"
+      });
       return;
     }
 
     if (!testContent.trim()) {
-      alert("Vui lòng nhập nội dung in thử");
+      toast({
+        title: "⚠️ Chưa có nội dung",
+        description: "Vui lòng nhập nội dung in thử",
+        variant: "destructive"
+      });
       return;
     }
 
@@ -536,23 +509,34 @@ Date: ${new Date().toLocaleString('vi-VN')}
     setPrintResult(null);
 
     try {
+      // Replace placeholders
       const content = testContent
         .replace("[Printer Name]", selectedPrinter.name)
         .replace("[IP Address]", `${selectedPrinter.ipAddress}:${selectedPrinter.port}`)
         .replace("[Time]", new Date().toLocaleString("vi-VN"));
 
-      const response = await fetch(`${selectedPrinter.bridgeUrl}/print`, {
+      // Convert text to ESC/POS bitmap (384px = 80mm printer)
+      const bitmapBytes = await textToESCPOSBitmap(content, {
+        width: 384,
+        fontSize: 20,
+        fontFamily: 'Arial',
+        lineHeight: 1.5,
+        align: 'left',
+        padding: 20
+      });
+
+      // Convert to base64
+      const base64Bitmap = btoa(String.fromCharCode(...bitmapBytes));
+
+      // Send bitmap to printer via bridge
+      const response = await fetch(`${selectedPrinter.bridgeUrl}/print/bitmap`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ipAddress: selectedPrinter.ipAddress,
           port: selectedPrinter.port,
-          content: content,
-          options: {
-            mode: printMode,
-            align: 'left',
-            feeds: 3
-          }
+          bitmapBase64: base64Bitmap,
+          feeds: 3
         }),
       });
 
@@ -564,13 +548,20 @@ Date: ${new Date().toLocaleString('vi-VN')}
       setPrintResult(result);
 
       if (result.success) {
-        alert(`✅ In thử thành công!\nChế độ: ${printMode}`);
+        toast({
+          title: "✅ In thử thành công",
+          description: `Đã in tới ${selectedPrinter.name} (Bitmap mode)`
+        });
       } else {
-        alert(`❌ Lỗi in: ${result.error}`);
+        throw new Error(result.error || 'Unknown error');
       }
     } catch (error: any) {
       console.error("Print error:", error);
-      alert(`❌ Lỗi: ${error.message}\n\nĐảm bảo Bridge v5.0 đang chạy tại ${selectedPrinter.bridgeUrl}`);
+      toast({
+        title: "❌ Lỗi in",
+        description: `${error.message}. Đảm bảo Bridge Server v5.0 đang chạy tại ${selectedPrinter.bridgeUrl}`,
+        variant: "destructive"
+      });
       setPrintResult({ success: false, error: error.message });
     } finally {
       setIsPrinting(false);
@@ -593,20 +584,24 @@ Date: ${new Date().toLocaleString('vi-VN')}
           {/* Alert thông tin */}
           <Alert className="bg-green-50 border-green-200">
             <Info className="h-4 w-4 text-green-600" />
-            <AlertTitle className="text-green-800">✅ Bridge Server v5.0 - CP1258 (Tiếng Việt CÓ DẤU)</AlertTitle>
+            <AlertTitle className="text-green-800">✅ In dạng ảnh (Bitmap) - Tiếng Việt 100% chính xác</AlertTitle>
             <AlertDescription className="text-sm text-green-700">
               <div className="space-y-2 mt-2">
                 <div>
-                  <strong>✅ Chế độ CP1258 (MẶC ĐỊNH)</strong>
+                  <strong>✨ Chế độ BITMAP (Mặc định)</strong>
                   <br />
-                  <span className="text-xs">Windows Vietnamese → In đầy đủ dấu: "Xin chào Việt Nam!"</span>
+                  <span className="text-xs">Chuyển text thành ảnh → In 100% chính xác tiếng Việt có dấu</span>
                   <br />
-                  <span className="text-xs font-semibold">⚙️ Yêu cầu: Máy in cấu hình Code Page 30</span>
+                  <span className="text-xs font-semibold">⚙️ Không cần cấu hình Code Page trên máy in</span>
                 </div>
                 <div>
-                  <strong>🔄 Chế độ NO-ACCENTS (Dự phòng)</strong>
+                  <strong>🎯 Ưu điểm:</strong>
                   <br />
-                  <span className="text-xs">Bỏ dấu → Dùng khi chưa cấu hình CP1258</span>
+                  <span className="text-xs">✓ Hỗ trợ tất cả ký tự đặc biệt và emoji</span>
+                  <br />
+                  <span className="text-xs">✓ Không bị lỗi font chữ tiếng Việt</span>
+                  <br />
+                  <span className="text-xs">✓ Tương thích với mọi máy in nhiệt</span>
                 </div>
                 <div className="pt-2 mt-2 border-t border-green-300">
                   <strong>📖 Hướng dẫn chi tiết:</strong>
@@ -1006,48 +1001,19 @@ Date: ${new Date().toLocaleString('vi-VN')}
           <Dialog open={isTestDialogOpen} onOpenChange={setIsTestDialogOpen}>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
-                <DialogTitle>🎨 In thử nghiệm - Chọn chế độ</DialogTitle>
+                <DialogTitle>🎨 In thử nghiệm - Bitmap Mode</DialogTitle>
                 <DialogDescription>
                   Máy in: {selectedPrinter?.name} ({selectedPrinter?.ipAddress}:{selectedPrinter?.port})
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
-                <div className="space-y-3">
-                  <Label>Chế độ encoding</Label>
-                  <RadioGroup value={printMode} onValueChange={(v: any) => setPrintMode(v)}>
-                    <div className="flex items-center space-x-2 p-3 border-2 border-green-500 rounded-lg bg-green-50 hover:bg-green-100">
-                      <RadioGroupItem value="cp1258" id="mode-cp1258" />
-                      <Label htmlFor="mode-cp1258" className="cursor-pointer flex-1">
-                        <div className="font-semibold text-green-700">✅ CP1258 (Khuyến nghị - Có dấu đầy đủ)</div>
-                        <div className="text-xs text-green-600">
-                          Windows Vietnamese → Hiển thị: "Xin chào Việt Nam!"
-                          <br />
-                          ⚙️ Yêu cầu: Code Page 30 trên máy in
-                        </div>
-                      </Label>
-                    </div>
-                    
-                    <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-muted/50">
-                      <RadioGroupItem value="no-accents" id="mode-no-accents" />
-                      <Label htmlFor="mode-no-accents" className="cursor-pointer flex-1">
-                        <div className="font-semibold">🔄 NO-ACCENTS (Dự phòng)</div>
-                        <div className="text-xs text-muted-foreground">
-                          Bỏ dấu → Hoạt động 100% mọi máy in
-                        </div>
-                      </Label>
-                    </div>
-                    
-                    <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-muted/50">
-                      <RadioGroupItem value="utf8" id="mode-utf8" />
-                      <Label htmlFor="mode-utf8" className="cursor-pointer flex-1">
-                        <div className="font-semibold">🧪 UTF-8 (Thử nghiệm)</div>
-                        <div className="text-xs text-muted-foreground">
-                          Unicode → Hiếm khi hoạt động trên máy in nhiệt
-                        </div>
-                      </Label>
-                    </div>
-                  </RadioGroup>
-                </div>
+                <Alert className="bg-blue-50 border-blue-200">
+                  <Info className="h-4 w-4 text-blue-600" />
+                  <AlertDescription className="text-sm text-blue-700">
+                    <strong>💡 Chế độ in Bitmap:</strong> Text sẽ được chuyển thành ảnh trước khi in. 
+                    Điều này đảm bảo tiếng Việt có dấu hiển thị 100% chính xác, không cần cấu hình Code Page.
+                  </AlertDescription>
+                </Alert>
 
                 <div className="space-y-2">
                   <Label htmlFor="test-content">Nội dung in thử</Label>
@@ -1099,7 +1065,7 @@ Date: ${new Date().toLocaleString('vi-VN')}
                   ) : (
                     <>
                       <Printer className="h-4 w-4 mr-2" />
-                      In thử ({printMode})
+                      In thử (Bitmap)
                     </>
                   )}
                 </Button>
