@@ -616,9 +616,43 @@ export function FacebookCommentsManager({
   // ============================================================================
 
   const checkCacheStatus = useCallback(async () => {
-    // Archive table disabled
-    setCacheStatus({ isCached: false, count: 0, lastUpdated: null });
-  }, []);
+    if (!selectedVideo?.objectId) {
+      setCacheStatus({ isCached: false, count: 0, lastUpdated: null });
+      return;
+    }
+
+    try {
+      const { count, error } = await supabase
+        .from("facebook_comments_archive" as any)
+        .select("id", { count: "exact", head: true })
+        .eq("facebook_post_id", selectedVideo.objectId);
+
+      if (error) throw error;
+
+      if (count && count > 0) {
+        const { data: lastUpdate, error: lastUpdateError } = await supabase
+          .from("facebook_comments_archive" as any)
+          .select("created_at")
+          .eq("facebook_post_id", selectedVideo.objectId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single();
+        
+        if (lastUpdateError) throw lastUpdateError;
+
+        setCacheStatus({
+          isCached: true,
+          count: count,
+          lastUpdated: lastUpdate.created_at,
+        });
+      } else {
+        setCacheStatus({ isCached: false, count: 0, lastUpdated: null });
+      }
+    } catch (err) {
+      console.error("Error checking cache status:", err);
+      setCacheStatus({ isCached: false, count: 0, lastUpdated: null });
+    }
+  }, [selectedVideo?.objectId]);
 
   // Check cache status when video selected
   useEffect(() => {
@@ -1590,48 +1624,6 @@ export function FacebookCommentsManager({
                   >
                     <RefreshCw className="mr-2 h-4 w-4" />
                     Refresh
-                  </Button>
-
-                  {/* CACHE BUTTON - Only enabled for OFFLINE videos */}
-                  <Button
-                    variant={cacheStatus.isCached ? "default" : "outline"}
-                    size="sm"
-                    onClick={handleCacheComments}
-                    disabled={
-                      !selectedVideo ||
-                      cacheCommentsMutation.isPending ||
-                      selectedVideo.statusLive === 1
-                    }
-                    className={
-                      cacheStatus.isCached
-                        ? "bg-green-600 hover:bg-green-700"
-                        : ""
-                    }
-                    aria-label="Cache comments vào database"
-                    title={
-                      selectedVideo?.statusLive === 1
-                        ? "Live videos không cần cache (luôn real-time)"
-                        : "Cache comments để load nhanh hơn"
-                    }
-                  >
-                    {cacheCommentsMutation.isPending ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Đang cache...
-                      </>
-                    ) : selectedVideo?.statusLive === 1 ? (
-                      <>
-                        <Database className="mr-2 h-4 w-4" />
-                        🔴 Live
-                      </>
-                    ) : (
-                      <>
-                        <Database className="mr-2 h-4 w-4" />
-                        {cacheStatus.isCached
-                          ? `📦 ${cacheStatus.count}`
-                          : "Cache"}
-                      </>
-                    )}
                   </Button>
 
                   {commentsData?.pages[0]?.fromCache && (
