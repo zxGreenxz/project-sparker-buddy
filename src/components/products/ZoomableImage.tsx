@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { Package } from "lucide-react";
+import { toast } from "sonner";
 
 interface ZoomableImageProps {
   src?: string | null;
@@ -11,6 +12,22 @@ export function ZoomableImage({ src, alt, size = "md" }: ZoomableImageProps) {
   const [isZoomed, setIsZoomed] = useState(false);
   const [zoomPosition, setZoomPosition] = useState({ top: 0, left: 0 });
   const imgRef = useRef<HTMLImageElement>(null);
+
+  const handleImageClick = async () => {
+    if (!src) return;
+    
+    try {
+      const response = await fetch(src);
+      const blob = await response.blob();
+      await navigator.clipboard.write([
+        new ClipboardItem({ [blob.type]: blob })
+      ]);
+      toast.success("Đã copy ảnh vào clipboard!");
+    } catch (error) {
+      console.error("Error copying image:", error);
+      toast.error("Không thể copy ảnh. Vui lòng thử lại.");
+    }
+  };
 
   const sizeClasses = {
     sm: "w-10 h-10",
@@ -67,6 +84,7 @@ export function ZoomableImage({ src, alt, size = "md" }: ZoomableImageProps) {
         className={`${sizeClasses[size]} object-cover rounded cursor-pointer transition-opacity duration-200 hover:opacity-80`}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
+        onClick={handleImageClick}
       />
       
       {isZoomed && (
