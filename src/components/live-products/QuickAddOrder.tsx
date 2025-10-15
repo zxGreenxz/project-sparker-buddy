@@ -10,7 +10,8 @@ import { OrderBillNotification } from './OrderBillNotification';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { getActivePrinter, printToXC80 } from '@/lib/printer-utils';
+import { getActivePrinter } from '@/lib/printer-utils';
+import { textToESCPOSBitmap } from '@/lib/text-to-bitmap';
 interface QuickAddOrderProps {
   productId: string;
   phaseId: string;
@@ -282,7 +283,7 @@ export function QuickAddOrder({
       if (billData) {
         const activePrinter = getActivePrinter();
         if (activePrinter) {
-          // Print to XC80 thermal printer
+          // Print to XC80 thermal printer using bitmap mode
           const billContent = `
 #${billData.sessionIndex} - ${billData.customerName}
 ${billData.phone || 'Chưa có SĐT'}
@@ -297,23 +298,51 @@ ${billData.comment ? `${billData.comment}\n` : ''}${new Date(billData.createdTim
             hour: '2-digit',
             minute: '2-digit'
           })}
---------------------------------
           `.trim();
-          console.log(`🖨️ Printing to ${activePrinter.name} (${activePrinter.ipAddress}:${activePrinter.port})`);
-          const printResult = await printToXC80(activePrinter, billContent, {
-            mode: 'cp1258',
-            align: 'center',
-            feeds: 3
-          });
-          if (!printResult.success) {
-            console.error("Print failed:", printResult.error);
+          
+          try {
+            console.log(`🖨️ Converting text to bitmap for ${activePrinter.name} (${activePrinter.ipAddress}:${activePrinter.port})`);
+            
+            // Convert text to ESC/POS bitmap (includes paper cut)
+            const bitmapData = await textToESCPOSBitmap(billContent, {
+              width: 384,
+              fontSize: 24,
+              fontFamily: 'Arial, sans-serif',
+              lineHeight: 1.2,
+              align: 'center',
+              padding: 10,
+              bold: false
+            });
+            
+            // Convert to base64 for transmission
+            const base64Data = btoa(String.fromCharCode(...bitmapData));
+            
+            // Send to printer via bridge
+            const bridgeUrl = activePrinter.bridgeUrl || `http://${activePrinter.ipAddress}:${activePrinter.port}`;
+            console.log(`🖨️ Sending bitmap to printer bridge: ${bridgeUrl}/print/bitmap`);
+            
+            const response = await fetch(`${bridgeUrl}/print/bitmap`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                printerIp: activePrinter.ipAddress,
+                printerPort: activePrinter.port,
+                data: base64Data
+              })
+            });
+            
+            if (!response.ok) {
+              throw new Error(`Bridge returned status ${response.status}`);
+            }
+            
+            console.log("✅ Bill printed successfully (bitmap mode)");
+          } catch (error) {
+            console.error("Print failed:", error);
             toast({
               title: "⚠️ Lỗi in bill",
-              description: `Không thể in lên ${activePrinter.name}. Lỗi: ${printResult.error}`,
+              description: `Không thể in lên ${activePrinter.name}. Lỗi: ${error instanceof Error ? error.message : 'Unknown error'}`,
               variant: "destructive"
             });
-          } else {
-            console.log("✅ Bill printed successfully");
           }
         } else {
           // Fallback: Browser print dialog nếu không có máy in active
