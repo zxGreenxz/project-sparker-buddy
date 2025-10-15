@@ -193,7 +193,7 @@ const Settings = () => {
   const loadCurrentToken = async () => {
     setIsLoadingToken(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("tpos_config")
         .select("id, bearer_token, is_active, token_type, last_refreshed_at, refresh_interval_days, token_status, created_at, updated_at")
         .eq("is_active", true)
@@ -202,7 +202,7 @@ const Settings = () => {
       if (error) throw error;
       
       // Type guard: check if it's a TPOS token
-      const tokenType = (data as any)?.token_type;
+      const tokenType = data?.token_type;
       if (tokenType && tokenType !== 'tpos') {
         toast({
           title: "Chưa có TPOS token",
@@ -213,8 +213,8 @@ const Settings = () => {
       }
       
       if (data) {
-        setCurrentToken(data as any);
-        setBearerToken((data as any).bearer_token);
+        setCurrentToken(data);
+        setBearerToken(data.bearer_token);
         toast({
           title: "Tải TPOS token thành công",
           description: "Token hiện tại đã được tải",
@@ -240,7 +240,7 @@ const Settings = () => {
   const loadCurrentFacebookToken = async () => {
     setIsLoadingFacebookToken(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("tpos_config")
         .select("id, bearer_token, is_active, token_type, last_refreshed_at, refresh_interval_days, token_status, created_at, updated_at")
         .eq("is_active", true)
@@ -249,7 +249,7 @@ const Settings = () => {
       if (error) throw error;
       
       // Type guard: check if it's a Facebook token
-      const tokenType = (data as any)?.token_type;
+      const tokenType = data?.token_type;
       if (tokenType && tokenType !== 'facebook') {
         toast({
           title: "Chưa có Facebook token",
@@ -260,8 +260,8 @@ const Settings = () => {
       }
       
       if (data) {
-        setCurrentFacebookToken(data as any);
-        setFacebookBearerToken((data as any).bearer_token);
+        setCurrentFacebookToken(data);
+        setFacebookBearerToken(data.bearer_token);
         toast({
           title: "Tải Facebook token thành công",
           description: "Token hiện tại đã được tải",

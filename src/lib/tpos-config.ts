@@ -26,10 +26,10 @@ export const TPOS_CONFIG = {
 
 export async function getActiveTPOSToken(): Promise<string | null> {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('tpos_config')
       .select('bearer_token')
-      .eq('token_type' as any, 'tpos')
+      .eq('token_type', 'tpos')
       .eq('is_active', true)
       .maybeSingle();
     
@@ -47,10 +47,10 @@ export async function getActiveTPOSToken(): Promise<string | null> {
 
 export async function getActiveFacebookToken(): Promise<string | null> {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('tpos_config')
       .select('bearer_token')
-      .eq('token_type' as any, 'facebook')
+      .eq('token_type', 'facebook')
       .eq('is_active', true)
       .maybeSingle();
     
