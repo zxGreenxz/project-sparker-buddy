@@ -183,5 +183,18 @@ export async function textToESCPOSBitmap(
   const escposData = encodeBitmapToESCPOS(bitmap);
   console.log(`✅ ESC/POS encoded: ${escposData.length} bytes`);
   
-  return escposData;
+  // Step 3: Add paper feed and cut commands
+  const cutCommands = new Uint8Array([
+    0x1B, 0x64, 0x03,  // ESC d 3 - Feed 3 lines
+    0x1D, 0x56, 0x42   // GS V 66 - Feed and full cut paper
+  ]);
+  
+  // Combine ESC/POS data + cut commands
+  const result = new Uint8Array(escposData.length + cutCommands.length);
+  result.set(escposData, 0);
+  result.set(cutCommands, escposData.length);
+  
+  console.log(`✅ Added paper cut command`);
+  
+  return result;
 }
