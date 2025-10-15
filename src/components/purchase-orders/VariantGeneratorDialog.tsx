@@ -143,6 +143,62 @@ export function VariantGeneratorDialog({
     }
   };
 
+  const handleRemoveVariantFromPreview = (index: number) => {
+    const variantToRemove = previewResults[index];
+    
+    // Parse variant text to get individual attributes
+    const variantParts = variantToRemove.variantText.split(',').map(s => s.trim()).filter(Boolean);
+    
+    // Check which attributes from this variant are ONLY used by this variant
+    const attributesToRemove = {
+      sizeText: [] as string[],
+      colors: [] as string[],
+      sizeNumbers: [] as string[]
+    };
+    
+    for (const part of variantParts) {
+      // Count how many variants use this attribute
+      const usageCount = previewResults.filter((r, i) => 
+        i !== index && r.variantText.includes(part)
+      ).length;
+      
+      // If only this variant uses this attribute, mark for removal
+      if (usageCount === 0) {
+        // Check which category this attribute belongs to
+        if (TPOS_ATTRIBUTES.sizeText.some(st => st.Name === part)) {
+          attributesToRemove.sizeText.push(part);
+        } else if (TPOS_ATTRIBUTES.color.some(c => c.Name === part)) {
+          attributesToRemove.colors.push(part);
+        } else if (TPOS_ATTRIBUTES.sizeNumber.some(sn => sn.Name === part)) {
+          attributesToRemove.sizeNumbers.push(part);
+        }
+      }
+    }
+    
+    // Remove attributes that are no longer needed
+    if (attributesToRemove.sizeText.length > 0) {
+      setSelectedSizeText(prev => prev.filter(s => !attributesToRemove.sizeText.includes(s)));
+    }
+    if (attributesToRemove.colors.length > 0) {
+      setSelectedColors(prev => prev.filter(c => !attributesToRemove.colors.includes(c)));
+    }
+    if (attributesToRemove.sizeNumbers.length > 0) {
+      setSelectedSizeNumber(prev => prev.filter(s => !attributesToRemove.sizeNumbers.includes(s)));
+    }
+    
+    // Update active attribute type if needed
+    const hasAnySelection = 
+      (selectedSizeText.length - attributesToRemove.sizeText.length) > 0 ||
+      (selectedColors.length - attributesToRemove.colors.length) > 0 ||
+      (selectedSizeNumber.length - attributesToRemove.sizeNumbers.length) > 0;
+    
+    if (!hasAnySelection) {
+      setActiveAttributeType(null);
+    }
+    
+    // Note: previewResults will be auto-updated by useEffect when selections change
+  };
+
   const handleCancel = () => {
     onOpenChange(false);
     // Reset selections and filters
@@ -474,20 +530,7 @@ export function VariantGeneratorDialog({
                                 className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  const newResults = previewResults.filter((_, i) => i !== index);
-                                  setPreviewResults(newResults);
-                                  const newSet = new Set(selectedVariantIndices);
-                                  newSet.delete(index);
-                                  // Adjust indices after deletion
-                                  const adjustedSet = new Set<number>();
-                                  newSet.forEach(i => {
-                                    if (i > index) {
-                                      adjustedSet.add(i - 1);
-                                    } else {
-                                      adjustedSet.add(i);
-                                    }
-                                  });
-                                  setSelectedVariantIndices(adjustedSet);
+                                  handleRemoveVariantFromPreview(index);
                                 }}
                               >
                                 <Trash2 className="h-4 w-4" />
