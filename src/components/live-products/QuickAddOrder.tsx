@@ -287,12 +287,12 @@ export function QuickAddOrder({
           try {
             console.log(`🖨️ Converting text to bitmap for ${activePrinter.name} (${activePrinter.ipAddress}:${activePrinter.port})`);
             
-            // Prepare lines with individual font sizes
+            // Prepare lines with individual font sizes optimized for 576px width
             const printLines = [
-              { text: `#${billData.sessionIndex} - ${billData.phone || 'Chưa có SĐT'}`, fontSize: 56, bold: true },  // Line 1: 2x
-              { text: billData.customerName, fontSize: 56, bold: true },  // Line 2: 2x
-              { text: `${billData.productCode} - ${billData.productName.replace(/^\d+\s+/, '')}`, fontSize: 20, bold: true },  // Line 3: 0.7x
-              ...(billData.comment ? [{ text: billData.comment, fontSize: 56, bold: true }] : []),  // Line 4: 2x (if exists)
+              { text: `#${billData.sessionIndex} - ${billData.phone || 'Chưa có SĐT'}`, fontSize: 64, bold: true },  // Line 1: 2x
+              { text: billData.customerName, fontSize: 64, bold: true },  // Line 2: 2x
+              { text: `${billData.productCode} - ${billData.productName.replace(/^\d+\s+/, '')}`, fontSize: 24, bold: true },  // Line 3: 0.7x
+              ...(billData.comment ? [{ text: billData.comment, fontSize: 64, bold: true }] : []),  // Line 4: 2x (if exists)
               { text: new Date(billData.createdTime).toLocaleString('vi-VN', {
                 timeZone: 'Asia/Bangkok',
                 day: '2-digit',
@@ -300,18 +300,18 @@ export function QuickAddOrder({
                 year: 'numeric',
                 hour: '2-digit',
                 minute: '2-digit'
-              }), fontSize: 28, bold: true }  // Line 5: keep original
+              }), fontSize: 32, bold: true }  // Line 5: keep original
             ];
             
             // Convert text to ESC/POS bitmap (includes paper cut)
             const bitmapData = await textToESCPOSBitmap('', {
-              width: 480,
+              width: 576,  // Standard width for 80mm thermal printer
               fontFamily: 'Arial, sans-serif',
               lineHeight: 1.2,
               align: 'center',
               padding: 5,  // Small padding for header/footer
               lines: printLines,
-              lineSpacing: 15  // Increased spacing between lines
+              lineSpacing: 18  // Increased spacing between lines
             });
             
             // Convert to base64 for transmission
