@@ -1542,7 +1542,7 @@ export default function LiveProducts() {
                                     </div>
                                   </TableCell>
                                    <TableCell className="text-center">
-                                     <Input type="number" min="0" value={preparedQuantities[product.id] ?? product.prepared_quantity} onChange={e => handlePreparedQuantityChange(product.id, e.target.value)} onBlur={() => {
+                                     <Input type="number" min="0" value={preparedQuantities[product.id] ?? product.prepared_quantity} onChange={e => handlePreparedQuantityChange(product.id, e.target.value)} onFocus={(e) => e.target.select()} onBlur={() => {
                              const newQuantity = preparedQuantities[product.id];
                              if (newQuantity !== undefined && newQuantity !== product.prepared_quantity) {
                                updatePreparedQuantityMutation.mutate({
@@ -1860,7 +1860,7 @@ export default function LiveProducts() {
                                 </TableCell>
                                 
                                 <TableCell className="text-center">
-                                  <Input type="number" min="0" value={preparedQuantities[product.id] ?? product.prepared_quantity} onChange={e => handlePreparedQuantityChange(product.id, e.target.value)} onBlur={() => {
+                                  <Input type="number" min="0" value={preparedQuantities[product.id] ?? product.prepared_quantity} onChange={e => handlePreparedQuantityChange(product.id, e.target.value)} onFocus={(e) => e.target.select()} onBlur={() => {
                              const newQuantity = preparedQuantities[product.id];
                              if (newQuantity !== undefined && newQuantity !== product.prepared_quantity) {
                                updatePreparedQuantityMutation.mutate({
