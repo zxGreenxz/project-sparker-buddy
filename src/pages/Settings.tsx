@@ -844,6 +844,8 @@ const Settings = () => {
 
         {/* Tab: Cấu hình chung */}
         <TabsContent value="general" className="space-y-6 mt-4">
+          <TPOSCredentialsManager />
+          
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
@@ -1053,8 +1055,6 @@ const Settings = () => {
               </CardContent>
             </Card>
           </div>
-          
-          <TPOSCredentialsManager />
           
           <div className="grid grid-cols-1 gap-6">
             <FacebookPageManager />
