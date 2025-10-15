@@ -309,7 +309,7 @@ export function QuickAddOrder({
               fontFamily: 'Arial, sans-serif',
               lineHeight: 1.3,
               align: 'center',
-              padding: 10,
+              padding: 2,  // Minimal padding to cut header/footer
               lines: printLines,
               lineSpacing: 15  // Increased spacing between lines
             });
