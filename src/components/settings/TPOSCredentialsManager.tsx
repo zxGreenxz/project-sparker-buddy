@@ -5,13 +5,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Trash2, Plus, RefreshCw, Check } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 
 interface Credential {
   id: string;
   name: string;
   username: string;
+  token_type: 'tpos' | 'facebook';
   is_active: boolean;
   created_at: string;
 }
@@ -26,6 +29,7 @@ export function TPOSCredentialsManager() {
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [tokenType, setTokenType] = useState<'tpos' | 'facebook'>('tpos');
   const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
@@ -34,10 +38,10 @@ export function TPOSCredentialsManager() {
 
   const loadCredentials = async () => {
     try {
-      const { data, error } = await (supabase as any)
-        .from('tpos_credentials')
-        .select('id, name, username, is_active, created_at')
-        .order('created_at', { ascending: false });
+    const { data, error } = await (supabase as any)
+      .from('tpos_credentials')
+      .select('id, name, username, token_type, is_active, created_at')
+      .order('created_at', { ascending: false });
 
       if (error) throw error;
       setCredentials(data || []);
@@ -69,6 +73,7 @@ export function TPOSCredentialsManager() {
           name: name.trim(),
           username: username.trim(),
           password: password.trim(),
+          token_type: tokenType,
           is_active: credentials.length === 0, // First credential is active by default
         });
 
@@ -82,6 +87,7 @@ export function TPOSCredentialsManager() {
       setName("");
       setUsername("");
       setPassword("");
+      setTokenType('tpos');
       setShowForm(false);
       loadCredentials();
     } catch (error: any) {
@@ -195,7 +201,7 @@ export function TPOSCredentialsManager() {
       <CardContent className="space-y-4">
         <Alert>
           <AlertDescription>
-            Tài khoản được đánh dấu sẽ tự động dùng để refresh token cho cả TPOS và Facebook Bearer Token
+            Mỗi tài khoản sẽ tự động refresh token cho loại token đã chọn (TPOS hoặc Facebook). Chỉ tài khoản được đánh dấu "Đang dùng" mới tự động refresh sau 7 ngày.
           </AlertDescription>
         </Alert>
 
@@ -210,10 +216,13 @@ export function TPOSCredentialsManager() {
                 <div className="flex items-center gap-2">
                   <span className="font-medium">{cred.name}</span>
                   {cred.is_active && (
-                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                    <Badge variant="default" className="text-xs">
                       Đang dùng
-                    </span>
+                    </Badge>
                   )}
+                  <Badge variant="secondary" className="text-xs">
+                    {cred.token_type === 'tpos' ? 'TPOS Token' : 'Facebook Token'}
+                  </Badge>
                 </div>
                 <div className="text-sm text-muted-foreground">{cred.username}</div>
               </div>
@@ -285,6 +294,21 @@ export function TPOSCredentialsManager() {
                 placeholder="Password TPOS"
               />
             </div>
+            <div>
+              <Label htmlFor="token-type">Loại Token</Label>
+              <Select value={tokenType} onValueChange={(value: 'tpos' | 'facebook') => setTokenType(value)}>
+                <SelectTrigger id="token-type">
+                  <SelectValue placeholder="Chọn loại token" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="tpos">TPOS Bearer Token</SelectItem>
+                  <SelectItem value="facebook">Facebook Bearer Token</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Token này sẽ được tự động cập nhật khi refresh
+              </p>
+            </div>
             <div className="flex gap-2">
               <Button onClick={handleSave} disabled={loading} className="flex-1">
                 {loading ? "Đang lưu..." : "Lưu"}
@@ -296,6 +320,7 @@ export function TPOSCredentialsManager() {
                   setName("");
                   setUsername("");
                   setPassword("");
+                  setTokenType('tpos');
                 }}
               >
                 Hủy

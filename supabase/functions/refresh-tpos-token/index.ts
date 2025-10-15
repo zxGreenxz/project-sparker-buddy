@@ -20,6 +20,7 @@ Deno.serve(async (req) => {
     const { credentialId, username, password } = body;
 
     let credentialsToUse;
+    let tokenType = 'tpos'; // default
 
     if (username && password) {
       // Manual refresh with provided credentials
@@ -29,7 +30,7 @@ Deno.serve(async (req) => {
       // Manual refresh with specific credential
       const { data, error } = await supabase
         .from('tpos_credentials')
-        .select('username, password')
+        .select('username, password, token_type')
         .eq('id', credentialId)
         .single();
 
@@ -37,12 +38,13 @@ Deno.serve(async (req) => {
         throw new Error('Credential not found');
       }
       credentialsToUse = data;
-      console.log('🔄 Manual token refresh with saved credential');
+      tokenType = data.token_type || 'tpos';
+      console.log(`🔄 Manual token refresh with saved credential for ${tokenType}`);
     } else {
       // Auto refresh - get active credential
       const { data, error } = await supabase
         .from('tpos_credentials')
-        .select('username, password')
+        .select('username, password, token_type')
         .eq('is_active', true)
         .maybeSingle();
 
@@ -55,7 +57,8 @@ Deno.serve(async (req) => {
         );
       }
       credentialsToUse = data;
-      console.log('🔄 Auto token refresh with active credential');
+      tokenType = data.token_type || 'tpos';
+      console.log(`🔄 Auto token refresh with active credential for ${tokenType}`);
     }
 
     // Get new token from TPOS
@@ -95,43 +98,29 @@ Deno.serve(async (req) => {
 
     console.log('✅ Got new token from TPOS');
 
-    // Update TPOS token
-    const { error: tposUpdateError } = await supabase
+    // Update the specific token based on credential's token_type
+    const { error: updateError } = await supabase
       .from('tpos_config')
       .update({
         bearer_token: newToken,
         last_refreshed_at: new Date().toISOString(),
         token_status: 'active'
       })
-      .eq('token_type', 'tpos')
+      .eq('token_type', tokenType)
       .eq('is_active', true);
 
-    if (tposUpdateError) {
-      console.error('❌ Error updating TPOS token:', tposUpdateError);
-      throw tposUpdateError;
+    if (updateError) {
+      console.error(`❌ Error updating ${tokenType} token:`, updateError);
+      throw updateError;
     }
 
-    // Also update Facebook token (using same token for now)
-    const { error: fbUpdateError } = await supabase
-      .from('tpos_config')
-      .update({
-        bearer_token: newToken,
-        last_refreshed_at: new Date().toISOString(),
-        token_status: 'active'
-      })
-      .eq('token_type', 'facebook')
-      .eq('is_active', true);
-
-    if (fbUpdateError) {
-      console.error('⚠️ Error updating Facebook token:', fbUpdateError);
-    }
-
-    console.log('✅ Token refresh completed successfully');
+    console.log(`✅ Token refresh completed successfully for ${tokenType}`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: 'Tokens refreshed successfully',
+        message: `${tokenType.toUpperCase()} token refreshed successfully`,
+        tokenType,
         refreshedAt: new Date().toISOString()
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
