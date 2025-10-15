@@ -211,29 +211,31 @@ export function generateVariantCode(
     }
   }
 
-  // Handle collision with sequential suffix: 1, 12, 123, 1234...
+  // FIXED: Check collision by BASE variant code only, not full product code
+  // This ensures that when variants are removed, the remaining ones get correct suffixes
   let finalCode = variantCode;
-  const fullCodeBase = `${productCode}${variantCode}`;
   let hasCollision = false;
 
-  if (usedCodes.has(fullCodeBase)) {
+  // Get current count for this base code
+  const count = codeCollisionCount.get(variantCode) || 0;
+  
+  if (count > 0) {
+    // Already seen this base code → add sequential suffix
     hasCollision = true;
-    const count = codeCollisionCount.get(variantCode) || 0;
-    
-    // Generate sequential suffix: 1, 12, 123, 1234...
     let sequentialSuffix = '';
-    for (let i = 1; i <= count + 1; i++) {
+    for (let i = 1; i <= count; i++) {
       sequentialSuffix += i;
     }
-    
     finalCode = variantCode + sequentialSuffix;
-    codeCollisionCount.set(variantCode, count + 1);
-  } else {
-    codeCollisionCount.set(variantCode, 0);
   }
-
+  
+  // Update count for next occurrence
+  codeCollisionCount.set(variantCode, count + 1);
+  
   const fullCode = `${productCode}${finalCode}`;
   usedCodes.add(fullCode);
+
+  console.log(`[Variant Gen] ${combo.text} → baseCode: ${variantCode}, finalCode: ${finalCode}, count: ${count}, hasCollision: ${hasCollision}`);
 
   return {
     variantCode: finalCode,
