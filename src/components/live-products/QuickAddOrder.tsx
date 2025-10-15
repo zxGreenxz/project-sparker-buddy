@@ -315,9 +315,9 @@ ${billData.comment ? `${billData.comment}\n` : ''}${new Date(billData.createdTim
             });
             
             // Convert to base64 for transmission
-            const base64Data = btoa(String.fromCharCode(...bitmapData));
+            const base64Bitmap = btoa(String.fromCharCode(...bitmapData));
             
-            // Send to printer via bridge
+            // Send to printer via bridge (use correct parameter names)
             const bridgeUrl = activePrinter.bridgeUrl || `http://${activePrinter.ipAddress}:${activePrinter.port}`;
             console.log(`🖨️ Sending bitmap to printer bridge: ${bridgeUrl}/print/bitmap`);
             
@@ -325,9 +325,10 @@ ${billData.comment ? `${billData.comment}\n` : ''}${new Date(billData.createdTim
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                printerIp: activePrinter.ipAddress,
-                printerPort: activePrinter.port,
-                data: base64Data
+                ipAddress: activePrinter.ipAddress,
+                port: activePrinter.port,
+                bitmapBase64: base64Bitmap,
+                feeds: 3
               })
             });
             
