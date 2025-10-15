@@ -296,7 +296,7 @@ serve(async (req) => {
     // Validate productType
     const validTypes = ['hang_dat', 'hang_le', 'hang_soluong'];
     const finalProductType = validTypes.includes(productType) ? productType : 'hang_dat';
-    console.log(`Creating order with product_type: ${finalProductType}`);
+    console.log(`🔍 [Edge Function] Received productType: "${productType}" → finalProductType: "${finalProductType}"`);
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
@@ -424,7 +424,7 @@ serve(async (req) => {
       if (existingOrder) {
         // Update existing record, increment count
         const newOrderCount = existingOrder.order_count + 1;
-        console.log(`Updating existing order, incrementing count to: ${newOrderCount}`);
+        console.log(`⬆️ Updating existing order, incrementing count to: ${newOrderCount}, product_type: "${finalProductType}"`);
 
       const { error: updateError } = await supabase
         .from('facebook_pending_orders')
@@ -460,13 +460,14 @@ serve(async (req) => {
       }
 
         if (updateError) {
-          console.error('Error updating facebook_pending_orders:', updateError);
+          console.error('❌ Error updating facebook_pending_orders:', updateError);
+          throw new Error(`Database update failed: ${updateError.message}`);
         } else {
-          console.log(`Successfully updated order with count: ${newOrderCount}`);
+          console.log(`✅ Successfully updated order with count: ${newOrderCount}, product_type: "${finalProductType}"`);
         }
       } else {
         // Insert new record with count = 1
-        console.log('Creating new order with count: 1');
+        console.log(`➕ Creating new order with count: 1, product_type: "${finalProductType}"`);
 
       const { error: insertError } = await supabase
         .from('facebook_pending_orders')
@@ -504,13 +505,15 @@ serve(async (req) => {
       }
 
         if (insertError) {
-          console.error('Error saving to facebook_pending_orders:', insertError);
+          console.error('❌ Error saving to facebook_pending_orders:', insertError);
+          throw new Error(`Database insert failed: ${insertError.message}`);
         } else {
-          console.log('Successfully created new order with count: 1');
+          console.log(`✅ Successfully created new order with count: 1, product_type: "${finalProductType}"`);
         }
       }
     } catch (dbError) {
-      console.error('Exception saving to database:', dbError);
+      console.error('❌ Exception saving to database:', dbError);
+      throw dbError; // Re-throw to trigger proper error response
     }
 
     // Return both payload and response

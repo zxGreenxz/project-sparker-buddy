@@ -498,6 +498,8 @@ export function FacebookCommentsManager({
       video: FacebookVideo;
       productType?: string;
     }) => {
+      console.log(`📤 [Mutation] Sending request with productType: "${productType}"`);
+      
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -516,6 +518,8 @@ export function FacebookCommentsManager({
       );
 
       const responseData = await response.json();
+      console.log(`📥 [Mutation] Response:`, responseData);
+      
       if (!response.ok) {
         throw new Error(JSON.stringify(responseData));
       }
@@ -526,12 +530,14 @@ export function FacebookCommentsManager({
       setPendingCommentIds((prev) => new Set(prev).add(variables.comment.id));
     },
     onSuccess: (data) => {
+      console.log(`✅ [Success] Order created:`, data);
       toast({
         title: "Tạo đơn hàng thành công!",
         description: `Đơn hàng ${data.response.Code} đã được tạo.`,
       });
     },
     onError: (error: Error) => {
+      console.error(`❌ [Error] Failed to create order:`, error);
       let errorData;
       try {
         errorData = JSON.parse(error.message);
@@ -1119,6 +1125,7 @@ export function FacebookCommentsManager({
   };
 
   const handleCreateOrderClick = (comment: CommentWithStatus, productType: string = 'hang_dat') => {
+    console.log(`🔵 [Frontend] Creating order with productType: "${productType}"`);
     if (selectedVideo) {
       createOrderMutation.mutate({ comment, video: selectedVideo, productType });
     }
