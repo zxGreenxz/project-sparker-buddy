@@ -421,7 +421,8 @@ serve(async (req) => {
       if (existingOrder) {
         // Update existing record, increment count
         const newOrderCount = existingOrder.order_count + 1;
-        console.log(`Updating existing order, incrementing count to: ${newOrderCount}`);
+        console.log(`⬆️ Updating existing order, incrementing count to: ${newOrderCount}`);
+        console.log(`⬆️ commentType value before UPDATE: "${commentType}"`);
 
       const { error: updateError } = await supabase
         .from('facebook_pending_orders')
@@ -437,6 +438,12 @@ serve(async (req) => {
           updated_at: new Date().toISOString(),
         })
         .eq('id', existingOrder.id);
+      
+      if (updateError) {
+        console.error('❌ Error updating facebook_pending_orders:', updateError);
+      } else {
+        console.log(`✅ Successfully updated order with commentType: "${commentType}"`);
+      }
       
       // Update facebook_comments_archive
       if (!updateError) {
@@ -456,14 +463,10 @@ serve(async (req) => {
         }
       }
 
-        if (updateError) {
-          console.error('Error updating facebook_pending_orders:', updateError);
-        } else {
-          console.log(`Successfully updated order with count: ${newOrderCount}`);
-        }
       } else {
         // Insert new record with count = 1
-        console.log('Creating new order with count: 1');
+        console.log(`➕ Creating new order with count: 1`);
+        console.log(`➕ commentType value before INSERT: "${commentType}"`);
 
       const { error: insertError } = await supabase
         .from('facebook_pending_orders')
@@ -481,6 +484,12 @@ serve(async (req) => {
           order_count: 1,
           comment_type: commentType || null,
         });
+      
+      if (insertError) {
+        console.error('❌ Error saving to facebook_pending_orders:', insertError);
+      } else {
+        console.log(`✅ Successfully created order with commentType: "${commentType}"`);
+      }
       
       // Update facebook_comments_archive
       if (!insertError) {
@@ -500,11 +509,6 @@ serve(async (req) => {
         }
       }
 
-        if (insertError) {
-          console.error('Error saving to facebook_pending_orders:', insertError);
-        } else {
-          console.log('Successfully created new order with count: 1');
-        }
       }
     } catch (dbError) {
       console.error('Exception saving to database:', dbError);
