@@ -25,6 +25,7 @@ export function ProductImage({
   const [isZoomed, setIsZoomed] = useState(false);
   const [zoomPosition, setZoomPosition] = useState({ top: 0, left: 0 });
   const imgRef = useRef<HTMLImageElement>(null);
+  const zoomedImgRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
     // Get initial image URL based on priority
@@ -76,17 +77,15 @@ export function ProductImage({
     setIsZoomed(false);
   };
 
-  const handleImageClick = async () => {
+  const handleImageClick = async (sourceImgElement?: HTMLImageElement | null) => {
     if (!imageUrl) return;
     
     try {
-      // Try to fetch image as blob to bypass CORS
+      // TIER 1: Try to fetch image as blob (best quality)
       const response = await fetch(imageUrl);
       if (!response.ok) throw new Error("Failed to fetch image");
       
       const blob = await response.blob();
-      
-      // Create image from blob URL
       const img = new Image();
       const objectUrl = URL.createObjectURL(blob);
       
@@ -96,7 +95,6 @@ export function ProductImage({
         img.src = objectUrl;
       });
       
-      // Draw to canvas and convert to PNG
       const canvas = document.createElement("canvas");
       canvas.width = img.width;
       canvas.height = img.height;
@@ -108,8 +106,6 @@ export function ProductImage({
       }
       
       ctx.drawImage(img, 0, 0);
-      
-      // Clean up object URL
       URL.revokeObjectURL(objectUrl);
       
       const pngBlob = await new Promise<Blob>((resolve, reject) => {
@@ -124,15 +120,50 @@ export function ProductImage({
       ]);
       
       toast.success("Đã copy ảnh vào clipboard!");
-    } catch (error) {
-      console.error("Error copying image:", error);
       
-      // Fallback: Copy image URL to clipboard if image copy fails
+    } catch (fetchError) {
+      console.log("Fetch failed, trying DOM capture:", fetchError);
+      
+      // TIER 2: Try to capture from DOM element
       try {
-        await navigator.clipboard.writeText(imageUrl);
-        toast.success("Không thể copy ảnh. Đã copy link ảnh vào clipboard!");
-      } catch (urlError) {
-        toast.error("Không thể copy. Vui lòng thử lại.");
+        const imgElement = sourceImgElement || imgRef.current;
+        
+        if (!imgElement || !imgElement.complete) {
+          throw new Error("Image element not ready");
+        }
+        
+        const canvas = document.createElement("canvas");
+        canvas.width = imgElement.naturalWidth || imgElement.width;
+        canvas.height = imgElement.naturalHeight || imgElement.height;
+        
+        const ctx = canvas.getContext("2d");
+        if (!ctx) throw new Error("Could not get canvas context");
+        
+        ctx.drawImage(imgElement, 0, 0);
+        
+        const pngBlob = await new Promise<Blob>((resolve, reject) => {
+          canvas.toBlob((blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error("Could not create blob"));
+          }, "image/png");
+        });
+        
+        await navigator.clipboard.write([
+          new ClipboardItem({ "image/png": pngBlob })
+        ]);
+        
+        toast.success("Đã copy ảnh vào clipboard!");
+        
+      } catch (domError) {
+        console.log("DOM capture failed (likely tainted canvas):", domError);
+        
+        // TIER 3: Fallback to copying URL
+        try {
+          await navigator.clipboard.writeText(imageUrl);
+          toast.success("Không thể copy ảnh. Đã copy link ảnh vào clipboard!");
+        } catch (urlError) {
+          toast.error("Không thể copy. Vui lòng thử lại.");
+        }
       }
     }
   };
@@ -162,7 +193,7 @@ export function ProductImage({
         className="w-10 h-10 object-cover rounded cursor-pointer transition-opacity duration-200 hover:opacity-80"
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        onClick={handleImageClick}
+        onClick={() => handleImageClick()}
         onError={(e) => {
           e.currentTarget.style.display = 'none';
           e.currentTarget.parentElement?.querySelector('.fallback-icon')?.classList.remove('hidden');
@@ -174,18 +205,21 @@ export function ProductImage({
 
       {isZoomed && (
         <div
-          className="fixed pointer-events-none z-[9999]"
+          className="fixed z-[9999]"
           style={{
             top: `${zoomPosition.top}px`,
             left: `${zoomPosition.left}px`,
             maxWidth: '600px',
             maxHeight: '600px'
           }}
+          onMouseLeave={handleMouseLeave}
         >
           <img
+            ref={zoomedImgRef}
             src={imageUrl}
             alt={productCode}
-            className="w-auto h-auto max-w-[600px] max-h-[600px] object-contain rounded-lg shadow-2xl border-4 border-background"
+            className="w-auto h-auto max-w-[600px] max-h-[600px] object-contain rounded-lg shadow-2xl border-4 border-background cursor-pointer hover:border-primary transition-colors pointer-events-auto"
+            onClick={() => handleImageClick(zoomedImgRef.current)}
           />
         </div>
       )}
