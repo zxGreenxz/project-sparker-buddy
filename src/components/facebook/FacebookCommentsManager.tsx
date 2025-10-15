@@ -498,10 +498,18 @@ export function FacebookCommentsManager({
       video: FacebookVideo;
       productType?: string;
     }) => {
+      console.log('📤 [createOrderMutation] Sending to edge function:', { 
+        commentId: comment.id, 
+        productType 
+      });
+      
       const {
         data: { session },
       } = await supabase.auth.getSession();
       if (!session) throw new Error("User not authenticated");
+
+      const requestBody = { comment, video, productType };
+      console.log('📦 [createOrderMutation] Request body productType:', requestBody.productType);
 
       const response = await fetch(
         `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/create-tpos-order-from-comment`,
@@ -511,7 +519,7 @@ export function FacebookCommentsManager({
             Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ comment, video, productType }),
+          body: JSON.stringify(requestBody),
         },
       );
 
@@ -1119,7 +1127,12 @@ export function FacebookCommentsManager({
   };
 
   const handleCreateOrderClick = (comment: CommentWithStatus, productType: string = 'hang_dat') => {
+    console.log('🔍 [handleCreateOrderClick] productType received:', productType);
     if (selectedVideo) {
+      console.log('🚀 [handleCreateOrderClick] Calling mutation with:', { 
+        commentId: comment.id, 
+        productType 
+      });
       createOrderMutation.mutate({ comment, video: selectedVideo, productType });
     }
   };

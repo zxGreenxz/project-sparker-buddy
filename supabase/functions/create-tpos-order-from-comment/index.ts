@@ -288,6 +288,7 @@ serve(async (req) => {
 
   try {
     const { comment, video, productType = 'hang_dat' } = await req.json();
+    console.log('📥 [Edge Function] Received productType:', productType);
 
     if (!comment || !video) {
       throw new Error('Comment and video data are required');
@@ -296,7 +297,7 @@ serve(async (req) => {
     // Validate productType
     const validTypes = ['hang_dat', 'hang_le', 'hang_soluong'];
     const finalProductType = validTypes.includes(productType) ? productType : 'hang_dat';
-    console.log(`Creating order with product_type: ${finalProductType}`);
+    console.log(`✅ [Edge Function] Creating order with product_type: ${finalProductType} (original: ${productType})`);
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
