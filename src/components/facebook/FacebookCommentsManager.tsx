@@ -296,6 +296,12 @@ export function FacebookCommentsManager({
     count: 0,
     lastUpdated: null,
   });
+  const [cacheError, setCacheError] = useState<{
+    error: string;
+    details?: string;
+    statusCode?: number;
+    postId?: string;
+  } | null>(null);
 
   // ============================================================================
   // REFS
@@ -570,30 +576,35 @@ export function FacebookCommentsManager({
         },
       );
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to cache comments");
+      const responseData = await response.json();
+
+      // CHỈ throw error cho server error (5xx), không throw cho 4xx
+      if (!response.ok && response.status >= 500) {
+        throw new Error(responseData.error || "Server error");
       }
 
-      return await response.json();
+      return responseData;
     },
     onSuccess: (data, postId) => {
+      const cached = data.totalCached || 0;
+
       toast({
-        title: "✅ Cache thành công!",
-        description: `Đã lưu ${data.totalCached} comments vào database`,
+        title: cached > 0 ? "✅ Cache thành công!" : "ℹ️ Hoàn tất",
+        description:
+          cached > 0
+            ? `Đã lưu ${cached} comments vào database`
+            : "Một số comment có thể đã bị xóa",
       });
 
-      // Refresh cache status
       checkCacheStatus();
-
-      // Invalidate queries to refresh with cached data
       queryClient.invalidateQueries({
         queryKey: ["facebook-comments", pageId, postId],
       });
     },
     onError: (error: Error) => {
+      // CHỈ show error cho lỗi server nghiêm trọng
       toast({
-        title: "❌ Lỗi cache comments",
+        title: "❌ Lỗi server",
         description: error.message,
         variant: "destructive",
       });
@@ -841,10 +852,10 @@ export function FacebookCommentsManager({
         // Upsert to DB
         if (customersToUpsert.length > 0) {
           const validCustomers = customersToUpsert
-            .filter(c => c.customer_name) // Only include customers with names
-            .map(c => ({
+            .filter((c) => c.customer_name) // Only include customers with names
+            .map((c) => ({
               ...c,
-              customer_name: c.customer_name!
+              customer_name: c.customer_name!,
             }));
 
           if (validCustomers.length > 0) {
@@ -1696,6 +1707,18 @@ export function FacebookCommentsManager({
                     </div>
                   </div>
                 </div>
+
+                {/* Warning nhỏ khi có comment bị xóa */}
+                {selectedVideo &&
+                  commentsData?.pages[0]?.source === "database" && (
+                    <Alert className="border-orange-500/30 bg-orange-500/5 mb-4">
+                      <AlertCircle className="h-4 w-4 text-orange-600" />
+                      <AlertDescription className="text-sm text-orange-700">
+                        ℹ️ Đang hiển thị từ cache. Một số comment có thể đã bị
+                        Facebook xóa.
+                      </AlertDescription>
+                    </Alert>
+                  )}
 
                 <ScrollArea
                   className={cn(
