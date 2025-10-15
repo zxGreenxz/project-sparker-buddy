@@ -425,7 +425,7 @@ serve(async (req) => {
       if (existingOrder) {
         // Update existing record, increment count
         const newOrderCount = existingOrder.order_count + 1;
-        console.log(`Updating existing order, incrementing count to: ${newOrderCount}`);
+        console.log(`⬆️ Updating existing order, incrementing count to: ${newOrderCount}, product_type: ${finalProductType}`);
 
       const { error: updateError } = await supabase
         .from('facebook_pending_orders')
@@ -442,32 +442,32 @@ serve(async (req) => {
         })
         .eq('id', existingOrder.id);
       
-      // Update facebook_comments_archive
-      if (!updateError) {
-        const { error: archiveUpdateError } = await supabase
-          .from('facebook_comments_archive')
-          .update({
-            tpos_order_id: data.Id?.toString() || null,
-            tpos_session_index: data.SessionIndex?.toString() || null,
-            tpos_sync_status: 'synced',
-            last_synced_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .eq('facebook_comment_id', comment.id);
-
-        if (archiveUpdateError) {
-          console.error('Error updating comment archive:', archiveUpdateError);
-        }
+      if (updateError) {
+        console.error('❌ Error updating facebook_pending_orders:', updateError);
+        throw new Error(`Database update failed: ${updateError.message}`);
       }
+      
+      console.log(`✅ Successfully updated order with count: ${newOrderCount}, product_type: ${finalProductType}`);
 
-        if (updateError) {
-          console.error('Error updating facebook_pending_orders:', updateError);
-        } else {
-          console.log(`Successfully updated order with count: ${newOrderCount}`);
-        }
+      // Update facebook_comments_archive
+      const { error: archiveUpdateError } = await supabase
+        .from('facebook_comments_archive')
+        .update({
+          tpos_order_id: data.Id?.toString() || null,
+          tpos_session_index: data.SessionIndex?.toString() || null,
+          tpos_sync_status: 'synced',
+          last_synced_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('facebook_comment_id', comment.id);
+
+      if (archiveUpdateError) {
+        console.error('⚠️ Error updating comment archive:', archiveUpdateError);
+        // Don't throw, archive update is optional
+      }
       } else {
         // Insert new record with count = 1
-        console.log('Creating new order with count: 1');
+        console.log(`➕ Creating new order with count: 1, product_type: ${finalProductType}`);
 
       const { error: insertError } = await supabase
         .from('facebook_pending_orders')
@@ -486,32 +486,33 @@ serve(async (req) => {
           product_type: finalProductType,
         });
       
-      // Update facebook_comments_archive
-      if (!insertError) {
-        const { error: archiveUpdateError } = await supabase
-          .from('facebook_comments_archive')
-          .update({
-            tpos_order_id: data.Id?.toString() || null,
-            tpos_session_index: data.SessionIndex?.toString() || null,
-            tpos_sync_status: 'synced',
-            last_synced_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .eq('facebook_comment_id', comment.id);
-
-        if (archiveUpdateError) {
-          console.error('Error updating comment archive:', archiveUpdateError);
-        }
+      if (insertError) {
+        console.error('❌ Error inserting into facebook_pending_orders:', insertError);
+        throw new Error(`Database insert failed: ${insertError.message}`);
       }
+      
+      console.log(`✅ Successfully created new order with count: 1, product_type: ${finalProductType}`);
 
-        if (insertError) {
-          console.error('Error saving to facebook_pending_orders:', insertError);
-        } else {
-          console.log('Successfully created new order with count: 1');
-        }
+      // Update facebook_comments_archive
+      const { error: archiveUpdateError } = await supabase
+        .from('facebook_comments_archive')
+        .update({
+          tpos_order_id: data.Id?.toString() || null,
+          tpos_session_index: data.SessionIndex?.toString() || null,
+          tpos_sync_status: 'synced',
+          last_synced_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('facebook_comment_id', comment.id);
+
+      if (archiveUpdateError) {
+        console.error('⚠️ Error updating comment archive:', archiveUpdateError);
+        // Don't throw, archive update is optional
+      }
       }
     } catch (dbError) {
-      console.error('Exception saving to database:', dbError);
+      console.error('💥 Exception saving to database:', dbError);
+      throw dbError; // Re-throw to trigger main error handler
     }
 
     // Return both payload and response

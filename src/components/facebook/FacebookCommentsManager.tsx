@@ -547,9 +547,11 @@ export function FacebookCommentsManager({
         errorData = { error: error.message };
       }
 
+      console.error('❌ [createOrderMutation] Error:', errorData);
+
       toast({
         title: "Lỗi tạo đơn hàng",
-        description: errorData.error || "Có lỗi không xác định",
+        description: errorData.error || error.message || "Có lỗi không xác định",
         variant: "destructive",
       });
     },
