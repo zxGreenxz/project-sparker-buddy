@@ -193,7 +193,7 @@ export function ProductImage({
         className="w-10 h-10 object-cover rounded cursor-pointer transition-opacity duration-200 hover:opacity-80"
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        onClick={() => handleImageClick()}
+        onClick={() => handleImageClick(zoomedImgRef.current || imgRef.current)}
         onError={(e) => {
           e.currentTarget.style.display = 'none';
           e.currentTarget.parentElement?.querySelector('.fallback-icon')?.classList.remove('hidden');
