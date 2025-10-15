@@ -32,19 +32,6 @@ interface CreateVariantInput {
   onSuccessCallback?: () => void;
 }
 
-// Helper function to merge and deduplicate variants
-function mergeVariants(oldVariant: string | null, newVariant: string | null): string | null {
-  if (!newVariant) return oldVariant;
-  if (!oldVariant) return newVariant;
-  
-  // Split, combine, deduplicate, and sort
-  const oldParts = oldVariant.split(',').map(s => s.trim()).filter(Boolean);
-  const newParts = newVariant.split(',').map(s => s.trim()).filter(Boolean);
-  const combined = [...new Set([...oldParts, ...newParts])];
-  
-  return combined.sort().join(', ');
-}
-
 export function useCreateVariantProducts() {
   const queryClient = useQueryClient();
 
@@ -61,14 +48,12 @@ export function useCreateVariantProducts() {
 
       let baseAction: 'created' | 'updated';
       if (existingBase) {
-        // UPDATE only product_images and variant
-        const mergedVariant = mergeVariants(existingBase.variant, baseProduct.variant);
-        
+        // UPDATE: Replace variant completely (not merge) to allow removing variants
         const { error } = await supabase
           .from("products")
           .update({
             product_images: baseProduct.product_images,
-            variant: mergedVariant
+            variant: baseProduct.variant // Replace completely, not merge
           })
           .eq("product_code", baseProduct.product_code);
 
@@ -97,57 +82,59 @@ export function useCreateVariantProducts() {
       }
 
       // 2. Handle Child Variants
-      const childCodes = childVariants.map(c => c.product_code);
-      const { data: existingChildren } = await supabase
+      // IMPORTANT: Delete ALL existing child variants first to regenerate with correct codes
+      const { error: deleteError } = await supabase
         .from("products")
-        .select("product_code")
-        .in("product_code", childCodes);
+        .delete()
+        .eq("base_product_code", baseProduct.product_code)
+        .neq("product_code", baseProduct.product_code);
 
-      const existingChildCodes = new Set(existingChildren?.map(c => c.product_code) || []);
-      
-      // Filter out existing child variants (SKIP them)
-      const newChildren = childVariants.filter(c => !existingChildCodes.has(c.product_code));
+      if (deleteError) throw deleteError;
 
+      // Insert all child variants with correct order and codes
       let childrenCreated = 0;
-      if (newChildren.length > 0) {
-      const { error } = await supabase
-        .from("products")
-        .insert(
-          newChildren.map(c => ({
-            product_code: c.product_code,
-            base_product_code: c.base_product_code,
-            product_name: c.product_name,
-            variant: c.variant,
-            purchase_price: c.purchase_price,
-            selling_price: c.selling_price,
-            supplier_name: c.supplier_name || null,
-            stock_quantity: 0,
-            unit: "Cái",
-            product_images: c.product_images,
-            price_images: c.price_images
-          }))
-        );
+      if (childVariants.length > 0) {
+        // Insert one by one with small delay to ensure created_at order
+        for (let i = 0; i < childVariants.length; i++) {
+          const c = childVariants[i];
+          const { error } = await supabase
+            .from("products")
+            .insert({
+              product_code: c.product_code,
+              base_product_code: c.base_product_code,
+              product_name: c.product_name,
+              variant: c.variant,
+              purchase_price: c.purchase_price,
+              selling_price: c.selling_price,
+              supplier_name: c.supplier_name || null,
+              stock_quantity: 0,
+              unit: "Cái",
+              product_images: c.product_images,
+              price_images: c.price_images
+            });
 
-        if (error) throw error;
-        childrenCreated = newChildren.length;
+          if (error) throw error;
+          childrenCreated++;
+          
+          // Small delay to ensure different created_at timestamps
+          if (i < childVariants.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 10));
+          }
+        }
       }
 
       return { 
         baseAction, 
         baseProduct: baseProduct.product_code,
-        childrenCreated,
-        childrenSkipped: childVariants.length - childrenCreated
+        childrenCreated
       };
     },
-    onSuccess: ({ baseAction, baseProduct, childrenCreated, childrenSkipped }, variables) => {
+    onSuccess: ({ baseAction, baseProduct, childrenCreated }, variables) => {
       const baseActionText = baseAction === 'created' ? 'tạo' : 'cập nhật';
       const messages = [`Đã ${baseActionText} sản phẩm gốc: ${baseProduct}`];
       
       if (childrenCreated > 0) {
-        messages.push(`Đã tạo ${childrenCreated} biến thể con`);
-      }
-      if (childrenSkipped > 0) {
-        messages.push(`Bỏ qua ${childrenSkipped} biến thể đã tồn tại`);
+        messages.push(`Đã tạo ${childrenCreated} biến thể mới`);
       }
 
       toast({
