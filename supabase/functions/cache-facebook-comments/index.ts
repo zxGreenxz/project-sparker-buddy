@@ -13,12 +13,30 @@ const corsHeaders = {
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
-function generateRequestId() {
+function generateRandomId(): string {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
     const r = (Math.random() * 16) | 0;
     const v = c === "x" ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
+}
+
+function getTPOSHeaders(bearerToken: string) {
+  return {
+    accept: "application/json, text/plain, */*",
+    "accept-language": "en-US,en;q=0.9,vi;q=0.8",
+    authorization: `Bearer ${bearerToken}`,
+    priority: "u=1, i",
+    "sec-ch-ua": '"Google Chrome";v="126", "Chromium";v="126", "Not?A_Brand";v="8"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Windows"',
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
+    tposappversion: "5.9.10.1",
+    Referer: "https://tomato.tpos.vn/",
+    "x-request-id": generateRandomId(),
+  };
 }
 function createErrorResponse(error, statusCode, details, postId) {
   const errorBody = {
@@ -116,29 +134,11 @@ serve(async (req) => {
       tposResponse = await fetch(exportUrl, {
         method: "POST",
         headers: {
-          // ⭐ CRITICAL: Authorization header with Bearer token
-          Authorization: `Bearer ${bearerToken}`,
-          // Required headers for TPOS API
-          accept: "application/json, text/plain, */*",
-          "accept-encoding": "gzip, deflate, br",
-          "accept-language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
+          ...getTPOSHeaders(bearerToken),
+          // Override accept for Excel file download
+          "accept": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/json",
           "content-type": "application/json;charset=UTF-8",
-          tposappversion: "5.9.10.1",
-          "x-request-id": generateRequestId(),
-          // Standard headers
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
-          "sec-ch-ua": '"Google Chrome";v="119", "Chromium";v="119", "Not?A_Brand";v="24"',
-          "sec-ch-ua-mobile": "?0",
-          "sec-ch-ua-platform": '"Windows"',
-          "sec-fetch-dest": "empty",
-          "sec-fetch-mode": "cors",
-          "sec-fetch-site": "same-origin",
-          // Origin and Referer
-          origin: "https://tomato.tpos.vn",
-          referer: "https://tomato.tpos.vn/",
         },
-        // ⭐ POST body (may be empty, but method must be POST)
         body: JSON.stringify({}),
       });
       console.log(`[Cache Comments] TPOS Response Status: ${tposResponse.status}`);
