@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -6,11 +6,13 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2, FileText, Download, Printer, ChevronDown, Settings2 } from "lucide-react";
+import { Loader2, FileText, Download, Printer, ChevronDown, Settings2, Edit } from "lucide-react";
 import { getActivePrinter } from "@/lib/printer-utils";
 import { textToESCPOSBitmap } from "@/lib/text-to-bitmap";
 import jsPDF from "jspdf";
+import { Editor } from "@tinymce/tinymce-react";
 
 type PaperSize = {
   name: string;
@@ -67,6 +69,80 @@ Cảm ơn quý khách!`);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  
+  // TinyMCE editor state
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [htmlContent, setHtmlContent] = useState("");
+  const editorRef = useRef<any>(null);
+
+  const getInvoiceTemplate = () => {
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { 
+      font-family: ${fontFamily}, sans-serif; 
+      font-size: ${fontSize}px; 
+      line-height: ${lineHeight};
+      margin: ${marginTop}mm ${marginRight}mm ${marginBottom}mm ${marginLeft}mm;
+    }
+    h1 { text-align: center; margin-bottom: 20px; }
+    table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+    th, td { border: 1px solid #000; padding: 8px; text-align: left; }
+    th { background-color: #f0f0f0; }
+    .total { font-weight: bold; text-align: right; }
+  </style>
+</head>
+<body>
+  <h1>HÓA ĐƠN BÁN HÀNG</h1>
+  <p><strong>Công ty TNHH ABC</strong></p>
+  <p>Địa chỉ: 123 Nguyễn Huệ, Quận 1, TP.HCM</p>
+  <p>Điện thoại: 028-1234-5678</p>
+  <hr>
+  
+  <p>Khách hàng: <strong>Nguyễn Văn A</strong></p>
+  <p>Ngày: <strong>${new Date().toLocaleDateString('vi-VN')}</strong></p>
+  
+  <table>
+    <thead>
+      <tr>
+        <th>STT</th>
+        <th>Sản phẩm</th>
+        <th>Số lượng</th>
+        <th>Đơn giá</th>
+        <th>Thành tiền</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td>Điện thoại iPhone 15</td>
+        <td>1</td>
+        <td>25.000.000 đ</td>
+        <td>25.000.000 đ</td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td>Ốp lưng iPhone 15</td>
+        <td>2</td>
+        <td>200.000 đ</td>
+        <td>400.000 đ</td>
+      </tr>
+    </tbody>
+  </table>
+  
+  <p class="total">Tổng cộng: <strong>25.400.000 đ</strong></p>
+  <p class="total">Đã thanh toán: <strong>25.400.000 đ</strong></p>
+  <p class="total">Còn lại: <strong>0 đ</strong></p>
+  
+  <hr>
+  <p style="text-align: center;"><em>Cảm ơn quý khách! Hẹn gặp lại!</em></p>
+</body>
+</html>
+    `.trim();
+  };
 
   const getPaperSize = () => {
     const paper = PAPER_SIZES[selectedPaperIndex];
@@ -188,6 +264,118 @@ Cảm ơn quý khách!`);
     } catch (error) {
       console.error("Download error:", error);
       toast.error("❌ Lỗi khi tải xuống");
+    }
+  };
+
+  const handleOpenEditor = () => {
+    const template = getInvoiceTemplate();
+    setHtmlContent(template);
+    setEditorOpen(true);
+  };
+
+  const handlePrintFromEditor = async () => {
+    if (!editorRef.current) return;
+    
+    const editedHtml = editorRef.current.getContent();
+    
+    try {
+      // Convert HTML to plain text for thermal printer
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = editedHtml;
+      const plainText = tempDiv.innerText || tempDiv.textContent || '';
+      
+      const activePrinter = getActivePrinter();
+      if (!activePrinter) {
+        toast.error("❌ Không tìm thấy máy in đang active");
+        return;
+      }
+
+      const paperSize = getPaperSize();
+      const mmToPx = 3.78;
+      const printerWidth = Math.round(paperSize.width * mmToPx);
+      
+      const escposData = await textToESCPOSBitmap(plainText, {
+        width: printerWidth,
+        fontSize: parseInt(fontSize),
+        fontFamily: `${fontFamily}, sans-serif`,
+        lineHeight: parseFloat(lineHeight),
+        align: "left",
+        padding: parseInt(marginLeft),
+      });
+
+      const base64 = btoa(String.fromCharCode(...escposData));
+
+      const response = await fetch(`${activePrinter.bridgeUrl}/print/bitmap`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ipAddress: activePrinter.ipAddress,
+          port: activePrinter.port,
+          bitmapBase64: base64,
+          feeds: 3,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      if (result.success) {
+        toast.success("✅ In thành công!");
+        setEditorOpen(false);
+      } else {
+        throw new Error(result.error || "In thất bại");
+      }
+    } catch (error: any) {
+      console.error("Print error:", error);
+      if (error.message?.includes("404") || error.message?.includes("Failed to fetch")) {
+        toast.error("❌ Không kết nối được máy in. Vui lòng kiểm tra:\n1. Print Bridge đang chạy\n2. Địa chỉ máy in đúng\n3. Máy in đang bật");
+      } else {
+        toast.error(`❌ Lỗi khi in: ${error.message}`);
+      }
+    }
+  };
+
+  const handleDownloadPDFFromEditor = () => {
+    if (!editorRef.current) return;
+    
+    const editedHtml = editorRef.current.getContent();
+    
+    try {
+      // For PDF, we'll convert HTML to text for now
+      // In production, you might want to use a library like html2pdf.js
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = editedHtml;
+      const plainText = tempDiv.innerText || tempDiv.textContent || '';
+      
+      const paperSize = getPaperSize();
+      const orientation = paperSize.width > paperSize.height ? "landscape" : "portrait";
+      
+      const doc = new jsPDF({
+        orientation,
+        unit: "mm",
+        format: [paperSize.width, paperSize.height],
+      });
+      
+      doc.setFont("helvetica");
+      doc.setFontSize(parseInt(fontSize));
+      
+      const margins = {
+        top: parseInt(marginTop),
+        left: parseInt(marginLeft),
+      };
+      
+      const maxWidth = paperSize.width - parseInt(marginLeft) - parseInt(marginRight);
+      const lines = doc.splitTextToSize(plainText, maxWidth);
+      doc.text(lines, margins.left, margins.top);
+      
+      doc.save(`invoice-${Date.now()}.pdf`);
+      toast.success("✅ Đã tải PDF xuống!");
+      setEditorOpen(false);
+    } catch (error) {
+      console.error("PDF error:", error);
+      toast.error("❌ Lỗi khi tạo PDF");
     }
   };
 
@@ -487,10 +675,62 @@ Cảm ơn quý khách!`);
 
         {/* Action Buttons */}
         <div className="flex flex-wrap gap-2">
+          <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
+            <DialogTrigger asChild>
+              <Button variant="default" onClick={handleOpenEditor}>
+                <Edit className="h-4 w-4 mr-2" />
+                Chỉnh sửa Template & In
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Chỉnh sửa mẫu hóa đơn trước khi in</DialogTitle>
+                <DialogDescription>
+                  Chỉnh sửa nội dung, định dạng và bố cục hóa đơn theo ý muốn
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <Editor
+                  apiKey="no-api-key"
+                  onInit={(evt, editor) => (editorRef.current = editor)}
+                  value={htmlContent}
+                  init={{
+                    height: 500,
+                    menubar: true,
+                    plugins: [
+                      'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
+                      'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
+                      'insertdatetime', 'media', 'table', 'code', 'help', 'wordcount'
+                    ],
+                    toolbar: 'undo redo | blocks | ' +
+                      'bold italic forecolor | alignleft aligncenter ' +
+                      'alignright alignjustify | bullist numlist outdent indent | ' +
+                      'table | removeformat | preview | help',
+                    content_style: 'body { font-family:Tahoma,Arial,sans-serif; font-size:14px }',
+                    language: 'vi',
+                  }}
+                />
+                <div className="flex gap-2 justify-end">
+                  <Button variant="outline" onClick={() => setEditorOpen(false)}>
+                    Hủy
+                  </Button>
+                  <Button variant="secondary" onClick={handleDownloadPDFFromEditor}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Tải PDF
+                  </Button>
+                  <Button onClick={handlePrintFromEditor}>
+                    <Printer className="h-4 w-4 mr-2" />
+                    Xác nhận in
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
           <Button 
             onClick={handleGeneratePreview} 
             disabled={isGenerating || !text.trim()}
-            variant="default"
+            variant="secondary"
           >
             {isGenerating ? (
               <>
@@ -560,6 +800,7 @@ Cảm ơn quý khách!`);
         <div className="text-sm text-muted-foreground space-y-1 pt-2 border-t">
           <p>💡 <strong>Hướng dẫn sử dụng:</strong></p>
           <ul className="list-disc list-inside space-y-1 ml-2">
+            <li><strong>🆕 Chỉnh sửa Template:</strong> Nhấn nút xanh để mở trình soạn thảo WYSIWYG với mẫu hóa đơn</li>
             <li><strong>Chọn font:</strong> Tất cả font đều hỗ trợ tiếng Việt đầy đủ</li>
             <li><strong>Khổ giấy:</strong> Mở "Cài đặt nâng cao" để chọn khổ giấy phù hợp</li>
             <li><strong>Canh lề:</strong> Điều chỉnh lề trên/dưới/trái/phải theo nhu cầu</li>
