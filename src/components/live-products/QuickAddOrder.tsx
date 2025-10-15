@@ -305,13 +305,20 @@ ${new Date(billData.createdTime).toLocaleString('vi-VN', {
             // Get active template and apply data
             const template = getActiveTemplate();
             const formattedBill = applyTemplate(template, {
-              sessionIndex,
-              phone,
-              customerName,
-              productCode,
-              productName,
-              comment,
-              time
+              sessionIndex: `#${billData.sessionIndex}`,
+              phone: billData.phone || 'Chưa có SĐT',
+              customerName: billData.customerName,
+              productCode: billData.productCode,
+              productName: billData.productName.replace(/^\d+\s+/, ''),
+              comment: billData.comment || '',
+              time: new Date(billData.createdTime).toLocaleString('vi-VN', {
+                timeZone: 'Asia/Bangkok',
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })
             });
             
             // Print using template settings

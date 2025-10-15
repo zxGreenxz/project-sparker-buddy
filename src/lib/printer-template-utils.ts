@@ -8,6 +8,7 @@ export interface PrinterTemplate {
     padding: number;
     align: 'left' | 'center' | 'right';
     fontFamily: string;
+    orientation: 'portrait' | 'landscape';
   };
   lineStyles: Record<string, {
     fontSize?: number;
@@ -25,7 +26,8 @@ export const DEFAULT_TEMPLATE: PrinterTemplate = {
     lineHeight: 1.3,
     padding: 3,
     align: 'center',
-    fontFamily: 'Tahoma, Arial, sans-serif'
+    fontFamily: 'Tahoma, Arial, sans-serif',
+    orientation: 'landscape'
   },
   lineStyles: {
     line1: { fontSize: 28, bold: true },

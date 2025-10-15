@@ -144,12 +144,18 @@ export function PrinterTemplateEditor() {
           return `<div style="font-size: ${fontSize}pt; font-weight: ${fontWeight}; font-style: ${fontStyle}; line-height: ${editingTemplate.settings.lineHeight};">${line}</div>`;
         }).join('');
 
+        const pageOrientation = editingTemplate.settings.orientation === 'portrait' ? 'portrait' : 'landscape';
+        
         printWindow.document.write(`
           <html>
             <head>
               <title>Test Print</title>
               <style>
-                @page { margin: 2mm; size: ${editingTemplate.settings.width}px auto; }
+                @page { 
+                  margin: 2mm; 
+                  size: ${editingTemplate.settings.width}px auto;
+                  orientation: ${pageOrientation};
+                }
                 body { 
                   font-family: ${editingTemplate.settings.fontFamily};
                   text-align: ${editingTemplate.settings.align};
@@ -363,6 +369,26 @@ export function PrinterTemplateEditor() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Orientation */}
+              <div className="space-y-2">
+                <Label>Khổ in</Label>
+                <Select
+                  value={editingTemplate.settings.orientation}
+                  onValueChange={(value: 'portrait' | 'landscape') => setEditingTemplate(prev => ({
+                    ...prev,
+                    settings: { ...prev.settings, orientation: value }
+                  }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="portrait">Khổ dọc</SelectItem>
+                    <SelectItem value="landscape">Khổ ngang (mặc định)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </TabsContent>
 
             <TabsContent value="lines" className="space-y-4 mt-4">
@@ -501,6 +527,7 @@ export function PrinterTemplateEditor() {
             <div>Chiều rộng: {editingTemplate.settings.width}px</div>
             <div>Cỡ chữ: {editingTemplate.settings.fontSize}pt</div>
             <div>Khoảng cách dòng: {editingTemplate.settings.lineHeight}</div>
+            <div>Khổ in: {editingTemplate.settings.orientation === 'portrait' ? 'Dọc' : 'Ngang'}</div>
           </div>
         </CardContent>
       </Card>
