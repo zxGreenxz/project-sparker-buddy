@@ -34,6 +34,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import {
   Video,
@@ -48,6 +49,7 @@ import {
   ChevronDown,
   Copy,
   Maximize,
+  AlertCircle,
   Minimize,
   Database,
   Trash2,
@@ -643,7 +645,7 @@ export function FacebookCommentsManager({
         setCacheStatus({
           isCached: true,
           count: count,
-          lastUpdated: lastUpdate.created_at,
+          lastUpdated: lastUpdate && 'created_at' in lastUpdate ? (lastUpdate.created_at as string) : null,
         });
       } else {
         setCacheStatus({ isCached: false, count: 0, lastUpdated: null });
