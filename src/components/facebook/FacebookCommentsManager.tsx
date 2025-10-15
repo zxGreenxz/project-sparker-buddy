@@ -492,14 +492,10 @@ export function FacebookCommentsManager({
     mutationFn: async ({
       comment,
       video,
-      productType = 'hang_dat',
     }: {
       comment: FacebookComment;
       video: FacebookVideo;
-      productType?: string;
     }) => {
-      console.log(`📤 [Mutation] Sending request with productType: "${productType}"`);
-      
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -513,13 +509,11 @@ export function FacebookCommentsManager({
             Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ comment, video, productType }),
+          body: JSON.stringify({ comment, video }),
         },
       );
 
       const responseData = await response.json();
-      console.log(`📥 [Mutation] Response:`, responseData);
-      
       if (!response.ok) {
         throw new Error(JSON.stringify(responseData));
       }
@@ -530,14 +524,12 @@ export function FacebookCommentsManager({
       setPendingCommentIds((prev) => new Set(prev).add(variables.comment.id));
     },
     onSuccess: (data) => {
-      console.log(`✅ [Success] Order created:`, data);
       toast({
         title: "Tạo đơn hàng thành công!",
         description: `Đơn hàng ${data.response.Code} đã được tạo.`,
       });
     },
     onError: (error: Error) => {
-      console.error(`❌ [Error] Failed to create order:`, error);
       let errorData;
       try {
         errorData = JSON.parse(error.message);
@@ -1124,10 +1116,9 @@ export function FacebookCommentsManager({
     }
   };
 
-  const handleCreateOrderClick = (comment: CommentWithStatus, productType: string = 'hang_dat') => {
-    console.log(`🔵 [Frontend] Creating order with productType: "${productType}"`);
+  const handleCreateOrderClick = (comment: CommentWithStatus) => {
     if (selectedVideo) {
-      createOrderMutation.mutate({ comment, video: selectedVideo, productType });
+      createOrderMutation.mutate({ comment, video: selectedVideo });
     }
   };
 
@@ -1858,9 +1849,9 @@ export function FacebookCommentsManager({
                                   <div className="flex items-center gap-2 mt-3 flex-wrap">
                                     <Button
                                       size="sm"
-                                      className="h-7 text-xs bg-blue-500 hover:bg-blue-600 text-white"
+                                      className="h-7 text-xs"
                                       onClick={() =>
-                                        handleCreateOrderClick(comment, 'hang_dat')
+                                        handleCreateOrderClick(comment)
                                       }
                                       disabled={pendingCommentIds.has(
                                         comment.id,
@@ -1871,23 +1862,6 @@ export function FacebookCommentsManager({
                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                       )}
                                       Tạo đơn hàng
-                                    </Button>
-
-                                    <Button
-                                      size="sm"
-                                      className="h-7 text-xs bg-orange-500 hover:bg-orange-600 text-white"
-                                      onClick={() =>
-                                        handleCreateOrderClick(comment, 'hang_le')
-                                      }
-                                      disabled={pendingCommentIds.has(
-                                        comment.id,
-                                      )}
-                                      aria-label="Tạo hàng lẻ"
-                                    >
-                                      {pendingCommentIds.has(comment.id) && (
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                      )}
-                                      Hàng lẻ
                                     </Button>
 
                                     <Button

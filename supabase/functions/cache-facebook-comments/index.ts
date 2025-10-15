@@ -67,7 +67,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           error: "Invalid JSON body",
-          details: e instanceof Error ? e.message : String(e),
+          details: e.toString(),
         }),
         {
           status: 400,
@@ -134,7 +134,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           error: "Failed to connect to TPOS",
-          details: e instanceof Error ? e.message : String(e),
+          details: e.toString(),
         }),
         {
           status: 502,
@@ -169,7 +169,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           error: "Failed to read Excel file",
-          details: e instanceof Error ? e.message : String(e),
+          details: e.toString(),
         }),
         {
           status: 500,
@@ -207,7 +207,7 @@ serve(async (req) => {
 
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
-      jsonData = XLSX.utils.sheet_to_json(worksheet) as ExcelComment[];
+      jsonData = XLSX.utils.sheet_to_json(worksheet);
 
       console.log(`[Cache Comments] Parsed ${jsonData.length} comments`);
     } catch (e) {
@@ -215,7 +215,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           error: "Failed to parse Excel file",
-          details: e instanceof Error ? e.message : String(e),
+          details: e.toString(),
         }),
         {
           status: 500,
@@ -304,7 +304,7 @@ serve(async (req) => {
         console.error(`[Cache Comments] Batch ${i} exception:`, e);
         errors.push({
           batch: `${i}-${i + batch.length}`,
-          error: e instanceof Error ? e.message : String(e),
+          error: e.toString(),
         });
       }
     }
