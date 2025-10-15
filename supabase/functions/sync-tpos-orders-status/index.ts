@@ -15,14 +15,25 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   );
 
-  const bearerToken = Deno.env.get('TPOS_BEARER_TOKEN');
-  if (!bearerToken) {
-    console.error('TPOS_BEARER_TOKEN not configured');
+  // Fetch TPOS token from tpos_credentials
+  const { data: tokenData, error: tokenError } = await supabaseClient
+    .from('tpos_credentials')
+    .select('bearer_token')
+    .eq('token_type', 'tpos')
+    .not('bearer_token', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (tokenError || !tokenData?.bearer_token) {
+    console.error('TPOS token not found:', tokenError);
     return new Response(
-      JSON.stringify({ error: 'TPOS bearer token not configured' }),
+      JSON.stringify({ error: 'TPOS bearer token not found' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
+
+  const bearerToken = tokenData.bearer_token;
 
   const headers = {
     'Authorization': `Bearer ${bearerToken}`,
