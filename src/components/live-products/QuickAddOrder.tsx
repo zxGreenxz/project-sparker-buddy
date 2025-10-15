@@ -305,10 +305,10 @@ ${billData.comment ? `${billData.comment}\n` : ''}${new Date(billData.createdTim
             
             // Convert text to ESC/POS bitmap (includes paper cut)
             const bitmapData = await textToESCPOSBitmap(billContent, {
-              width: 384,
-              fontSize: 24,
+              width: 576,
+              fontSize: 36,
               fontFamily: 'Arial, sans-serif',
-              lineHeight: 1.2,
+              lineHeight: 1.5,
               align: 'center',
               padding: 10,
               bold: false
@@ -364,35 +364,35 @@ ${billData.comment ? `${billData.comment}\n` : ''}${new Date(billData.createdTim
                   flex-direction: column;
                   gap: 0;
                   text-align: center;
-                  line-height: 2.0;
+                  line-height: 1.8;
                 }
                 .session-name {
-                  font-size: 19.5pt;
+                  font-size: 28pt;
                   font-weight: bold;
-                  line-height: 2.0;
+                  line-height: 1.8;
                 }
                 .phone {
-                  font-size: 8pt;
+                  font-size: 12pt;
                   font-weight: bold;
-                  line-height: 2.0;
+                  line-height: 1.8;
                 }
                 .product {
-                  font-size: 10pt;
+                  font-size: 14pt;
                   font-weight: bold;
-                  line-height: 2.0;
+                  line-height: 1.8;
                 }
                 .comment {
-                  font-size: 15pt;
+                  font-size: 20pt;
                   font-weight: bold;
                   font-style: italic;
                   color: #000;
-                  line-height: 2.0;
+                  line-height: 1.8;
                 }
                 .time {
-                  font-size: 6pt;
+                  font-size: 10pt;
                   font-weight: bold;
                   color: #000;
-                  line-height: 2.0;
+                  line-height: 1.8;
                 }
               </style>
             </head>
