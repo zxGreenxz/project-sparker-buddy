@@ -691,7 +691,7 @@ Cảm ơn quý khách!`);
               </DialogHeader>
               <div className="space-y-4">
                 <Editor
-                  apiKey="no-api-key"
+                  apiKey="fu63ffyfbe9k013e4n5o6r27j5y0qvx3sqt3exwz7p9idm9o"
                   onInit={(evt, editor) => (editorRef.current = editor)}
                   value={htmlContent}
                   init={{
