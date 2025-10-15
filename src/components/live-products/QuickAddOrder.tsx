@@ -11,8 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { getActivePrinter } from '@/lib/printer-utils';
-import { getActiveTemplate } from '@/lib/printer-template-utils';
-import { templateToESCPOSBitmap } from '@/lib/template-to-bitmap';
+import { textToESCPOSBitmap } from '@/lib/text-to-bitmap';
 interface QuickAddOrderProps {
   productId: string;
   phaseId: string;
@@ -284,62 +283,59 @@ export function QuickAddOrder({
       if (billData) {
         const activePrinter = getActivePrinter();
         if (activePrinter) {
+          // Print to XC80 thermal printer using bitmap mode
+          const billContent = `
+#${billData.sessionIndex} - ${billData.phone || 'Chưa có SĐT'}
+${billData.customerName}
+${billData.productCode} - ${billData.productName.replace(/^\d+\s+/, '')}
+${billData.comment || ''}
+${new Date(billData.createdTime).toLocaleString('vi-VN', {
+            timeZone: 'Asia/Bangkok',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })}
+          `.trim();
+          
           try {
-            console.log(`🖨️ Printing with template (text-to-bitmap) for ${activePrinter.name}`);
+            console.log(`🖨️ Converting text to bitmap for ${activePrinter.name} (${activePrinter.ipAddress}:${activePrinter.port})`);
             
-            // Get active template
-            const template = getActiveTemplate();
-            
-            // Prepare template data
-            const templateData = {
-              sessionIndex: `#${billData.sessionIndex}`,
-              phone: billData.phone || 'Chưa có SĐT',
-              customerName: billData.customerName || '',
-              productCode: billData.productCode || '',
-              productName: billData.productName?.replace(/^\d+\s+/, '') || '',
-              comment: billData.comment || '',
-              time: new Date(billData.createdTime).toLocaleString('vi-VN', {
-                timeZone: 'Asia/Bangkok',
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              })
-            };
-            
-            // Convert template to ESC/POS bitmap
-            const bitmapBytes = await templateToESCPOSBitmap({
-              template,
-              data: templateData
+            // Convert text to ESC/POS bitmap (includes paper cut)
+            const bitmapData = await textToESCPOSBitmap(billContent, {
+              width: 576,
+              fontSize: 28,
+              fontFamily: 'Arial, sans-serif',
+              lineHeight: 1.3,
+              align: 'center',
+              padding: 3,
+              bold: false
             });
             
-            // Convert to base64
-            const base64Bitmap = btoa(String.fromCharCode(...bitmapBytes));
+            // Convert to base64 for transmission
+            const base64Bitmap = btoa(String.fromCharCode(...bitmapData));
             
-            // Send to printer bridge
-            const response = await fetch(`${activePrinter.bridgeUrl}/print/bitmap`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
+            // Send to printer via bridge (use correct parameter names)
+            const bridgeUrl = activePrinter.bridgeUrl || `http://${activePrinter.ipAddress}:${activePrinter.port}`;
+            console.log(`🖨️ Sending bitmap to printer bridge: ${bridgeUrl}/print/bitmap`);
+            
+            const response = await fetch(`${bridgeUrl}/print/bitmap`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 ipAddress: activePrinter.ipAddress,
                 port: activePrinter.port,
                 bitmapBase64: base64Bitmap,
                 feeds: 3
-              }),
+              })
             });
             
             if (!response.ok) {
-              throw new Error(`HTTP ${response.status}`);
+              throw new Error(`Bridge returned status ${response.status}`);
             }
             
-            const result = await response.json();
-            
-            if (!result.success) {
-              throw new Error(result.error || 'Print failed');
-            }
-            
-            console.log("✅ Bill printed successfully with template (bitmap mode)");
+            console.log("✅ Bill printed successfully (bitmap mode)");
           } catch (error) {
             console.error("Print failed:", error);
             toast({
