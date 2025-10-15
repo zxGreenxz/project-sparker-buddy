@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2, Plus, RefreshCw, Check } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Trash2, Plus, RefreshCw } from "lucide-react";
+
 import { Badge } from "@/components/ui/badge";
 
 interface Credential {
@@ -15,7 +15,7 @@ interface Credential {
   name: string;
   username: string;
   token_type: 'tpos' | 'facebook';
-  is_active: boolean;
+  bearer_token?: string;
   created_at: string;
 }
 
@@ -40,7 +40,7 @@ export function TPOSCredentialsManager() {
     try {
     const { data, error } = await (supabase as any)
       .from('tpos_credentials')
-      .select('id, name, username, token_type, is_active, created_at')
+      .select('id, name, username, token_type, bearer_token, created_at')
       .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -55,6 +55,41 @@ export function TPOSCredentialsManager() {
     }
   };
 
+  const fetchTokenFromTPOS = async (username: string, password: string): Promise<string> => {
+    const tokenResponse = await fetch('https://tomato.tpos.vn/token', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'en-US,en;q=0.9,vi;q=0.8',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        'Origin': 'https://tomato.tpos.vn',
+        'Referer': 'https://tomato.tpos.vn/',
+        'tposappversion': '5.10.13.1',
+        'x-tpos-lang': 'vi'
+      },
+      body: new URLSearchParams({
+        grant_type: 'password',
+        username,
+        password,
+        client_id: 'tmtWebApp'
+      })
+    });
+
+    if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text();
+      console.error('Failed to get token:', tokenResponse.status, errorText);
+      throw new Error(`Không thể lấy token: ${tokenResponse.status}`);
+    }
+
+    const tokenData = await tokenResponse.json();
+    if (!tokenData.access_token) {
+      throw new Error('Không có access token trong response');
+    }
+
+    return tokenData.access_token;
+  };
+
   const handleSave = async () => {
     if (!name.trim() || !username.trim() || !password.trim()) {
       toast({
@@ -67,6 +102,15 @@ export function TPOSCredentialsManager() {
 
     setLoading(true);
     try {
+      // Fetch token from TPOS
+      toast({
+        title: "Đang xử lý",
+        description: "Đang lấy token từ TPOS...",
+      });
+
+      const bearerToken = await fetchTokenFromTPOS(username.trim(), password.trim());
+
+      // Save credentials with token
       const { error } = await (supabase as any)
         .from('tpos_credentials')
         .insert({
@@ -74,14 +118,14 @@ export function TPOSCredentialsManager() {
           username: username.trim(),
           password: password.trim(),
           token_type: tokenType,
-          is_active: credentials.length === 0, // First credential is active by default
+          bearer_token: bearerToken,
         });
 
       if (error) throw error;
 
       toast({
         title: "Thành công",
-        description: "Đã lưu tài khoản",
+        description: "Đã lưu tài khoản và token",
       });
 
       setName("");
@@ -94,7 +138,7 @@ export function TPOSCredentialsManager() {
       console.error('Error saving credential:', error);
       toast({
         title: "Lỗi",
-        description: error.message || "Không thể lưu tài khoản",
+        description: error.message || "Không thể lấy token. Kiểm tra username/password",
         variant: "destructive",
       });
     } finally {
@@ -124,38 +168,6 @@ export function TPOSCredentialsManager() {
       toast({
         title: "Lỗi",
         description: "Không thể xóa tài khoản",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleSetActive = async (id: string) => {
-    try {
-      // Deactivate all first
-      await (supabase as any)
-        .from('tpos_credentials')
-        .update({ is_active: false })
-        .neq('id', '00000000-0000-0000-0000-000000000000');
-
-      // Activate selected one
-      const { error } = await (supabase as any)
-        .from('tpos_credentials')
-        .update({ is_active: true })
-        .eq('id', id);
-
-      if (error) throw error;
-
-      toast({
-        title: "Thành công",
-        description: "Đã đặt làm tài khoản mặc định",
-      });
-
-      loadCredentials();
-    } catch (error) {
-      console.error('Error setting active credential:', error);
-      toast({
-        title: "Lỗi",
-        description: "Không thể đặt tài khoản mặc định",
         variant: "destructive",
       });
     }
@@ -199,12 +211,6 @@ export function TPOSCredentialsManager() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <Alert>
-          <AlertDescription>
-            Mỗi tài khoản sẽ tự động refresh token cho loại token đã chọn (TPOS hoặc Facebook). Chỉ tài khoản được đánh dấu "Đang dùng" mới tự động refresh sau 7 ngày.
-          </AlertDescription>
-        </Alert>
-
         {/* List of saved credentials */}
         <div className="space-y-2">
           {credentials.map((cred) => (
@@ -215,11 +221,6 @@ export function TPOSCredentialsManager() {
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <span className="font-medium">{cred.name}</span>
-                  {cred.is_active && (
-                    <Badge variant="default" className="text-xs">
-                      Đang dùng
-                    </Badge>
-                  )}
                   <Badge variant="secondary" className="text-xs">
                     {cred.token_type === 'tpos' ? 'TPOS Token' : 'Facebook Token'}
                   </Badge>
@@ -227,16 +228,6 @@ export function TPOSCredentialsManager() {
                 <div className="text-sm text-muted-foreground">{cred.username}</div>
               </div>
               <div className="flex items-center gap-2">
-                {!cred.is_active && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleSetActive(cred.id)}
-                  >
-                    <Check className="h-4 w-4 mr-1" />
-                    Đặt làm mặc định
-                  </Button>
-                )}
                 <Button
                   size="sm"
                   variant="outline"

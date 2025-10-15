@@ -26,15 +26,18 @@ export const TPOS_CONFIG = {
 
 export async function getActiveTPOSToken(): Promise<string | null> {
   try {
+    // Get the most recent TPOS token from credentials
     const { data, error } = await (supabase as any)
-      .from('tpos_config')
+      .from('tpos_credentials')
       .select('bearer_token')
       .eq('token_type', 'tpos')
-      .eq('is_active', true)
+      .not('bearer_token', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle();
     
     if (error) {
-      console.error('Error fetching TPOS token:', error);
+      console.error('Error fetching TPOS token from credentials:', error);
       return null;
     }
     
@@ -47,15 +50,18 @@ export async function getActiveTPOSToken(): Promise<string | null> {
 
 export async function getActiveFacebookToken(): Promise<string | null> {
   try {
+    // Get the most recent Facebook token from credentials
     const { data, error } = await (supabase as any)
-      .from('tpos_config')
+      .from('tpos_credentials')
       .select('bearer_token')
       .eq('token_type', 'facebook')
-      .eq('is_active', true)
+      .not('bearer_token', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle();
     
     if (error) {
-      console.error('Error fetching Facebook token:', error);
+      console.error('Error fetching Facebook token from credentials:', error);
       return null;
     }
     

@@ -15,51 +15,30 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get the request body (may contain credentialId for manual refresh)
+    // Get the request body (must contain credentialId)
     const body = await req.json().catch(() => ({}));
-    const { credentialId, username, password } = body;
+    const { credentialId } = body;
 
-    let credentialsToUse;
-    let tokenType = 'tpos'; // default
-
-    if (username && password) {
-      // Manual refresh with provided credentials
-      credentialsToUse = { username, password };
-      console.log('🔄 Manual token refresh requested');
-    } else if (credentialId) {
-      // Manual refresh with specific credential
-      const { data, error } = await supabase
-        .from('tpos_credentials')
-        .select('username, password, token_type')
-        .eq('id', credentialId)
-        .single();
-
-      if (error || !data) {
-        throw new Error('Credential not found');
-      }
-      credentialsToUse = data;
-      tokenType = data.token_type || 'tpos';
-      console.log(`🔄 Manual token refresh with saved credential for ${tokenType}`);
-    } else {
-      // Auto refresh - get active credential
-      const { data, error } = await supabase
-        .from('tpos_credentials')
-        .select('username, password, token_type')
-        .eq('is_active', true)
-        .maybeSingle();
-
-      if (error) throw error;
-      if (!data) {
-        console.log('⚠️ No active credentials found for auto-refresh');
-        return new Response(
-          JSON.stringify({ success: false, message: 'No active credentials configured' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-        );
-      }
-      credentialsToUse = data;
-      tokenType = data.token_type || 'tpos';
-      console.log(`🔄 Auto token refresh with active credential for ${tokenType}`);
+    if (!credentialId) {
+      return new Response(
+        JSON.stringify({ success: false, message: 'credentialId is required' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
     }
+
+    // Get credential from database
+    const { data: credentialData, error: credError } = await supabase
+      .from('tpos_credentials')
+      .select('username, password, token_type')
+      .eq('id', credentialId)
+      .single();
+
+    if (credError || !credentialData) {
+      throw new Error('Credential not found');
+    }
+
+    const { username, password, token_type: tokenType } = credentialData;
+    console.log(`🔄 Refreshing token for credential ${credentialId} (${tokenType})`);
 
     // Get new token from TPOS
     console.log('📞 Calling TPOS token endpoint...');
@@ -77,8 +56,8 @@ Deno.serve(async (req) => {
       },
       body: new URLSearchParams({
         grant_type: 'password',
-        username: credentialsToUse.username,
-        password: credentialsToUse.password,
+        username,
+        password,
         client_id: 'tmtWebApp'
       })
     });
@@ -98,23 +77,21 @@ Deno.serve(async (req) => {
 
     console.log('✅ Got new token from TPOS');
 
-    // Update the specific token based on credential's token_type
+    // Update the bearer_token in tpos_credentials
     const { error: updateError } = await supabase
-      .from('tpos_config')
+      .from('tpos_credentials')
       .update({
         bearer_token: newToken,
-        last_refreshed_at: new Date().toISOString(),
-        token_status: 'active'
+        updated_at: new Date().toISOString()
       })
-      .eq('token_type', tokenType)
-      .eq('is_active', true);
+      .eq('id', credentialId);
 
     if (updateError) {
-      console.error(`❌ Error updating ${tokenType} token:`, updateError);
+      console.error(`❌ Error updating token in credentials:`, updateError);
       throw updateError;
     }
 
-    console.log(`✅ Token refresh completed successfully for ${tokenType}`);
+    console.log(`✅ Token refresh completed successfully for credential ${credentialId} (${tokenType})`);
 
     return new Response(
       JSON.stringify({
