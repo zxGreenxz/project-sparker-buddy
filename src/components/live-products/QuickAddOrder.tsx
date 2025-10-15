@@ -10,8 +10,8 @@ import { OrderBillNotification } from './OrderBillNotification';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { getActivePrinter } from '@/lib/printer-utils';
-import { textToESCPOSBitmap } from '@/lib/text-to-bitmap';
+import { getActivePrinter, printToXC80 } from '@/lib/printer-utils';
+import { getActiveTemplate, applyTemplate } from '@/lib/printer-template-utils';
 interface QuickAddOrderProps {
   productId: string;
   phaseId: string;
@@ -300,42 +300,32 @@ ${new Date(billData.createdTime).toLocaleString('vi-VN', {
           `.trim();
           
           try {
-            console.log(`🖨️ Converting text to bitmap for ${activePrinter.name} (${activePrinter.ipAddress}:${activePrinter.port})`);
+            console.log(`🖨️ Printing with template for ${activePrinter.name}`);
             
-            // Convert text to ESC/POS bitmap (includes paper cut)
-            const bitmapData = await textToESCPOSBitmap(billContent, {
-              width: 576,
-              fontSize: 28,
-              fontFamily: 'Arial, sans-serif',
-              lineHeight: 1.3,
-              align: 'center',
-              padding: 3,
-              bold: false
+            // Get active template and apply data
+            const template = getActiveTemplate();
+            const formattedBill = applyTemplate(template, {
+              sessionIndex,
+              phone,
+              customerName,
+              productCode,
+              productName,
+              comment,
+              time
             });
             
-            // Convert to base64 for transmission
-            const base64Bitmap = btoa(String.fromCharCode(...bitmapData));
-            
-            // Send to printer via bridge (use correct parameter names)
-            const bridgeUrl = activePrinter.bridgeUrl || `http://${activePrinter.ipAddress}:${activePrinter.port}`;
-            console.log(`🖨️ Sending bitmap to printer bridge: ${bridgeUrl}/print/bitmap`);
-            
-            const response = await fetch(`${bridgeUrl}/print/bitmap`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                ipAddress: activePrinter.ipAddress,
-                port: activePrinter.port,
-                bitmapBase64: base64Bitmap,
-                feeds: 3
-              })
+            // Print using template settings
+            const printResult = await printToXC80(activePrinter, formattedBill, {
+              mode: 'utf8',
+              align: template.settings.align as 'left' | 'center' | 'right',
+              feeds: 3
             });
             
-            if (!response.ok) {
-              throw new Error(`Bridge returned status ${response.status}`);
+            if (!printResult.success) {
+              throw new Error(printResult.error || 'Print failed');
             }
             
-            console.log("✅ Bill printed successfully (bitmap mode)");
+            console.log("✅ Bill printed successfully with template");
           } catch (error) {
             console.error("Print failed:", error);
             toast({

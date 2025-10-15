@@ -22,12 +22,13 @@ import { useCommentsSidebar } from "@/contexts/CommentsSidebarContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDebounce } from "@/hooks/use-debounce";
 import { cn } from "@/lib/utils";
-import { Plus, Calendar, Package, ShoppingCart, Trash2, ChevronDown, ChevronRight, Edit, ListOrdered, Pencil, Copy, AlertTriangle, RefreshCw, Download, CheckCircle, Store, Search, MessageSquare, ShoppingBag, Upload } from "lucide-react";
+import { Plus, Calendar, Package, ShoppingCart, Trash2, ChevronDown, ChevronRight, Edit, ListOrdered, Pencil, Copy, AlertTriangle, RefreshCw, Download, CheckCircle, Store, Search, MessageSquare, ShoppingBag, Upload, Printer } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { CommentsSettingsCollapsible } from "@/components/live-products/CommentsSettingsCollapsible";
 import { LiveCommentsPanel } from "@/components/live-products/LiveCommentsPanel";
 import { CommentsSidebar } from "@/components/live-products/CommentsSidebar";
+import { PrinterTemplateEditor } from "@/components/live-products/PrinterTemplateEditor";
 import { useFacebookComments } from "@/hooks/use-facebook-comments";
 import type { FacebookVideo } from "@/types/facebook";
 import { toast } from "sonner";
@@ -1382,6 +1383,10 @@ export default function LiveProducts() {
                   <Store className="h-4 w-4" />
                   Thống kê NCC
                 </TabsTrigger>
+                <TabsTrigger value="printer" className="flex items-center gap-2">
+                  <Printer className="h-4 w-4" />
+                  Máy in
+                </TabsTrigger>
               </TabsList>
 
               <div className="flex gap-2">
@@ -2097,6 +2102,11 @@ export default function LiveProducts() {
             {/* Supplier Stats Tab */}
             <TabsContent value="supplier-stats" className="space-y-4">
               <LiveSupplierStats liveProducts={liveProducts} sessionId={selectedSession} phaseId={selectedPhase} />
+            </TabsContent>
+
+            {/* Printer Template Editor Tab */}
+            <TabsContent value="printer" className="space-y-4">
+              <PrinterTemplateEditor />
             </TabsContent>
           </Tabs>
         </>}
