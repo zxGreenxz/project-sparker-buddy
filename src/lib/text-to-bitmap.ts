@@ -99,19 +99,22 @@ export async function textToBitmap(
 
   // Set text color to black
   ctx.fillStyle = '#000000';
-  ctx.textAlign = align;
   ctx.textBaseline = 'top';
-
-  // Calculate X position based on alignment
-  let xPos = padding;
-  if (align === 'center') xPos = canvas.width / 2;
-  else if (align === 'right') xPos = canvas.width - padding;
 
   // Draw each line with its own font size
   let yPos = padding;
   lines.forEach((line, index) => {
     const fontWeight = line.bold ? 'bold' : 'normal';
     ctx.font = `${fontWeight} ${line.fontSize}px ${fontFamily}`;
+    
+    // Set alignment for each line
+    ctx.textAlign = align;
+    
+    // Calculate X position based on alignment
+    let xPos = padding;
+    if (align === 'center') xPos = canvas.width / 2;
+    else if (align === 'right') xPos = canvas.width - padding;
+    
     ctx.fillText(line.text, xPos, yPos);
     yPos += lineHeights[index];
     if (index < lines.length - 1) {

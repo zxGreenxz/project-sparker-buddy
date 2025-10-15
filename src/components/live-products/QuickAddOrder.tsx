@@ -307,9 +307,9 @@ export function QuickAddOrder({
             const bitmapData = await textToESCPOSBitmap('', {
               width: 480,
               fontFamily: 'Arial, sans-serif',
-              lineHeight: 1.3,
+              lineHeight: 1.2,
               align: 'center',
-              padding: 2,  // Minimal padding to cut header/footer
+              padding: 5,  // Small padding for header/footer
               lines: printLines,
               lineSpacing: 15  // Increased spacing between lines
             });
