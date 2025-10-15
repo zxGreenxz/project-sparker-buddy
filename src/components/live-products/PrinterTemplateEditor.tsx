@@ -284,7 +284,7 @@ export function PrinterTemplateEditor() {
             <TabsContent value="general" className="space-y-4 mt-4">
               {/* Width */}
               <div className="space-y-2">
-                <Label>Chiều rộng (px): {editingTemplate.settings.width}</Label>
+                <Label>Chiều rộng giấy in: {editingTemplate.settings.width}px</Label>
                 <Select
                   value={editingTemplate.settings.width.toString()}
                   onValueChange={(value) => setEditingTemplate(prev => ({
@@ -296,12 +296,16 @@ export function PrinterTemplateEditor() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="384">384 (48mm)</SelectItem>
-                    <SelectItem value="480">480 (60mm)</SelectItem>
-                    <SelectItem value="576">576 (72mm)</SelectItem>
-                    <SelectItem value="640">640 (80mm)</SelectItem>
+                    <SelectItem value="384">384px - Giấy 48mm</SelectItem>
+                    <SelectItem value="448">448px - Giấy 56mm</SelectItem>
+                    <SelectItem value="512">512px - Giấy 64mm (80mm thermal)</SelectItem>
+                    <SelectItem value="576">576px - Giấy 72mm</SelectItem>
+                    <SelectItem value="640">640px - Giấy 80mm (wide)</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  Khổ giấy 80mm thermal: chọn 512px hoặc 640px
+                </p>
               </div>
 
               {/* Font Size */}
@@ -485,18 +489,19 @@ export function PrinterTemplateEditor() {
         <CardHeader>
           <CardTitle>Xem trước</CardTitle>
           <CardDescription>
-            Xem trước mẫu in với dữ liệu mẫu
+            Xem trước mẫu in với dữ liệu mẫu (tỷ lệ thực tế)
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col items-center">
           <div 
-            className="border rounded-lg p-4 bg-white text-black"
+            className="border-2 border-dashed rounded-lg p-4 bg-white text-black shadow-sm"
             style={{
               width: `${editingTemplate.settings.width}px`,
               maxWidth: '100%',
               fontFamily: editingTemplate.settings.fontFamily,
               textAlign: editingTemplate.settings.align,
-              padding: `${editingTemplate.settings.padding}px`
+              padding: `${editingTemplate.settings.padding}px`,
+              minHeight: editingTemplate.settings.orientation === 'portrait' ? '600px' : 'auto'
             }}
           >
             {previewContent.split('\n').map((line, idx) => {
@@ -523,11 +528,15 @@ export function PrinterTemplateEditor() {
             })}
           </div>
           
-          <div className="mt-4 space-y-2 text-sm text-muted-foreground">
-            <div>Chiều rộng: {editingTemplate.settings.width}px</div>
-            <div>Cỡ chữ: {editingTemplate.settings.fontSize}pt</div>
-            <div>Khoảng cách dòng: {editingTemplate.settings.lineHeight}</div>
-            <div>Khổ in: {editingTemplate.settings.orientation === 'portrait' ? 'Dọc' : 'Ngang'}</div>
+          <div className="mt-4 space-y-2 text-sm text-muted-foreground border-t pt-4">
+            <div className="font-semibold">Thông số template:</div>
+            <div>📏 Chiều rộng giấy: {editingTemplate.settings.width}px</div>
+            <div>🔤 Cỡ chữ mặc định: {editingTemplate.settings.fontSize}pt</div>
+            <div>📐 Khoảng cách dòng: {editingTemplate.settings.lineHeight}</div>
+            <div>📄 Khổ in: {editingTemplate.settings.orientation === 'portrait' ? 'Dọc (Portrait)' : 'Ngang (Landscape)'}</div>
+            <div className="text-xs pt-2 border-t">
+              💡 Khổ giấy 80mm thermal: dùng width 512px
+            </div>
           </div>
         </CardContent>
       </Card>

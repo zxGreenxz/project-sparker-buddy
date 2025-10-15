@@ -21,20 +21,20 @@ export const DEFAULT_TEMPLATE: PrinterTemplate = {
   name: "Mặc định",
   content: "#{{sessionIndex}} - {{phone}}\n{{customerName}}\n{{productCode}} - {{productName}}\n{{comment}}\n{{time}}",
   settings: {
-    width: 576,
-    fontSize: 28,
-    lineHeight: 1.3,
-    padding: 3,
+    width: 512,
+    fontSize: 24,
+    lineHeight: 1.2,
+    padding: 2,
     align: 'center',
     fontFamily: 'Tahoma, Arial, sans-serif',
-    orientation: 'landscape'
+    orientation: 'portrait'
   },
   lineStyles: {
-    line1: { fontSize: 28, bold: true },
-    line2: { fontSize: 28, bold: true },
-    line3: { fontSize: 14, bold: true },
-    line4: { fontSize: 28, bold: true, italic: true },
-    line5: { fontSize: 7, bold: true }
+    line1: { fontSize: 24, bold: true },
+    line2: { fontSize: 24, bold: true },
+    line3: { fontSize: 16, bold: true },
+    line4: { fontSize: 24, bold: true, italic: true },
+    line5: { fontSize: 10, bold: true }
   }
 };
 
@@ -77,7 +77,7 @@ export const validateTemplate = (template: PrinterTemplate): { valid: boolean; e
   }
   
   if (template.settings.width < 384 || template.settings.width > 640) {
-    errors.push('Chiều rộng phải từ 384px đến 640px');
+    errors.push('Chiều rộng phải từ 384px đến 640px (khuyến nghị 512px cho giấy 80mm)');
   }
   
   if (template.settings.fontSize < 20 || template.settings.fontSize > 40) {
