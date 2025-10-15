@@ -17,11 +17,37 @@ export function ZoomableImage({ src, alt, size = "md" }: ZoomableImageProps) {
     if (!src) return;
     
     try {
-      const response = await fetch(src);
-      const blob = await response.blob();
+      // Create a canvas to handle CORS issues
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = src;
+      });
+      
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Could not get canvas context");
+      
+      ctx.drawImage(img, 0, 0);
+      
+      // Convert canvas to blob
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error("Could not create blob"));
+        }, "image/png");
+      });
+      
       await navigator.clipboard.write([
-        new ClipboardItem({ [blob.type]: blob })
+        new ClipboardItem({ "image/png": blob })
       ]);
+      
       toast.success("Đã copy ảnh vào clipboard!");
     } catch (error) {
       console.error("Error copying image:", error);
