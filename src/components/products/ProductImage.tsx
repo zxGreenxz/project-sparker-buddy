@@ -80,25 +80,39 @@ export function ProductImage({
     if (!imageUrl) return;
     
     try {
+      // Fetch image as blob to bypass CORS
+      const response = await fetch(imageUrl);
+      if (!response.ok) throw new Error("Failed to fetch image");
+      
+      const blob = await response.blob();
+      
+      // Create image from blob URL
       const img = new Image();
-      img.crossOrigin = "anonymous";
+      const objectUrl = URL.createObjectURL(blob);
       
       await new Promise((resolve, reject) => {
         img.onload = resolve;
         img.onerror = reject;
-        img.src = imageUrl;
+        img.src = objectUrl;
       });
       
+      // Draw to canvas and convert to PNG
       const canvas = document.createElement("canvas");
       canvas.width = img.width;
       canvas.height = img.height;
       
       const ctx = canvas.getContext("2d");
-      if (!ctx) throw new Error("Could not get canvas context");
+      if (!ctx) {
+        URL.revokeObjectURL(objectUrl);
+        throw new Error("Could not get canvas context");
+      }
       
       ctx.drawImage(img, 0, 0);
       
-      const blob = await new Promise<Blob>((resolve, reject) => {
+      // Clean up object URL
+      URL.revokeObjectURL(objectUrl);
+      
+      const pngBlob = await new Promise<Blob>((resolve, reject) => {
         canvas.toBlob((blob) => {
           if (blob) resolve(blob);
           else reject(new Error("Could not create blob"));
@@ -106,7 +120,7 @@ export function ProductImage({
       });
       
       await navigator.clipboard.write([
-        new ClipboardItem({ "image/png": blob })
+        new ClipboardItem({ "image/png": pngBlob })
       ]);
       
       toast.success("Đã copy ảnh vào clipboard!");
