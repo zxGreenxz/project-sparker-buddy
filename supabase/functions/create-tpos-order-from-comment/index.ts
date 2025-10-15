@@ -287,11 +287,13 @@ serve(async (req) => {
   let payload: any = null;
 
   try {
-    const { comment, video } = await req.json();
+    const { comment, video, commentType } = await req.json();
 
     if (!comment || !video) {
       throw new Error('Comment and video data are required');
     }
+
+    console.log('📝 Received commentType:', commentType || 'not provided');
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
@@ -431,6 +433,7 @@ serve(async (req) => {
           comment: comment.message || null,
           tpos_order_id: data.Id || null,
           order_count: newOrderCount,
+          comment_type: commentType || null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', existingOrder.id);
@@ -476,6 +479,7 @@ serve(async (req) => {
           facebook_user_id: comment.from.id,
           facebook_post_id: video.objectId,
           order_count: 1,
+          comment_type: commentType || null,
         });
       
       // Update facebook_comments_archive

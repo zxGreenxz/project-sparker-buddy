@@ -492,9 +492,11 @@ export function FacebookCommentsManager({
     mutationFn: async ({
       comment,
       video,
+      commentType = "hang_dat",
     }: {
       comment: FacebookComment;
       video: FacebookVideo;
+      commentType?: string;
     }) => {
       const {
         data: { session },
@@ -509,7 +511,7 @@ export function FacebookCommentsManager({
             Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ comment, video }),
+          body: JSON.stringify({ comment, video, commentType }),
         },
       );
 
@@ -1118,7 +1120,7 @@ export function FacebookCommentsManager({
 
   const handleCreateOrderClick = (comment: CommentWithStatus) => {
     if (selectedVideo) {
-      createOrderMutation.mutate({ comment, video: selectedVideo });
+      createOrderMutation.mutate({ comment, video: selectedVideo, commentType: "hang_dat" });
     }
   };
 
