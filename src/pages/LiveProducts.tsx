@@ -1542,7 +1542,15 @@ export default function LiveProducts() {
                                     </div>
                                   </TableCell>
                                    <TableCell className="text-center">
-                                     <span className="text-sm font-medium">{product.prepared_quantity}</span>
+                                     <Input type="number" min="0" value={preparedQuantities[product.id] ?? product.prepared_quantity} onChange={e => handlePreparedQuantityChange(product.id, e.target.value)} onBlur={() => {
+                             const newQuantity = preparedQuantities[product.id];
+                             if (newQuantity !== undefined && newQuantity !== product.prepared_quantity) {
+                               updatePreparedQuantityMutation.mutate({
+                                 productId: product.id,
+                                 newQuantity
+                               });
+                             }
+                           }} className="w-16 text-center h-8" />
                                    </TableCell>
                                   <TableCell className="text-center">{product.sold_quantity}</TableCell>
                                   <TableCell>
@@ -1851,7 +1859,17 @@ export default function LiveProducts() {
                                   <ZoomableImage src={product.image_url} alt={product.product_name} />
                                 </TableCell>
                                 
-                                <TableCell className="text-center">{product.prepared_quantity}</TableCell>
+                                <TableCell className="text-center">
+                                  <Input type="number" min="0" value={preparedQuantities[product.id] ?? product.prepared_quantity} onChange={e => handlePreparedQuantityChange(product.id, e.target.value)} onBlur={() => {
+                             const newQuantity = preparedQuantities[product.id];
+                             if (newQuantity !== undefined && newQuantity !== product.prepared_quantity) {
+                               updatePreparedQuantityMutation.mutate({
+                                 productId: product.id,
+                                 newQuantity
+                               });
+                             }
+                           }} className="w-16 text-center h-8" />
+                                </TableCell>
                                 <TableCell className="text-center">{product.sold_quantity}</TableCell>
                                 <TableCell>
                                   <div className="flex flex-wrap gap-1">
