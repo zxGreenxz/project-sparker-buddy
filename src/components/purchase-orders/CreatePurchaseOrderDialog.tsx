@@ -389,22 +389,9 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
   ) => {
     const baseItem = items[index];
 
-    // Extract all individual variant parts from all child variants
-    // IMPORTANT: Keep original order, do NOT sort
-    const allVariantParts: string[] = [];
-    const seenParts = new Set<string>();
-    
-    for (const v of variants) {
-      const parts = v.variantText.split(',').map(s => s.trim()).filter(Boolean);
-      for (const part of parts) {
-        if (!seenParts.has(part)) {
-          seenParts.add(part);
-          allVariantParts.push(part);
-        }
-      }
-    }
-    
-    const mergedVariant = allVariantParts.join(', ');
+    // Create merged variant from all child variants in order
+    // Keep complete variant text, not individual parts
+    const mergedVariant = variants.map(v => v.variantText).join(', ');
 
     // Prepare base product data
     const baseProductData = {
