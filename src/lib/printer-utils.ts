@@ -31,13 +31,25 @@ export const getActivePrinter = (): NetworkPrinter | null => {
  * In nội dung text lên máy in XC80 qua Print Bridge
  * @param printer Thông tin máy in
  * @param content Nội dung text cần in
+ * @param options Tùy chọn in (mode, align, feeds)
  * @returns Promise với kết quả in
  */
 export const printToXC80 = async (
   printer: NetworkPrinter,
-  content: string
+  content: string,
+  options?: {
+    mode?: 'cp1258' | 'no-accents' | 'utf8';
+    align?: 'left' | 'center' | 'right';
+    feeds?: number;
+  }
 ): Promise<{ success: boolean; error?: string }> => {
   try {
+    const printOptions = {
+      mode: options?.mode || 'cp1258',
+      align: options?.align || 'center',
+      feeds: options?.feeds || 3,
+    };
+
     const response = await fetch(`${printer.bridgeUrl}/print`, {
       method: "POST",
       headers: { "Content-Type": "application/json;charset=UTF-8" },
@@ -45,6 +57,7 @@ export const printToXC80 = async (
         ipAddress: printer.ipAddress,
         port: printer.port,
         content: content,
+        options: printOptions,
       }),
     });
 
@@ -53,6 +66,7 @@ export const printToXC80 = async (
     }
 
     const result = await response.json();
+    console.log('🖨️ Print result:', result);
     return result;
   } catch (error: any) {
     console.error("XC80 print error:", error);

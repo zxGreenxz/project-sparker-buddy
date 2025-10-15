@@ -300,7 +300,11 @@ ${billData.comment ? `${billData.comment}\n` : ''}${new Date(billData.createdTim
 --------------------------------
           `.trim();
           console.log(`🖨️ Printing to ${activePrinter.name} (${activePrinter.ipAddress}:${activePrinter.port})`);
-          const printResult = await printToXC80(activePrinter, billContent);
+          const printResult = await printToXC80(activePrinter, billContent, {
+            mode: 'cp1258',
+            align: 'center',
+            feeds: 3
+          });
           if (!printResult.success) {
             console.error("Print failed:", printResult.error);
             toast({
