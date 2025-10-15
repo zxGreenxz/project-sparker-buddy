@@ -38,7 +38,8 @@ function getTPOSHeaders(bearerToken: string) {
     "x-request-id": generateRandomId(),
   };
 }
-function createErrorResponse(error, statusCode, details, postId) {
+
+function createErrorResponse(error: string, statusCode: number, details?: string, postId?: string) {
   const errorBody = {
     error,
     statusCode,
@@ -57,7 +58,7 @@ function createErrorResponse(error, statusCode, details, postId) {
     },
   });
 }
-function createSuccessResponse(data) {
+function createSuccessResponse(data: any) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
@@ -237,7 +238,7 @@ serve(async (req) => {
     // STEP 8: TRANSFORM DATA (Handle both English and Vietnamese columns)
     // ========================================================================
     // Helper function: Safe date parsing
-    function parseDate(dateValue) {
+    function parseDate(dateValue: any): string {
       try {
         if (!dateValue) {
           return new Date().toISOString();
@@ -263,7 +264,7 @@ serve(async (req) => {
       }
     }
     // Helper function: Get value from row (try both English and Vietnamese keys)
-    function getRowValue(row, englishKey, vietnameseKey, defaultValue = "") {
+    function getRowValue(row: any, englishKey: string, vietnameseKey?: string, defaultValue: any = "") {
       return row[englishKey] ?? (vietnameseKey ? row[vietnameseKey] : undefined) ?? defaultValue;
     }
     const commentsToInsert = jsonData
