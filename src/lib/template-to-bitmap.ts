@@ -85,8 +85,10 @@ export async function templateToBitmap(
   lines.forEach((line, index) => {
     const lineKey = `line${index + 1}`;
     const lineStyle = lineStyles[lineKey];
-    const fontSize = lineStyle?.fontSize || settings.fontSize;
-    const lineHeight = fontSize * settings.lineHeight;
+    const fontSizePt = lineStyle?.fontSize || settings.fontSize;
+    // Convert pt to px: 1pt ≈ 1.333px
+    const fontSizePx = fontSizePt * 1.333;
+    const lineHeight = fontSizePx * settings.lineHeight;
     lineHeights.push(lineHeight);
     totalHeight += lineHeight;
   });
@@ -107,14 +109,16 @@ export async function templateToBitmap(
   lines.forEach((line, index) => {
     const lineKey = `line${index + 1}`;
     const lineStyle = lineStyles[lineKey];
-    const fontSize = lineStyle?.fontSize || settings.fontSize;
+    const fontSizePt = lineStyle?.fontSize || settings.fontSize;
+    // Convert pt to px: 1pt ≈ 1.333px for canvas rendering
+    const fontSizePx = fontSizePt * 1.333;
     const isBold = lineStyle?.bold || false;
     const isItalic = lineStyle?.italic || false;
     
-    // Set font for this line
+    // Set font for this line (use px for canvas)
     const fontWeight = isBold ? 'bold' : 'normal';
     const fontStyle = isItalic ? 'italic' : 'normal';
-    ctx.font = `${fontStyle} ${fontWeight} ${fontSize}pt ${settings.fontFamily}`;
+    ctx.font = `${fontStyle} ${fontWeight} ${fontSizePx}px ${settings.fontFamily}`;
     
     // Set alignment
     let xPos = settings.padding;
@@ -137,8 +141,9 @@ export async function templateToBitmap(
       if (settings.align === 'center' || settings.align === 'right') {
         let totalWidth = 0;
         segments.forEach(seg => {
-          const segFontSize = seg.fontSize || fontSize;
-          ctx.font = `${fontStyle} ${fontWeight} ${segFontSize}pt ${settings.fontFamily}`;
+          const segFontSizePt = seg.fontSize || fontSizePt;
+          const segFontSizePx = segFontSizePt * 1.333;
+          ctx.font = `${fontStyle} ${fontWeight} ${segFontSizePx}px ${settings.fontFamily}`;
           totalWidth += ctx.measureText(seg.text).width;
         });
         
@@ -152,8 +157,9 @@ export async function templateToBitmap(
       // Draw each segment
       let currentX = xPos;
       segments.forEach(seg => {
-        const segFontSize = seg.fontSize || fontSize;
-        ctx.font = `${fontStyle} ${fontWeight} ${segFontSize}pt ${settings.fontFamily}`;
+        const segFontSizePt = seg.fontSize || fontSizePt;
+        const segFontSizePx = segFontSizePt * 1.333;
+        ctx.font = `${fontStyle} ${fontWeight} ${segFontSizePx}px ${settings.fontFamily}`;
         ctx.fillText(seg.text, currentX, currentY);
         currentX += ctx.measureText(seg.text).width;
       });
@@ -225,14 +231,17 @@ export async function templateToESCPOSBitmap(
   const escposData = encodeBitmapToESCPOS(bitmap);
   console.log(`✅ ESC/POS encoded: ${escposData.length} bytes`);
   
-  // Add paper feed commands
-  const feedCommands = new Uint8Array([
-    0x1B, 0x64, 0x03  // ESC d 3 - Feed 3 lines
+  // Add paper feed and cut commands for XP-K200L
+  const feedAndCutCommands = new Uint8Array([
+    0x1B, 0x64, 0x03,  // ESC d 3 - Feed 3 lines
+    0x1D, 0x56, 0x42, 0x00  // GS V 66 0 - Full cut paper
   ]);
   
-  const result = new Uint8Array(escposData.length + feedCommands.length);
+  const result = new Uint8Array(escposData.length + feedAndCutCommands.length);
   result.set(escposData, 0);
-  result.set(feedCommands, escposData.length);
+  result.set(feedAndCutCommands, escposData.length);
+  
+  console.log(`✅ Added paper feed and cut commands`);
   
   return result;
 }
