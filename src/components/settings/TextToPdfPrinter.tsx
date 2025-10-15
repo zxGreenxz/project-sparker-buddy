@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { Loader2, FileText, Download, Printer } from "lucide-react";
 import { jsPDF } from "jspdf";
+import html2canvas from "html2canvas";
 import { getActivePrinter } from "@/lib/printer-utils";
 import { textToESCPOSBitmap } from "@/lib/text-to-bitmap";
 
@@ -19,8 +20,9 @@ export const TextToPdfPrinter = () => {
   const [pdfPreview, setPdfPreview] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
 
-  const handleGeneratePdf = () => {
+  const handleGeneratePdf = async () => {
     if (!text.trim()) {
       toast.error("Vui lòng nhập nội dung cần tạo PDF");
       return;
@@ -28,64 +30,65 @@ export const TextToPdfPrinter = () => {
 
     setIsGenerating(true);
     try {
-      // Create PDF document
-      let pdf: jsPDF;
-      let pageWidth: number;
-      
-      if (pageSize === "receipt") {
-        // 80mm thermal receipt (80mm x unlimited height)
-        pdf = new jsPDF({
-          orientation: "portrait",
-          unit: "mm",
-          format: [80, 297] // 80mm width, A4 height as default
-        });
-        pageWidth = 80;
-      } else if (pageSize === "a5") {
-        pdf = new jsPDF({
-          orientation: "portrait",
-          unit: "mm",
-          format: "a5"
-        });
-        pageWidth = 148;
-      } else {
-        pdf = new jsPDF({
-          orientation: "portrait",
-          unit: "mm",
-          format: "a4"
-        });
-        pageWidth = 210;
+      if (!contentRef.current) {
+        throw new Error("Content ref not available");
       }
 
-      // Set font
-      pdf.setFont("helvetica");
-      const size = parseInt(fontSize);
-      pdf.setFontSize(size);
-
-      // Calculate margins and content width
-      const margin = pageSize === "receipt" ? 5 : 15;
-      const contentWidth = pageWidth - (margin * 2);
-      
-      // Split text into lines that fit the page width
-      const lines = pdf.splitTextToSize(text, contentWidth);
-      
-      // Add text with line height
-      const lineHeightMm = size * parseFloat(lineHeight) * 0.352778; // Convert pt to mm
-      let y = margin;
-      
-      lines.forEach((line: string, index: number) => {
-        if (y > (pageSize === "receipt" ? 280 : (pageSize === "a5" ? 195 : 280))) {
-          pdf.addPage();
-          y = margin;
-        }
-        pdf.text(line, margin, y);
-        y += lineHeightMm;
+      // Render HTML content to canvas with Tahoma font
+      const canvas = await html2canvas(contentRef.current, {
+        scale: 2, // Higher quality
+        useCORS: true,
+        logging: false,
+        backgroundColor: "#ffffff",
       });
+
+      // Determine page dimensions in mm
+      let pageWidth: number;
+      let pageHeight: number;
+      
+      if (pageSize === "receipt") {
+        pageWidth = 80; // 80mm thermal receipt width
+        pageHeight = 297; // A4 height as fallback
+      } else if (pageSize === "a5") {
+        pageWidth = 148;
+        pageHeight = 210;
+      } else {
+        pageWidth = 210;
+        pageHeight = 297;
+      }
+
+      // Create PDF with correct dimensions
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: [pageWidth, pageHeight],
+      });
+
+      // Calculate image dimensions to fit PDF page
+      const imgWidth = pageWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      // Add image to PDF (split into pages if needed)
+      let heightLeft = imgHeight;
+      let position = 0;
+      const imgData = canvas.toDataURL("image/png");
+
+      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      // Add more pages if content is longer than one page
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
 
       // Generate preview
       const pdfDataUri = pdf.output("datauristring");
       setPdfPreview(pdfDataUri);
       
-      toast.success("✅ Đã tạo PDF thành công!");
+      toast.success("✅ Đã tạo PDF thành công với font Tahoma!");
     } catch (error) {
       console.error("Error generating PDF:", error);
       toast.error("❌ Lỗi khi tạo PDF");
@@ -180,16 +183,37 @@ export const TextToPdfPrinter = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Hidden content div for rendering with Tahoma font */}
+        <div 
+          ref={contentRef}
+          style={{
+            position: "absolute",
+            left: "-9999px",
+            top: "0",
+            width: pageSize === "receipt" ? "80mm" : pageSize === "a5" ? "148mm" : "210mm",
+            padding: pageSize === "receipt" ? "5mm" : "15mm",
+            fontFamily: "Tahoma, sans-serif",
+            fontSize: `${fontSize}px`,
+            lineHeight: lineHeight,
+            backgroundColor: "#ffffff",
+            color: "#000000",
+            whiteSpace: "pre-wrap",
+            wordWrap: "break-word",
+          }}
+        >
+          {text}
+        </div>
+
         {/* Text Input */}
         <div className="space-y-2">
-          <Label htmlFor="pdf-text">Nội dung văn bản</Label>
+          <Label htmlFor="pdf-text">Nội dung văn bản (Font Tahoma)</Label>
           <Textarea
             id="pdf-text"
             placeholder="Nhập nội dung cần tạo PDF..."
             value={text}
             onChange={(e) => setText(e.target.value)}
             rows={8}
-            className="font-mono"
+            style={{ fontFamily: "Tahoma, sans-serif" }}
           />
         </div>
 
@@ -301,10 +325,11 @@ export const TextToPdfPrinter = () => {
         <div className="text-sm text-muted-foreground space-y-1 pt-2 border-t">
           <p>💡 <strong>Hướng dẫn:</strong></p>
           <ul className="list-disc list-inside space-y-1 ml-2">
-            <li><strong>Tạo PDF:</strong> Tạo file PDF để xem trước</li>
-            <li><strong>In trực tiếp:</strong> In text lên máy in nhiệt (chuyển đổi thành bitmap)</li>
+            <li><strong>Font Tahoma:</strong> Hỗ trợ tiếng Việt tốt, hiển thị chính xác</li>
+            <li><strong>Tạo PDF:</strong> Chuyển text thành PDF với font Tahoma</li>
+            <li><strong>In trực tiếp:</strong> In text lên máy in nhiệt (bitmap)</li>
             <li><strong>Tải xuống:</strong> Lưu file PDF về máy</li>
-            <li>Máy in nhiệt chỉ in được bitmap nên chức năng "In trực tiếp" sẽ chuyển text thành ảnh</li>
+            <li>PDF được tạo bằng cách render HTML với font Tahoma rồi chuyển thành ảnh trong PDF</li>
           </ul>
         </div>
       </CardContent>
