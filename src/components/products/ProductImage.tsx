@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { ImageIcon, Loader2 } from "lucide-react";
 import { fetchAndSaveTPOSImage, getProductImageUrl } from "@/lib/tpos-image-loader";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 interface ProductImageProps {
   productId: string;
@@ -21,6 +22,9 @@ export function ProductImage({
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isZoomed, setIsZoomed] = useState(false);
+  const [zoomPosition, setZoomPosition] = useState({ top: 0, left: 0 });
+  const imgRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
     // Get initial image URL based on priority
@@ -43,6 +47,75 @@ export function ProductImage({
     }
   }, [productId, productCode, productImages, tposImageUrl, tposProductId]);
 
+  const handleMouseEnter = () => {
+    if (!imgRef.current || !imageUrl) return;
+    
+    const rect = imgRef.current.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const zoomedHeight = 600;
+    
+    let top = rect.top;
+    
+    if (rect.top + zoomedHeight > viewportHeight) {
+      top = rect.bottom - zoomedHeight;
+    }
+    
+    if (top < 0) {
+      top = rect.top;
+    }
+    
+    setZoomPosition({
+      top: top,
+      left: rect.right + 10
+    });
+    
+    setIsZoomed(true);
+  };
+
+  const handleMouseLeave = () => {
+    setIsZoomed(false);
+  };
+
+  const handleImageClick = async () => {
+    if (!imageUrl) return;
+    
+    try {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = imageUrl;
+      });
+      
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Could not get canvas context");
+      
+      ctx.drawImage(img, 0, 0);
+      
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error("Could not create blob"));
+        }, "image/png");
+      });
+      
+      await navigator.clipboard.write([
+        new ClipboardItem({ "image/png": blob })
+      ]);
+      
+      toast.success("Đã copy ảnh vào clipboard!");
+    } catch (error) {
+      console.error("Error copying image:", error);
+      toast.error("Không thể copy ảnh. Vui lòng thử lại.");
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="w-10 h-10 flex items-center justify-center">
@@ -62,12 +135,14 @@ export function ProductImage({
   return (
     <>
       <img
+        ref={imgRef}
         src={imageUrl}
         alt={productCode}
-        className="w-10 h-10 object-cover rounded cursor-pointer transition-transform duration-200 hover:scale-[14] hover:z-50 relative origin-left"
-        onClick={() => setIsDialogOpen(true)}
+        className="w-10 h-10 object-cover rounded cursor-pointer transition-opacity duration-200 hover:opacity-80"
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        onClick={handleImageClick}
         onError={(e) => {
-          // If image fails to load, show placeholder
           e.currentTarget.style.display = 'none';
           e.currentTarget.parentElement?.querySelector('.fallback-icon')?.classList.remove('hidden');
         }}
@@ -76,18 +151,23 @@ export function ProductImage({
         <ImageIcon className="h-4 w-4 text-muted-foreground" />
       </div>
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-3xl">
+      {isZoomed && (
+        <div
+          className="fixed pointer-events-none z-[9999]"
+          style={{
+            top: `${zoomPosition.top}px`,
+            left: `${zoomPosition.left}px`,
+            maxWidth: '600px',
+            maxHeight: '600px'
+          }}
+        >
           <img
             src={imageUrl}
             alt={productCode}
-            className="w-full h-auto"
+            className="w-auto h-auto max-w-[600px] max-h-[600px] object-contain rounded-lg shadow-2xl border-4 border-background"
           />
-          <div className="text-sm text-muted-foreground text-center mt-2">
-            {productCode}
-          </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
     </>
   );
 }
