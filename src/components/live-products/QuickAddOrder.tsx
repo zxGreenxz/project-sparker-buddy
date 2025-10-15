@@ -10,8 +10,9 @@ import { OrderBillNotification } from './OrderBillNotification';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { getActivePrinter, printToXC80 } from '@/lib/printer-utils';
-import { getActiveTemplate, applyTemplate } from '@/lib/printer-template-utils';
+import { getActivePrinter } from '@/lib/printer-utils';
+import { getActiveTemplate } from '@/lib/printer-template-utils';
+import { templateToESCPOSBitmap } from '@/lib/template-to-bitmap';
 interface QuickAddOrderProps {
   productId: string;
   phaseId: string;
@@ -283,33 +284,19 @@ export function QuickAddOrder({
       if (billData) {
         const activePrinter = getActivePrinter();
         if (activePrinter) {
-          // Print to XC80 thermal printer using bitmap mode
-          const billContent = `
-#${billData.sessionIndex} - ${billData.phone || 'Chưa có SĐT'}
-${billData.customerName}
-${billData.productCode} - ${billData.productName.replace(/^\d+\s+/, '')}
-${billData.comment || ''}
-${new Date(billData.createdTime).toLocaleString('vi-VN', {
-            timeZone: 'Asia/Bangkok',
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          })}
-          `.trim();
-          
           try {
-            console.log(`🖨️ Printing with template for ${activePrinter.name}`);
+            console.log(`🖨️ Printing with template (text-to-bitmap) for ${activePrinter.name}`);
             
-            // Get active template and apply data
+            // Get active template
             const template = getActiveTemplate();
-            const formattedBill = applyTemplate(template, {
+            
+            // Prepare template data
+            const templateData = {
               sessionIndex: `#${billData.sessionIndex}`,
               phone: billData.phone || 'Chưa có SĐT',
-              customerName: billData.customerName,
-              productCode: billData.productCode,
-              productName: billData.productName.replace(/^\d+\s+/, ''),
+              customerName: billData.customerName || '',
+              productCode: billData.productCode || '',
+              productName: billData.productName?.replace(/^\d+\s+/, '') || '',
               comment: billData.comment || '',
               time: new Date(billData.createdTime).toLocaleString('vi-VN', {
                 timeZone: 'Asia/Bangkok',
@@ -319,20 +306,40 @@ ${new Date(billData.createdTime).toLocaleString('vi-VN', {
                 hour: '2-digit',
                 minute: '2-digit'
               })
+            };
+            
+            // Convert template to ESC/POS bitmap
+            const bitmapBytes = await templateToESCPOSBitmap({
+              template,
+              data: templateData
             });
             
-            // Print using template settings
-            const printResult = await printToXC80(activePrinter, formattedBill, {
-              mode: 'utf8',
-              align: template.settings.align as 'left' | 'center' | 'right',
-              feeds: 3
+            // Convert to base64
+            const base64Bitmap = btoa(String.fromCharCode(...bitmapBytes));
+            
+            // Send to printer bridge
+            const response = await fetch(`${activePrinter.bridgeUrl}/print/bitmap`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                ipAddress: activePrinter.ipAddress,
+                port: activePrinter.port,
+                bitmapBase64: base64Bitmap,
+                feeds: 3
+              }),
             });
             
-            if (!printResult.success) {
-              throw new Error(printResult.error || 'Print failed');
+            if (!response.ok) {
+              throw new Error(`HTTP ${response.status}`);
             }
             
-            console.log("✅ Bill printed successfully with template");
+            const result = await response.json();
+            
+            if (!result.success) {
+              throw new Error(result.error || 'Print failed');
+            }
+            
+            console.log("✅ Bill printed successfully with template (bitmap mode)");
           } catch (error) {
             console.error("Print failed:", error);
             toast({
