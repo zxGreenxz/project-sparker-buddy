@@ -375,7 +375,7 @@ export function LiveCommentsPanel({
   }, [videoId]);
 
   const createOrderMutation = useMutation({
-    mutationFn: async ({ comment }: { comment: FacebookComment }) => {
+    mutationFn: async ({ comment, productType = 'hang_dat' }: { comment: FacebookComment; productType?: string }) => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("User not authenticated");
 
@@ -389,7 +389,8 @@ export function LiveCommentsPanel({
           },
           body: JSON.stringify({ 
             comment, 
-            video: { objectId: videoId } 
+            video: { objectId: videoId },
+            productType 
           }),
         }
       );
@@ -444,17 +445,20 @@ export function LiveCommentsPanel({
     },
   });
 
-  const handleCreateOrderClick = (comment: CommentWithStatus) => {
+  const handleCreateOrderClick = (comment: CommentWithStatus, productType: string = 'hang_dat') => {
     if (comment.orderInfo) {
       setConfirmCreateOrderComment(comment);
+      // Store productType for confirmation dialog
+      (confirmCreateOrderComment as any)._productType = productType;
     } else {
-      createOrderMutation.mutate({ comment });
+      createOrderMutation.mutate({ comment, productType });
     }
   };
 
   const confirmCreateOrder = () => {
     if (confirmCreateOrderComment) {
-      createOrderMutation.mutate({ comment: confirmCreateOrderComment });
+      const productType = (confirmCreateOrderComment as any)._productType || 'hang_dat';
+      createOrderMutation.mutate({ comment: confirmCreateOrderComment, productType });
     }
     setConfirmCreateOrderComment(null);
   };
@@ -648,13 +652,27 @@ export function LiveCommentsPanel({
                         "flex-1 bg-blue-500 hover:bg-blue-600 text-white",
                         isMobile ? "h-7 text-xs min-w-[80px]" : "h-8 text-xs"
                       )}
-                      onClick={() => handleCreateOrderClick(comment)}
+                      onClick={() => handleCreateOrderClick(comment, 'hang_dat')}
                       disabled={pendingCommentIds.has(comment.id)}
                     >
                       {pendingCommentIds.has(comment.id) && (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       )}
                       Tạo đơn
+                    </Button>
+                    <Button
+                      size={isMobile ? "sm" : "default"}
+                      className={cn(
+                        "bg-orange-500 hover:bg-orange-600 text-white",
+                        isMobile ? "h-7 text-xs px-2 min-w-[70px]" : "h-8 text-xs"
+                      )}
+                      onClick={() => handleCreateOrderClick(comment, 'hang_le')}
+                      disabled={pendingCommentIds.has(comment.id)}
+                    >
+                      {pendingCommentIds.has(comment.id) && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
+                      Hàng lẻ
                     </Button>
                     <Button
                       variant="outline"
