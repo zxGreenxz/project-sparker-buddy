@@ -180,7 +180,7 @@ const Settings = () => {
     const lastRefreshed = new Date(token.last_refreshed_at);
     const now = new Date();
     const daysSinceRefresh = Math.floor((now.getTime() - lastRefreshed.getTime()) / (1000 * 60 * 60 * 24));
-    const daysUntilExpiry = (token.refresh_interval_days || 7) - daysSinceRefresh;
+    const daysUntilExpiry = (token.refresh_interval_days || 3) - daysSinceRefresh;
     
     if (daysUntilExpiry <= 0) {
       return { status: 'expired', days: Math.abs(daysUntilExpiry), variant: 'destructive' };
@@ -195,9 +195,23 @@ const Settings = () => {
     try {
       const { data, error } = await supabase
         .from("tpos_config")
-        .select("id, bearer_token, is_active, created_at, updated_at, created_by")
+        .select("id, bearer_token, is_active, created_at, updated_at")
         .eq("is_active", true)
-        .maybeSingle();
+        .maybeSingle() as any;
+      
+      // After migration, also check token_type
+      if (data && !error) {
+        // If token_type exists and it's not 'tpos', ignore this token
+        if (data.token_type && data.token_type !== 'tpos') {
+          setCurrentToken(null);
+          toast({
+            title: "Chưa có TPOS token",
+            description: "Chưa có token TPOS nào được lưu trong hệ thống",
+          });
+          setIsLoadingToken(false);
+          return;
+        }
+      }
       
       if (error) throw error;
       
@@ -229,12 +243,25 @@ const Settings = () => {
   const loadCurrentFacebookToken = async () => {
     setIsLoadingFacebookToken(true);
     try {
-      // For now, Facebook token uses same table, will be separated after migration
       const { data, error } = await supabase
         .from("tpos_config")
-        .select("id, bearer_token, is_active, created_at, updated_at, created_by")
+        .select("id, bearer_token, is_active, created_at, updated_at")
         .eq("is_active", true)
-        .maybeSingle();
+        .maybeSingle() as any;
+      
+      // After migration, also check token_type
+      if (data && !error) {
+        // If token_type exists and it's not 'facebook', ignore this token
+        if (data.token_type && data.token_type !== 'facebook') {
+          setCurrentFacebookToken(null);
+          toast({
+            title: "Chưa có Facebook token",
+            description: "Chưa có token Facebook nào được lưu trong hệ thống",
+          });
+          setIsLoadingFacebookToken(false);
+          return;
+        }
+      }
       
       if (error) throw error;
       
@@ -243,7 +270,7 @@ const Settings = () => {
         setFacebookBearerToken(data.bearer_token);
         toast({
           title: "Tải Facebook token thành công",
-          description: "Token hiện tại đã được tải (đang dùng chung với TPOS token)",
+          description: "Token hiện tại đã được tải",
         });
       } else {
         toast({
@@ -843,7 +870,7 @@ const Settings = () => {
                     className="min-h-[100px] font-mono text-xs"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Token này sẽ được sử dụng để gọi API TPOS. Vui lòng lấy token mới từ TPOS khi token cũ hết hạn.
+                    Token này được lấy từ request header authorization khi sử dụng các API TPOS. Hệ thống sẽ tự động kiểm tra hết hạn sau 3 ngày.
                   </p>
                 </div>
                 
@@ -947,7 +974,7 @@ const Settings = () => {
                     className="min-h-[100px] font-mono text-xs"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Token này được lấy từ request header authorization khi sử dụng các API Facebook trên TPOS. Hệ thống sẽ tự động kiểm tra hết hạn sau 7 ngày.
+                    Token này được lấy từ request header authorization khi sử dụng các API Facebook trên TPOS. Hệ thống sẽ tự động kiểm tra hết hạn sau 3 ngày.
                   </p>
                 </div>
                 

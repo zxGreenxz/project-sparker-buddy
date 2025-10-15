@@ -5,7 +5,7 @@
 ALTER TABLE public.tpos_config 
 ADD COLUMN IF NOT EXISTS token_type TEXT DEFAULT 'tpos' CHECK (token_type IN ('tpos', 'facebook')),
 ADD COLUMN IF NOT EXISTS last_refreshed_at TIMESTAMPTZ DEFAULT NOW(),
-ADD COLUMN IF NOT EXISTS refresh_interval_days INT DEFAULT 7,
+ADD COLUMN IF NOT EXISTS refresh_interval_days INT DEFAULT 3,
 ADD COLUMN IF NOT EXISTS auto_refresh_enabled BOOLEAN DEFAULT true,
 ADD COLUMN IF NOT EXISTS token_status TEXT DEFAULT 'active' CHECK (token_status IN ('active', 'warning', 'expired'));
 
@@ -26,7 +26,7 @@ WHERE token_type IS NULL;
 -- Add helpful comments
 COMMENT ON COLUMN public.tpos_config.token_type IS 'Type of token: tpos or facebook';
 COMMENT ON COLUMN public.tpos_config.last_refreshed_at IS 'Last time the token was manually refreshed';
-COMMENT ON COLUMN public.tpos_config.refresh_interval_days IS 'Number of days before token should be refreshed';
+COMMENT ON COLUMN public.tpos_config.refresh_interval_days IS 'Number of days before token should be refreshed (default: 3 days)';
 COMMENT ON COLUMN public.tpos_config.token_status IS 'Current status: active, warning (expiring soon), expired';
 COMMENT ON COLUMN public.tpos_config.auto_refresh_enabled IS 'Whether to automatically check token expiry';
 
