@@ -421,9 +421,9 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
 
     // Prepare child variants data
     const childVariantsData = variants.map(v => ({
-      product_code: v.fullCode,
+      product_code: v.fullCode.toUpperCase(),
       base_product_code: baseItem._tempProductCode.trim().toUpperCase(),
-      product_name: v.productName,
+      product_name: v.productName.toUpperCase(),
       variant: v.variantText,
       purchase_price: Number(baseItem._tempUnitPrice) * 1000,
       selling_price: Number(baseItem._tempSellingPrice) * 1000,
