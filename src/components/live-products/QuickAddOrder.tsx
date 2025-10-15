@@ -305,11 +305,11 @@ ${new Date(billData.createdTime).toLocaleString('vi-VN', {
             // Convert text to ESC/POS bitmap (includes paper cut)
             const bitmapData = await textToESCPOSBitmap(billContent, {
               width: 576,
-              fontSize: 32,
+              fontSize: 28,
               fontFamily: 'Arial, sans-serif',
-              lineHeight: 1.4,
+              lineHeight: 1.3,
               align: 'center',
-              padding: 5,
+              padding: 3,
               bold: false
             });
             
@@ -373,32 +373,32 @@ ${new Date(billData.createdTime).toLocaleString('vi-VN', {
                   width: 100%;
                 }
                 .line1 {
-                  font-size: 24pt;
+                  font-size: 28pt;
                   font-weight: bold;
                   line-height: 1.2;
                 }
                 .line1 .phone {
-                  font-size: 15pt;
+                  font-size: 18pt;
                   font-weight: bold;
                 }
                 .line2 {
-                  font-size: 24pt;
+                  font-size: 28pt;
                   font-weight: bold;
                   line-height: 1.2;
                 }
                 .line3 {
-                  font-size: 18pt;
+                  font-size: 14pt;
                   font-weight: bold;
                   line-height: 1.2;
                 }
                 .line4 {
-                  font-size: 24pt;
+                  font-size: 28pt;
                   font-weight: bold;
                   font-style: italic;
                   line-height: 1.2;
                 }
                 .line5 {
-                  font-size: 8pt;
+                  font-size: 7pt;
                   font-weight: bold;
                   line-height: 1.2;
                 }
