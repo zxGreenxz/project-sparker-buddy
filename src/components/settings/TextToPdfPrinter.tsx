@@ -7,12 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { Loader2, FileText, Download, Printer, ChevronDown, Settings2, Edit } from "lucide-react";
+import { Loader2, FileText, Download, Printer, ChevronDown, Settings2, Edit, Undo, Redo, Bold, Italic, AlignLeft, AlignCenter, AlignRight, Eye } from "lucide-react";
 import { getActivePrinter } from "@/lib/printer-utils";
 import { textToESCPOSBitmap } from "@/lib/text-to-bitmap";
 import jsPDF from "jspdf";
-import { Editor } from "@tinymce/tinymce-react";
 
 type PaperSize = {
   name: string;
@@ -70,78 +70,92 @@ Cảm ơn quý khách!`);
   const [isPrinting, setIsPrinting] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   
-  // TinyMCE editor state
+  // Simple editor state
   const [editorOpen, setEditorOpen] = useState(false);
-  const [htmlContent, setHtmlContent] = useState("");
-  const editorRef = useRef<any>(null);
+  const [editorContent, setEditorContent] = useState("");
+  const editorRef = useRef<HTMLDivElement>(null);
+  const [currentHeading, setCurrentHeading] = useState("p");
 
   const getInvoiceTemplate = () => {
-    return `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <style>
-    body { 
-      font-family: ${fontFamily}, sans-serif; 
-      font-size: ${fontSize}px; 
-      line-height: ${lineHeight};
-      margin: ${marginTop}mm ${marginRight}mm ${marginBottom}mm ${marginLeft}mm;
+    return `<div style="font-family: Tahoma, sans-serif;">
+<h1 style="text-align: center;">HÓA ĐƠN BÁN HÀNG</h1>
+<p><strong>Công ty TNHH ABC</strong></p>
+<p>Địa chỉ: 123 Nguyễn Huệ, Quận 1, TP.HCM</p>
+<p>Điện thoại: 028-1234-5678</p>
+<hr>
+<p>Khách hàng: <strong>Nguyễn Văn A</strong></p>
+<p>Ngày: <strong>${new Date().toLocaleDateString('vi-VN')}</strong></p>
+<table border="1" style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+  <thead>
+    <tr>
+      <th style="padding: 8px; border: 1px solid #000;">STT</th>
+      <th style="padding: 8px; border: 1px solid #000;">Sản phẩm</th>
+      <th style="padding: 8px; border: 1px solid #000;">Số lượng</th>
+      <th style="padding: 8px; border: 1px solid #000;">Đơn giá</th>
+      <th style="padding: 8px; border: 1px solid #000;">Thành tiền</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="padding: 8px; border: 1px solid #000;">1</td>
+      <td style="padding: 8px; border: 1px solid #000;">Điện thoại iPhone 15</td>
+      <td style="padding: 8px; border: 1px solid #000;">1</td>
+      <td style="padding: 8px; border: 1px solid #000;">25.000.000 đ</td>
+      <td style="padding: 8px; border: 1px solid #000;">25.000.000 đ</td>
+    </tr>
+    <tr>
+      <td style="padding: 8px; border: 1px solid #000;">2</td>
+      <td style="padding: 8px; border: 1px solid #000;">Ốp lưng iPhone 15</td>
+      <td style="padding: 8px; border: 1px solid #000;">2</td>
+      <td style="padding: 8px; border: 1px solid #000;">200.000 đ</td>
+      <td style="padding: 8px; border: 1px solid #000;">400.000 đ</td>
+    </tr>
+  </tbody>
+</table>
+<p style="text-align: right;"><strong>Tổng cộng: 25.400.000 đ</strong></p>
+<p style="text-align: right;"><strong>Đã thanh toán: 25.400.000 đ</strong></p>
+<p style="text-align: right;"><strong>Còn lại: 0 đ</strong></p>
+<hr>
+<p style="text-align: center;"><em>Cảm ơn quý khách! Hẹn gặp lại!</em></p>
+</div>`.trim();
+  };
+
+  const handleOpenEditor = () => {
+    const template = getInvoiceTemplate();
+    setEditorContent(template);
+    setEditorOpen(true);
+  };
+
+  const execCommand = (command: string, value?: string) => {
+    document.execCommand(command, false, value);
+    editorRef.current?.focus();
+  };
+
+  const handleHeadingChange = (value: string) => {
+    setCurrentHeading(value);
+    execCommand('formatBlock', value);
+  };
+
+  const handlePreview = () => {
+    if (!editorRef.current) return;
+    const content = editorRef.current.innerHTML;
+    const previewWindow = window.open('', '_blank');
+    if (previewWindow) {
+      previewWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Preview</title>
+          <style>
+            body { font-family: Tahoma, sans-serif; padding: 20px; }
+          </style>
+        </head>
+        <body>${content}</body>
+        </html>
+      `);
+      previewWindow.document.close();
     }
-    h1 { text-align: center; margin-bottom: 20px; }
-    table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-    th, td { border: 1px solid #000; padding: 8px; text-align: left; }
-    th { background-color: #f0f0f0; }
-    .total { font-weight: bold; text-align: right; }
-  </style>
-</head>
-<body>
-  <h1>HÓA ĐƠN BÁN HÀNG</h1>
-  <p><strong>Công ty TNHH ABC</strong></p>
-  <p>Địa chỉ: 123 Nguyễn Huệ, Quận 1, TP.HCM</p>
-  <p>Điện thoại: 028-1234-5678</p>
-  <hr>
-  
-  <p>Khách hàng: <strong>Nguyễn Văn A</strong></p>
-  <p>Ngày: <strong>${new Date().toLocaleDateString('vi-VN')}</strong></p>
-  
-  <table>
-    <thead>
-      <tr>
-        <th>STT</th>
-        <th>Sản phẩm</th>
-        <th>Số lượng</th>
-        <th>Đơn giá</th>
-        <th>Thành tiền</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>1</td>
-        <td>Điện thoại iPhone 15</td>
-        <td>1</td>
-        <td>25.000.000 đ</td>
-        <td>25.000.000 đ</td>
-      </tr>
-      <tr>
-        <td>2</td>
-        <td>Ốp lưng iPhone 15</td>
-        <td>2</td>
-        <td>200.000 đ</td>
-        <td>400.000 đ</td>
-      </tr>
-    </tbody>
-  </table>
-  
-  <p class="total">Tổng cộng: <strong>25.400.000 đ</strong></p>
-  <p class="total">Đã thanh toán: <strong>25.400.000 đ</strong></p>
-  <p class="total">Còn lại: <strong>0 đ</strong></p>
-  
-  <hr>
-  <p style="text-align: center;"><em>Cảm ơn quý khách! Hẹn gặp lại!</em></p>
-</body>
-</html>
-    `.trim();
   };
 
   const getPaperSize = () => {
@@ -267,16 +281,10 @@ Cảm ơn quý khách!`);
     }
   };
 
-  const handleOpenEditor = () => {
-    const template = getInvoiceTemplate();
-    setHtmlContent(template);
-    setEditorOpen(true);
-  };
-
   const handlePrintFromEditor = async () => {
     if (!editorRef.current) return;
     
-    const editedHtml = editorRef.current.getContent();
+    const editedHtml = editorRef.current.innerHTML;
     
     try {
       // Convert HTML to plain text for thermal printer
@@ -340,7 +348,7 @@ Cảm ơn quý khách!`);
   const handleDownloadPDFFromEditor = () => {
     if (!editorRef.current) return;
     
-    const editedHtml = editorRef.current.getContent();
+    const editedHtml = editorRef.current.innerHTML;
     
     try {
       // For PDF, we'll convert HTML to text for now
@@ -682,35 +690,121 @@ Cảm ơn quý khách!`);
                 Chỉnh sửa Template & In
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
               <DialogHeader>
-                <DialogTitle>Chỉnh sửa mẫu hóa đơn trước khi in</DialogTitle>
+                <DialogTitle>Chỉnh sửa Hóa đơn trước khi in</DialogTitle>
                 <DialogDescription>
-                  Chỉnh sửa nội dung, định dạng và bố cục hóa đơn theo ý muốn
+                  Chỉnh sửa nội dung và định dạng hóa đơn đơn giản với font Tahoma
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4">
-                <Editor
-                  apiKey="fu63ffyfbe9k013e4n5o6r27j5y0qvx3sqt3exwz7p9idm9o"
-                  onInit={(evt, editor) => (editorRef.current = editor)}
-                  value={htmlContent}
-                  init={{
-                    height: 500,
-                    menubar: true,
-                    plugins: [
-                      'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
-                      'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
-                      'insertdatetime', 'media', 'table', 'code', 'help', 'wordcount'
-                    ],
-                    toolbar: 'undo redo | blocks | ' +
-                      'bold italic forecolor | alignleft aligncenter ' +
-                      'alignright alignjustify | bullist numlist outdent indent | ' +
-                      'table | removeformat | preview | help',
-                    content_style: 'body { font-family:Tahoma,Arial,sans-serif; font-size:14px }',
-                    language: 'vi',
+              
+              <div className="flex-1 overflow-hidden flex flex-col space-y-4">
+                {/* Toolbar */}
+                <div className="flex items-center gap-2 flex-wrap p-2 border rounded-lg bg-muted/50">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => execCommand('undo')}
+                    title="Undo"
+                  >
+                    <Undo className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => execCommand('redo')}
+                    title="Redo"
+                  >
+                    <Redo className="h-4 w-4" />
+                  </Button>
+                  
+                  <Separator orientation="vertical" className="h-6" />
+                  
+                  <Select value={currentHeading} onValueChange={handleHeadingChange}>
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="p">Paragraph</SelectItem>
+                      <SelectItem value="h1">Heading 1</SelectItem>
+                      <SelectItem value="h2">Heading 2</SelectItem>
+                      <SelectItem value="h3">Heading 3</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  <Separator orientation="vertical" className="h-6" />
+                  
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => execCommand('bold')}
+                    title="Bold"
+                  >
+                    <Bold className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => execCommand('italic')}
+                    title="Italic"
+                  >
+                    <Italic className="h-4 w-4" />
+                  </Button>
+                  
+                  <Separator orientation="vertical" className="h-6" />
+                  
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => execCommand('justifyLeft')}
+                    title="Align Left"
+                  >
+                    <AlignLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => execCommand('justifyCenter')}
+                    title="Align Center"
+                  >
+                    <AlignCenter className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => execCommand('justifyRight')}
+                    title="Align Right"
+                  >
+                    <AlignRight className="h-4 w-4" />
+                  </Button>
+                  
+                  <Separator orientation="vertical" className="h-6" />
+                  
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handlePreview}
+                    title="Preview"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                {/* Editor Area */}
+                <div 
+                  ref={editorRef}
+                  contentEditable
+                  className="flex-1 overflow-auto border rounded-lg p-4 bg-white focus:outline-none focus:ring-2 focus:ring-ring"
+                  style={{ 
+                    fontFamily: 'Tahoma, sans-serif',
+                    minHeight: '400px'
                   }}
+                  dangerouslySetInnerHTML={{ __html: editorContent }}
+                  onInput={(e) => setEditorContent(e.currentTarget.innerHTML)}
                 />
-                <div className="flex gap-2 justify-end">
+
+                {/* Action Buttons */}
+                <div className="flex gap-2 justify-end pt-2 border-t">
                   <Button variant="outline" onClick={() => setEditorOpen(false)}>
                     Hủy
                   </Button>
