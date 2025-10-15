@@ -195,8 +195,7 @@ const Settings = () => {
     try {
       const { data, error } = await supabase
         .from("tpos_config")
-        .select("*")
-        .eq("token_type", "tpos")
+        .select("id, bearer_token, is_active, created_at, updated_at, created_by")
         .eq("is_active", true)
         .maybeSingle();
       
@@ -230,10 +229,10 @@ const Settings = () => {
   const loadCurrentFacebookToken = async () => {
     setIsLoadingFacebookToken(true);
     try {
+      // For now, Facebook token uses same table, will be separated after migration
       const { data, error } = await supabase
         .from("tpos_config")
-        .select("*")
-        .eq("token_type", "facebook")
+        .select("id, bearer_token, is_active, created_at, updated_at, created_by")
         .eq("is_active", true)
         .maybeSingle();
       
@@ -244,7 +243,7 @@ const Settings = () => {
         setFacebookBearerToken(data.bearer_token);
         toast({
           title: "Tải Facebook token thành công",
-          description: "Token hiện tại đã được tải",
+          description: "Token hiện tại đã được tải (đang dùng chung với TPOS token)",
         });
       } else {
         toast({
@@ -277,20 +276,42 @@ const Settings = () => {
     setIsUpdatingToken(true);
     
     try {
-      // Call edge function with token_type = 'tpos'
-      await supabase.functions.invoke('update-tpos-token', {
+      // Try to call edge function with new schema
+      const { error: edgeFnError } = await supabase.functions.invoke('update-tpos-token', {
         body: { 
           bearerToken: bearerToken.trim(),
           tokenType: 'tpos'
         }
       });
       
-      // Reload to get updated token
+      if (edgeFnError) {
+        // Fallback to old method if migration not run yet
+        console.warn("New schema not available, using old method:", edgeFnError);
+        
+        const { error: deactivateError } = await supabase
+          .from("tpos_config")
+          .update({ is_active: false })
+          .eq("is_active", true);
+        
+        if (deactivateError) throw deactivateError;
+        
+        const { data: userData } = await supabase.auth.getUser();
+        const { error: insertError } = await supabase
+          .from("tpos_config")
+          .insert({
+            bearer_token: bearerToken.trim(),
+            is_active: true,
+            created_by: userData.user?.id,
+          });
+        
+        if (insertError) throw insertError;
+      }
+      
       await loadCurrentToken();
       
       toast({
         title: "✅ Cập nhật thành công",
-        description: "TPOS Bearer Token đã được lưu và sẽ tự động kiểm tra hết hạn sau 7 ngày",
+        description: "TPOS Bearer Token đã được lưu",
       });
     } catch (error: any) {
       console.error("Update token error:", error);
@@ -317,20 +338,29 @@ const Settings = () => {
     setIsUpdatingFacebookToken(true);
     
     try {
-      // Call edge function with token_type = 'facebook'
-      await supabase.functions.invoke('update-tpos-token', {
+      // Try to call edge function with new schema
+      const { error: edgeFnError } = await supabase.functions.invoke('update-tpos-token', {
         body: { 
           bearerToken: facebookBearerToken.trim(),
           tokenType: 'facebook'
         }
       });
       
-      // Reload to get updated token
+      if (edgeFnError) {
+        console.warn("New schema not available yet:", edgeFnError);
+        toast({
+          variant: "destructive",
+          title: "⚠️ Cần chạy migration",
+          description: "Vui lòng chạy file add_token_management_columns.sql trong Supabase SQL Editor trước",
+        });
+        return;
+      }
+      
       await loadCurrentFacebookToken();
       
       toast({
         title: "✅ Cập nhật thành công",
-        description: "Facebook Bearer Token đã được lưu và sẽ tự động kiểm tra hết hạn sau 7 ngày",
+        description: "Facebook Bearer Token đã được lưu",
       });
     } catch (error: any) {
       console.error("Update Facebook token error:", error);
@@ -882,6 +912,14 @@ const Settings = () => {
                             </Badge>
                           </div>
                         )}
+                        {!currentToken.last_refreshed_at && (
+                          <Alert className="mt-2">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertDescription className="text-xs">
+                              💡 Chạy file <code>add_token_management_columns.sql</code> trong Supabase để kích hoạt tính năng auto-refresh tracking
+                            </AlertDescription>
+                          </Alert>
+                        )}
                       </div>
                     </AlertDescription>
                   </Alert>
@@ -977,6 +1015,14 @@ const Settings = () => {
                                 : `${checkTokenRefreshStatus(currentFacebookToken)?.days} ngày`}
                             </Badge>
                           </div>
+                        )}
+                        {!currentFacebookToken.last_refreshed_at && (
+                          <Alert className="mt-2">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertDescription className="text-xs">
+                              💡 Để sử dụng riêng Facebook token, chạy file <code>add_token_management_columns.sql</code> trong Supabase SQL Editor
+                            </AlertDescription>
+                          </Alert>
                         )}
                       </div>
                     </AlertDescription>
