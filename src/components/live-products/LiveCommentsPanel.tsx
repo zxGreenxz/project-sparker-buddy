@@ -75,7 +75,6 @@ export function LiveCommentsPanel({
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const customerStatusMapRef = useRef<Map<string, any>>(loadCacheFromStorage());
   const [confirmCreateOrderComment, setConfirmCreateOrderComment] = useState<CommentWithStatus | null>(null);
-  const [pendingProductType, setPendingProductType] = useState<string>('hang_dat');
   const [selectedOrderInfo, setSelectedOrderInfo] = useState<TPOSOrder | null>(null);
   const [isInfoDialogOpen, setIsInfoDialogOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -448,8 +447,9 @@ export function LiveCommentsPanel({
 
   const handleCreateOrderClick = (comment: CommentWithStatus, productType: string = 'hang_dat') => {
     if (comment.orderInfo) {
-      setPendingProductType(productType);
       setConfirmCreateOrderComment(comment);
+      // Store productType for confirmation dialog
+      (confirmCreateOrderComment as any)._productType = productType;
     } else {
       createOrderMutation.mutate({ comment, productType });
     }
@@ -457,7 +457,8 @@ export function LiveCommentsPanel({
 
   const confirmCreateOrder = () => {
     if (confirmCreateOrderComment) {
-      createOrderMutation.mutate({ comment: confirmCreateOrderComment, productType: pendingProductType });
+      const productType = (confirmCreateOrderComment as any)._productType || 'hang_dat';
+      createOrderMutation.mutate({ comment: confirmCreateOrderComment, productType });
     }
     setConfirmCreateOrderComment(null);
   };
