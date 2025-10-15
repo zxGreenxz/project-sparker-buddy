@@ -50,6 +50,12 @@ const Settings = () => {
   const [isLoadingToken, setIsLoadingToken] = useState(false);
   const [currentToken, setCurrentToken] = useState<any>(null);
   
+  // Facebook Token states
+  const [facebookBearerToken, setFacebookBearerToken] = useState("");
+  const [isUpdatingFacebookToken, setIsUpdatingFacebookToken] = useState(false);
+  const [isLoadingFacebookToken, setIsLoadingFacebookToken] = useState(false);
+  const [currentFacebookToken, setCurrentFacebookToken] = useState<any>(null);
+  
   // Test Variant Creator states
   const [testProductId, setTestProductId] = useState("107831");
   const [isGettingProduct, setIsGettingProduct] = useState(false);
@@ -168,12 +174,29 @@ const Settings = () => {
     }
   };
 
+  const checkTokenRefreshStatus = (token: any): { status: string; days: number; variant: 'default' | 'secondary' | 'destructive' } | null => {
+    if (!token?.last_refreshed_at) return null;
+    
+    const lastRefreshed = new Date(token.last_refreshed_at);
+    const now = new Date();
+    const daysSinceRefresh = Math.floor((now.getTime() - lastRefreshed.getTime()) / (1000 * 60 * 60 * 24));
+    const daysUntilExpiry = (token.refresh_interval_days || 7) - daysSinceRefresh;
+    
+    if (daysUntilExpiry <= 0) {
+      return { status: 'expired', days: Math.abs(daysUntilExpiry), variant: 'destructive' };
+    } else if (daysUntilExpiry <= 2) {
+      return { status: 'warning', days: daysUntilExpiry, variant: 'secondary' };
+    }
+    return { status: 'active', days: daysUntilExpiry, variant: 'default' };
+  };
+
   const loadCurrentToken = async () => {
     setIsLoadingToken(true);
     try {
       const { data, error } = await supabase
         .from("tpos_config")
         .select("*")
+        .eq("token_type", "tpos")
         .eq("is_active", true)
         .maybeSingle();
       
@@ -183,12 +206,12 @@ const Settings = () => {
         setCurrentToken(data);
         setBearerToken(data.bearer_token);
         toast({
-          title: "Tải token thành công",
+          title: "Tải TPOS token thành công",
           description: "Token hiện tại đã được tải",
         });
       } else {
         toast({
-          title: "Chưa có token",
+          title: "Chưa có TPOS token",
           description: "Chưa có token nào được lưu trong hệ thống",
         });
       }
@@ -204,12 +227,49 @@ const Settings = () => {
     }
   };
 
+  const loadCurrentFacebookToken = async () => {
+    setIsLoadingFacebookToken(true);
+    try {
+      const { data, error } = await supabase
+        .from("tpos_config")
+        .select("*")
+        .eq("token_type", "facebook")
+        .eq("is_active", true)
+        .maybeSingle();
+      
+      if (error) throw error;
+      
+      if (data) {
+        setCurrentFacebookToken(data);
+        setFacebookBearerToken(data.bearer_token);
+        toast({
+          title: "Tải Facebook token thành công",
+          description: "Token hiện tại đã được tải",
+        });
+      } else {
+        toast({
+          title: "Chưa có Facebook token",
+          description: "Chưa có token nào được lưu trong hệ thống",
+        });
+      }
+    } catch (error: any) {
+      console.error("Load Facebook token error:", error);
+      toast({
+        variant: "destructive",
+        title: "Lỗi tải Facebook token",
+        description: error.message,
+      });
+    } finally {
+      setIsLoadingFacebookToken(false);
+    }
+  };
+
   const handleUpdateToken = async () => {
     if (!bearerToken.trim()) {
       toast({
         variant: "destructive",
         title: "Lỗi",
-        description: "Vui lòng nhập Bearer Token",
+        description: "Vui lòng nhập TPOS Bearer Token",
       });
       return;
     }
@@ -217,48 +277,70 @@ const Settings = () => {
     setIsUpdatingToken(true);
     
     try {
-      // Deactivate all existing tokens
-      const { error: deactivateError } = await supabase
-        .from("tpos_config")
-        .update({ is_active: false })
-        .eq("is_active", true);
-      
-      if (deactivateError) throw deactivateError;
-      
-      // Insert new token
-      const { data: userData } = await supabase.auth.getUser();
-      const { data, error } = await supabase
-        .from("tpos_config")
-        .insert({
-          bearer_token: bearerToken.trim(),
-          is_active: true,
-          created_by: userData.user?.id,
-        })
-        .select()
-        .single();
-      
-      if (error) throw error;
-      
-      // Log via edge function
+      // Call edge function with token_type = 'tpos'
       await supabase.functions.invoke('update-tpos-token', {
-        body: { bearerToken: bearerToken.trim() }
+        body: { 
+          bearerToken: bearerToken.trim(),
+          tokenType: 'tpos'
+        }
       });
       
-      setCurrentToken(data);
+      // Reload to get updated token
+      await loadCurrentToken();
       
       toast({
         title: "✅ Cập nhật thành công",
-        description: "Bearer Token đã được lưu vào database và sẵn sàng sử dụng",
+        description: "TPOS Bearer Token đã được lưu và sẽ tự động kiểm tra hết hạn sau 7 ngày",
       });
     } catch (error: any) {
       console.error("Update token error:", error);
       toast({
         variant: "destructive",
-        title: "❌ Lỗi cập nhật",
+        title: "❌ Lỗi cập nhật TPOS token",
         description: error.message,
       });
     } finally {
       setIsUpdatingToken(false);
+    }
+  };
+
+  const handleUpdateFacebookToken = async () => {
+    if (!facebookBearerToken.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Lỗi",
+        description: "Vui lòng nhập Facebook Bearer Token",
+      });
+      return;
+    }
+    
+    setIsUpdatingFacebookToken(true);
+    
+    try {
+      // Call edge function with token_type = 'facebook'
+      await supabase.functions.invoke('update-tpos-token', {
+        body: { 
+          bearerToken: facebookBearerToken.trim(),
+          tokenType: 'facebook'
+        }
+      });
+      
+      // Reload to get updated token
+      await loadCurrentFacebookToken();
+      
+      toast({
+        title: "✅ Cập nhật thành công",
+        description: "Facebook Bearer Token đã được lưu và sẽ tự động kiểm tra hết hạn sau 7 ngày",
+      });
+    } catch (error: any) {
+      console.error("Update Facebook token error:", error);
+      toast({
+        variant: "destructive",
+        title: "❌ Lỗi cập nhật Facebook token",
+        description: error.message,
+      });
+    } finally {
+      setIsUpdatingFacebookToken(false);
     }
   };
 
@@ -775,13 +857,13 @@ const Settings = () => {
                 {currentToken && (
                   <Alert>
                     <CheckCircle className="h-4 w-4" />
-                    <AlertTitle>Token hiện tại</AlertTitle>
+                    <AlertTitle>TPOS Token hiện tại</AlertTitle>
                     <AlertDescription>
                       <div className="mt-2 space-y-1 text-sm">
                         <div className="flex justify-between">
                           <span>Đã lưu lúc:</span>
                           <Badge variant="secondary">
-                            {new Date(currentToken.updated_at).toLocaleString('vi-VN')}
+                            {new Date(currentToken.updated_at || currentToken.created_at).toLocaleString('vi-VN')}
                           </Badge>
                         </div>
                         <div className="flex justify-between">
@@ -790,6 +872,16 @@ const Settings = () => {
                             {currentToken.is_active ? "Đang hoạt động" : "Không hoạt động"}
                           </Badge>
                         </div>
+                        {currentToken.last_refreshed_at && checkTokenRefreshStatus(currentToken) && (
+                          <div className="flex justify-between">
+                            <span>Hết hạn sau:</span>
+                            <Badge variant={checkTokenRefreshStatus(currentToken)?.variant || 'default'}>
+                              {checkTokenRefreshStatus(currentToken)?.status === 'expired' 
+                                ? `Đã hết hạn ${checkTokenRefreshStatus(currentToken)?.days} ngày trước` 
+                                : `${checkTokenRefreshStatus(currentToken)?.days} ngày`}
+                            </Badge>
+                          </div>
+                        )}
                       </div>
                     </AlertDescription>
                   </Alert>
@@ -797,6 +889,104 @@ const Settings = () => {
               </CardContent>
             </Card>
 
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Facebook className="h-5 w-5" />
+                  Cập nhật FACEBOOK Bearer Token
+                </CardTitle>
+                <CardDescription>
+                  Token dùng cho các chức năng liên quan đến Facebook (Comments, Live, Orders)
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Facebook Bearer Token</label>
+                  <Textarea
+                    value={facebookBearerToken}
+                    onChange={(e) => setFacebookBearerToken(e.target.value)}
+                    placeholder="Nhập Facebook Bearer Token từ TPOS..."
+                    className="min-h-[100px] font-mono text-xs"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Token này được lấy từ request header authorization khi sử dụng các API Facebook trên TPOS. Hệ thống sẽ tự động kiểm tra hết hạn sau 7 ngày.
+                  </p>
+                </div>
+                
+                <div className="flex gap-3">
+                  <Button
+                    onClick={handleUpdateFacebookToken}
+                    disabled={isUpdatingFacebookToken || !facebookBearerToken.trim()}
+                  >
+                    {isUpdatingFacebookToken ? (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        Đang cập nhật...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="mr-2 h-4 w-4" />
+                        Cập nhật Token
+                      </>
+                    )}
+                  </Button>
+                  
+                  <Button
+                    onClick={loadCurrentFacebookToken}
+                    variant="outline"
+                    disabled={isLoadingFacebookToken}
+                  >
+                    {isLoadingFacebookToken ? (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        Đang tải...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                        Tải token hiện tại
+                      </>
+                    )}
+                  </Button>
+                </div>
+                
+                {currentFacebookToken && (
+                  <Alert>
+                    <CheckCircle className="h-4 w-4" />
+                    <AlertTitle>Facebook Token hiện tại</AlertTitle>
+                    <AlertDescription>
+                      <div className="mt-2 space-y-1 text-sm">
+                        <div className="flex justify-between">
+                          <span>Đã lưu lúc:</span>
+                          <Badge variant="secondary">
+                            {new Date(currentFacebookToken.updated_at || currentFacebookToken.created_at).toLocaleString('vi-VN')}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Trạng thái:</span>
+                          <Badge variant={currentFacebookToken.is_active ? "default" : "secondary"}>
+                            {currentFacebookToken.is_active ? "Đang hoạt động" : "Không hoạt động"}
+                          </Badge>
+                        </div>
+                        {currentFacebookToken.last_refreshed_at && checkTokenRefreshStatus(currentFacebookToken) && (
+                          <div className="flex justify-between">
+                            <span>Hết hạn sau:</span>
+                            <Badge variant={checkTokenRefreshStatus(currentFacebookToken)?.variant || 'default'}>
+                              {checkTokenRefreshStatus(currentFacebookToken)?.status === 'expired' 
+                                ? `Đã hết hạn ${checkTokenRefreshStatus(currentFacebookToken)?.days} ngày trước` 
+                                : `${checkTokenRefreshStatus(currentFacebookToken)?.days} ngày`}
+                            </Badge>
+                          </div>
+                        )}
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+          
+          <div className="grid grid-cols-1 gap-6">
             <FacebookPageManager />
           </div>
           <BarcodeScannerSettings />
