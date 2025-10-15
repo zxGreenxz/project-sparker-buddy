@@ -50,13 +50,23 @@ export const printToXC80 = async (
       feeds: options?.feeds || 3,
     };
 
+    // 🆕 ENCODE CONTENT THÀNH BASE64
+    const contentBase64 = btoa(
+      encodeURIComponent(content).replace(/%([0-9A-F]{2})/g, (match, p1) => {
+        return String.fromCharCode(parseInt(p1, 16));
+      })
+    );
+
+    console.log('📦 Original content:', content);
+    console.log('📦 Base64 encoded:', contentBase64);
+
     const response = await fetch(`${printer.bridgeUrl}/print`, {
       method: "POST",
       headers: { "Content-Type": "application/json;charset=UTF-8" },
       body: JSON.stringify({
         ipAddress: printer.ipAddress,
         port: printer.port,
-        content: content,
+        contentBase64: contentBase64,  // 🆕 Gửi Base64 thay vì content
         options: printOptions,
       }),
     });
