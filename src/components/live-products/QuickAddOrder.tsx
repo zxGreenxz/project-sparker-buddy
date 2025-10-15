@@ -285,12 +285,11 @@ export function QuickAddOrder({
         if (activePrinter) {
           // Print to XC80 thermal printer using bitmap mode
           const billContent = `
-#${billData.sessionIndex} - ${billData.customerName}
-${billData.phone || 'Chưa có SĐT'}
-
+#${billData.sessionIndex} - ${billData.phone || 'Chưa có SĐT'}
+${billData.customerName}
 ${billData.productCode} - ${billData.productName.replace(/^\d+\s+/, '')}
-
-${billData.comment ? `${billData.comment}\n` : ''}${new Date(billData.createdTime).toLocaleString('vi-VN', {
+${billData.comment || ''}
+${new Date(billData.createdTime).toLocaleString('vi-VN', {
             timeZone: 'Asia/Bangkok',
             day: '2-digit',
             month: '2-digit',
@@ -306,11 +305,11 @@ ${billData.comment ? `${billData.comment}\n` : ''}${new Date(billData.createdTim
             // Convert text to ESC/POS bitmap (includes paper cut)
             const bitmapData = await textToESCPOSBitmap(billContent, {
               width: 576,
-              fontSize: 36,
+              fontSize: 32,
               fontFamily: 'Arial, sans-serif',
-              lineHeight: 1.5,
+              lineHeight: 1.4,
               align: 'center',
-              padding: 10,
+              padding: 5,
               bold: false
             });
             
@@ -354,55 +353,64 @@ ${billData.comment ? `${billData.comment}\n` : ''}${new Date(billData.createdTim
             <head>
               <meta charset="UTF-8">
               <style>
+                @page {
+                  margin: 2mm;
+                }
                 body { 
                   margin: 0; 
-                  padding: 20px; 
-                  font-family: Tahoma, sans-serif; 
+                  padding: 2mm; 
+                  font-family: Tahoma, sans-serif;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  min-height: 100vh;
                 }
                 .bill-container {
                   display: flex;
                   flex-direction: column;
-                  gap: 0;
+                  gap: 2mm;
                   text-align: center;
-                  line-height: 1.8;
+                  width: 100%;
                 }
-                .session-name {
-                  font-size: 28pt;
+                .line1 {
+                  font-size: 24pt;
                   font-weight: bold;
-                  line-height: 1.8;
+                  line-height: 1.2;
                 }
-                .phone {
-                  font-size: 12pt;
+                .line1 .phone {
+                  font-size: 15pt;
                   font-weight: bold;
-                  line-height: 1.8;
                 }
-                .product {
-                  font-size: 14pt;
+                .line2 {
+                  font-size: 24pt;
                   font-weight: bold;
-                  line-height: 1.8;
+                  line-height: 1.2;
                 }
-                .comment {
-                  font-size: 20pt;
+                .line3 {
+                  font-size: 18pt;
+                  font-weight: bold;
+                  line-height: 1.2;
+                }
+                .line4 {
+                  font-size: 24pt;
                   font-weight: bold;
                   font-style: italic;
-                  color: #000;
-                  line-height: 1.8;
+                  line-height: 1.2;
                 }
-                .time {
-                  font-size: 10pt;
+                .line5 {
+                  font-size: 8pt;
                   font-weight: bold;
-                  color: #000;
-                  line-height: 1.8;
+                  line-height: 1.2;
                 }
               </style>
             </head>
             <body>
               <div class="bill-container">
-                <div class="session-name">#${billData.sessionIndex} - ${billData.customerName}</div>
-                <div class="phone">${billData.phone || 'Chưa có SĐT'}</div>
-                <div class="product">${billData.productCode} - ${billData.productName.replace(/^\d+\s+/, '')}</div>
-                ${billData.comment ? `<div class="comment">${billData.comment}</div>` : ''}
-                <div class="time">${new Date(billData.createdTime).toLocaleString('vi-VN', {
+                <div class="line1">#${billData.sessionIndex} - <span class="phone">${billData.phone || 'Chưa có SĐT'}</span></div>
+                <div class="line2">${billData.customerName}</div>
+                <div class="line3">${billData.productCode} - ${billData.productName.replace(/^\d+\s+/, '')}</div>
+                ${billData.comment ? `<div class="line4">${billData.comment}</div>` : ''}
+                <div class="line5">${new Date(billData.createdTime).toLocaleString('vi-VN', {
             timeZone: 'Asia/Bangkok',
             day: '2-digit',
             month: '2-digit',
