@@ -284,33 +284,34 @@ export function QuickAddOrder({
         const activePrinter = getActivePrinter();
         if (activePrinter) {
           // Print to XC80 thermal printer using bitmap mode
-          const billContent = `
-#${billData.sessionIndex} - ${billData.phone || 'Chưa có SĐT'}
-${billData.customerName}
-${billData.productCode} - ${billData.productName.replace(/^\d+\s+/, '')}
-${billData.comment || ''}
-${new Date(billData.createdTime).toLocaleString('vi-VN', {
-            timeZone: 'Asia/Bangkok',
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          })}
-          `.trim();
-          
           try {
             console.log(`🖨️ Converting text to bitmap for ${activePrinter.name} (${activePrinter.ipAddress}:${activePrinter.port})`);
             
+            // Prepare lines with individual font sizes
+            const printLines = [
+              { text: `#${billData.sessionIndex} - ${billData.phone || 'Chưa có SĐT'}`, fontSize: 56, bold: true },  // Line 1: 2x
+              { text: billData.customerName, fontSize: 56, bold: true },  // Line 2: 2x
+              { text: `${billData.productCode} - ${billData.productName.replace(/^\d+\s+/, '')}`, fontSize: 20, bold: true },  // Line 3: 0.7x
+              ...(billData.comment ? [{ text: billData.comment, fontSize: 56, bold: true }] : []),  // Line 4: 2x (if exists)
+              { text: new Date(billData.createdTime).toLocaleString('vi-VN', {
+                timeZone: 'Asia/Bangkok',
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              }), fontSize: 28, bold: true }  // Line 5: keep original
+            ];
+            
             // Convert text to ESC/POS bitmap (includes paper cut)
-            const bitmapData = await textToESCPOSBitmap(billContent, {
-              width: 576,
-              fontSize: 28,
+            const bitmapData = await textToESCPOSBitmap('', {
+              width: 480,
               fontFamily: 'Arial, sans-serif',
               lineHeight: 1.3,
               align: 'center',
-              padding: 3,
-              bold: false
+              padding: 10,
+              lines: printLines,
+              lineSpacing: 15  // Increased spacing between lines
             });
             
             // Convert to base64 for transmission

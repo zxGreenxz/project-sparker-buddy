@@ -4,6 +4,12 @@
  * Hỗ trợ tiếng Việt đầy đủ dấu
  */
 
+export interface LineConfig {
+  text: string;
+  fontSize: number;
+  bold?: boolean;
+}
+
 export interface BitmapOptions {
   width?: number;          // Pixel width (default: 384 for 80mm printer)
   fontSize?: number;       // Font size (default: 24)
@@ -12,6 +18,8 @@ export interface BitmapOptions {
   align?: 'left' | 'center' | 'right';
   padding?: number;        // Padding around text (default: 10)
   bold?: boolean;          // Bold text
+  lines?: LineConfig[];    // Per-line configuration (overrides text and fontSize)
+  lineSpacing?: number;    // Extra spacing between lines in pixels (default: 0)
 }
 
 export interface BitmapResult {
@@ -34,7 +42,9 @@ export async function textToBitmap(
     lineHeight = 1.2,
     align = 'center',
     padding = 10,
-    bold = false
+    bold = false,
+    lines: lineConfigs,
+    lineSpacing = 0
   } = options;
 
   // Create canvas
@@ -48,17 +58,37 @@ export async function textToBitmap(
   // Set canvas width
   canvas.width = width;
 
-  // Setup font
-  const fontWeight = bold ? 'bold' : 'normal';
-  ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
-  ctx.textAlign = align;
-  ctx.textBaseline = 'top';
+  // Prepare line data
+  let lines: Array<{ text: string; fontSize: number; bold: boolean }>;
+  
+  if (lineConfigs && lineConfigs.length > 0) {
+    // Use per-line configuration
+    lines = lineConfigs.map(lc => ({
+      text: lc.text,
+      fontSize: lc.fontSize,
+      bold: lc.bold ?? bold
+    }));
+  } else {
+    // Use single text with default settings
+    lines = text.split('\n').map(t => ({
+      text: t,
+      fontSize,
+      bold
+    }));
+  }
 
-  // Split text into lines and measure height
-  const lines = text.split('\n');
-  const lineHeightPx = fontSize * lineHeight;
-  const textHeight = lines.length * lineHeightPx;
-  const totalHeight = textHeight + (padding * 2);
+  // Calculate total height
+  let totalHeight = padding * 2;
+  const lineHeights: number[] = [];
+  
+  lines.forEach((line, index) => {
+    const lineHeightPx = line.fontSize * lineHeight;
+    lineHeights.push(lineHeightPx);
+    totalHeight += lineHeightPx;
+    if (index < lines.length - 1) {
+      totalHeight += lineSpacing; // Add extra spacing between lines
+    }
+  });
 
   // Set canvas height
   canvas.height = Math.ceil(totalHeight);
@@ -69,7 +99,6 @@ export async function textToBitmap(
 
   // Set text color to black
   ctx.fillStyle = '#000000';
-  ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
   ctx.textAlign = align;
   ctx.textBaseline = 'top';
 
@@ -78,10 +107,16 @@ export async function textToBitmap(
   if (align === 'center') xPos = canvas.width / 2;
   else if (align === 'right') xPos = canvas.width - padding;
 
-  // Draw each line
+  // Draw each line with its own font size
+  let yPos = padding;
   lines.forEach((line, index) => {
-    const yPos = padding + (index * lineHeightPx);
-    ctx.fillText(line, xPos, yPos);
+    const fontWeight = line.bold ? 'bold' : 'normal';
+    ctx.font = `${fontWeight} ${line.fontSize}px ${fontFamily}`;
+    ctx.fillText(line.text, xPos, yPos);
+    yPos += lineHeights[index];
+    if (index < lines.length - 1) {
+      yPos += lineSpacing; // Add extra spacing
+    }
   });
 
   // Get image data
