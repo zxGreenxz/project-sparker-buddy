@@ -307,7 +307,7 @@ export function QuickAddOrder({
             const bitmapData = await textToESCPOSBitmap('', {
               width: 576,  // Standard width for 80mm thermal printer
               fontFamily: 'Arial, sans-serif',
-              lineHeight: 0.6,  // Tighter line height
+              lineHeight: 1.1,  // Tighter line height
               align: 'center',
               padding: 2,  // Minimal padding
               lines: printLines,
