@@ -174,13 +174,14 @@ export const TextToPdfPrinter = () => {
       // Convert Uint8Array to base64
       const base64 = btoa(String.fromCharCode(...escposData));
 
-      const response = await fetch(`${activePrinter.bridgeUrl}/print-raw`, {
+      const response = await fetch(`${activePrinter.bridgeUrl}/print/bitmap`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ipAddress: activePrinter.ipAddress,
           port: activePrinter.port,
-          dataBase64: base64,
+          bitmapBase64: base64,
+          feeds: 3,
         }),
       });
 
