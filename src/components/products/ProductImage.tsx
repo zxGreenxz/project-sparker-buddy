@@ -80,7 +80,7 @@ export function ProductImage({
     if (!imageUrl) return;
     
     try {
-      // Fetch image as blob to bypass CORS
+      // Try to fetch image as blob to bypass CORS
       const response = await fetch(imageUrl);
       if (!response.ok) throw new Error("Failed to fetch image");
       
@@ -126,7 +126,14 @@ export function ProductImage({
       toast.success("Đã copy ảnh vào clipboard!");
     } catch (error) {
       console.error("Error copying image:", error);
-      toast.error("Không thể copy ảnh. Vui lòng thử lại.");
+      
+      // Fallback: Copy image URL to clipboard if image copy fails
+      try {
+        await navigator.clipboard.writeText(imageUrl);
+        toast.success("Không thể copy ảnh. Đã copy link ảnh vào clipboard!");
+      } catch (urlError) {
+        toast.error("Không thể copy. Vui lòng thử lại.");
+      }
     }
   };
 
