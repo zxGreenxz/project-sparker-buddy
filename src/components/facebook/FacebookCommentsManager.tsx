@@ -492,9 +492,11 @@ export function FacebookCommentsManager({
     mutationFn: async ({
       comment,
       video,
+      productType = 'hang_dat',
     }: {
       comment: FacebookComment;
       video: FacebookVideo;
+      productType?: string;
     }) => {
       const {
         data: { session },
@@ -509,7 +511,7 @@ export function FacebookCommentsManager({
             Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ comment, video }),
+          body: JSON.stringify({ comment, video, productType }),
         },
       );
 
@@ -1116,9 +1118,9 @@ export function FacebookCommentsManager({
     }
   };
 
-  const handleCreateOrderClick = (comment: CommentWithStatus) => {
+  const handleCreateOrderClick = (comment: CommentWithStatus, productType: string = 'hang_dat') => {
     if (selectedVideo) {
-      createOrderMutation.mutate({ comment, video: selectedVideo });
+      createOrderMutation.mutate({ comment, video: selectedVideo, productType });
     }
   };
 
@@ -1849,9 +1851,9 @@ export function FacebookCommentsManager({
                                   <div className="flex items-center gap-2 mt-3 flex-wrap">
                                     <Button
                                       size="sm"
-                                      className="h-7 text-xs"
+                                      className="h-7 text-xs bg-blue-500 hover:bg-blue-600 text-white"
                                       onClick={() =>
-                                        handleCreateOrderClick(comment)
+                                        handleCreateOrderClick(comment, 'hang_dat')
                                       }
                                       disabled={pendingCommentIds.has(
                                         comment.id,
@@ -1862,6 +1864,23 @@ export function FacebookCommentsManager({
                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                       )}
                                       Tạo đơn hàng
+                                    </Button>
+
+                                    <Button
+                                      size="sm"
+                                      className="h-7 text-xs bg-orange-500 hover:bg-orange-600 text-white"
+                                      onClick={() =>
+                                        handleCreateOrderClick(comment, 'hang_le')
+                                      }
+                                      disabled={pendingCommentIds.has(
+                                        comment.id,
+                                      )}
+                                      aria-label="Tạo hàng lẻ"
+                                    >
+                                      {pendingCommentIds.has(comment.id) && (
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                      )}
+                                      Hàng lẻ
                                     </Button>
 
                                     <Button
