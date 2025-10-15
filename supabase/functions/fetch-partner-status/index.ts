@@ -19,11 +19,30 @@ Deno.serve(async (req) => {
 
     console.log('Fetching partner status for phones:', phones);
 
-    const bearerToken = Deno.env.get('FACEBOOK_BEARER_TOKEN');
-    if (!bearerToken) {
-      console.error('FACEBOOK_BEARER_TOKEN not configured');
-      throw new Error('Facebook bearer token not configured');
+    // Initialize Supabase client for token lookup
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    // Fetch TPOS token from database
+    const { data: tokenData, error: tokenError } = await supabase
+      .from('tpos_config')
+      .select('bearer_token, token_status')
+      .eq('token_type', 'tpos')
+      .eq('is_active', true)
+      .maybeSingle();
+    
+    if (tokenError || !tokenData?.bearer_token) {
+      console.error('❌ TPOS token not found:', tokenError);
+      throw new Error('TPOS Bearer Token not found or expired');
     }
+
+    if (tokenData.token_status === 'expired') {
+      console.warn('⚠️ TPOS token đã hết hạn');
+    }
+
+    const bearerToken = tokenData.bearer_token;
 
     // Build phone query parameter - can search multiple phones separated by comma
     const phoneQuery = phones.join(',');

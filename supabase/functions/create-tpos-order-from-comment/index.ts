@@ -293,11 +293,6 @@ serve(async (req) => {
       throw new Error('Comment and video data are required');
     }
 
-    const bearerToken = Deno.env.get('FACEBOOK_BEARER_TOKEN');
-    if (!bearerToken) {
-      throw new Error('Facebook bearer token not configured');
-    }
-
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -307,6 +302,24 @@ serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Fetch Facebook token from database
+    const { data: tokenData, error: tokenError } = await supabase
+      .from('tpos_config')
+      .select('bearer_token, token_status')
+      .eq('token_type', 'facebook')
+      .eq('is_active', true)
+      .maybeSingle();
+    
+    if (tokenError || !tokenData?.bearer_token) {
+      throw new Error('Facebook Bearer Token not found or expired');
+    }
+
+    if (tokenData.token_status === 'expired') {
+      console.warn('⚠️ Facebook token đã hết hạn');
+    }
+
+    const bearerToken = tokenData.bearer_token;
 
     // Get CRM Team ID from database or fetch from API
     const { teamId, teamName } = await getCRMTeamId(video.objectId, bearerToken, supabase);

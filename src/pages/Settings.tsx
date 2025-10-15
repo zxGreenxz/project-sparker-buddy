@@ -195,29 +195,26 @@ const Settings = () => {
     try {
       const { data, error } = await supabase
         .from("tpos_config")
-        .select("id, bearer_token, is_active, created_at, updated_at")
+        .select("id, bearer_token, is_active, token_type, last_refreshed_at, refresh_interval_days, token_status, created_at, updated_at")
         .eq("is_active", true)
-        .maybeSingle() as any;
-      
-      // After migration, also check token_type
-      if (data && !error) {
-        // If token_type exists and it's not 'tpos', ignore this token
-        if (data.token_type && data.token_type !== 'tpos') {
-          setCurrentToken(null);
-          toast({
-            title: "Chưa có TPOS token",
-            description: "Chưa có token TPOS nào được lưu trong hệ thống",
-          });
-          setIsLoadingToken(false);
-          return;
-        }
-      }
+        .maybeSingle();
       
       if (error) throw error;
       
+      // Type guard: check if it's a TPOS token
+      const tokenType = (data as any)?.token_type;
+      if (tokenType && tokenType !== 'tpos') {
+        toast({
+          title: "Chưa có TPOS token",
+          description: "Token này không phải TPOS token",
+        });
+        setIsLoadingToken(false);
+        return;
+      }
+      
       if (data) {
-        setCurrentToken(data);
-        setBearerToken(data.bearer_token);
+        setCurrentToken(data as any);
+        setBearerToken((data as any).bearer_token);
         toast({
           title: "Tải TPOS token thành công",
           description: "Token hiện tại đã được tải",
@@ -245,29 +242,26 @@ const Settings = () => {
     try {
       const { data, error } = await supabase
         .from("tpos_config")
-        .select("id, bearer_token, is_active, created_at, updated_at")
+        .select("id, bearer_token, is_active, token_type, last_refreshed_at, refresh_interval_days, token_status, created_at, updated_at")
         .eq("is_active", true)
-        .maybeSingle() as any;
-      
-      // After migration, also check token_type
-      if (data && !error) {
-        // If token_type exists and it's not 'facebook', ignore this token
-        if (data.token_type && data.token_type !== 'facebook') {
-          setCurrentFacebookToken(null);
-          toast({
-            title: "Chưa có Facebook token",
-            description: "Chưa có token Facebook nào được lưu trong hệ thống",
-          });
-          setIsLoadingFacebookToken(false);
-          return;
-        }
-      }
+        .maybeSingle();
       
       if (error) throw error;
       
+      // Type guard: check if it's a Facebook token
+      const tokenType = (data as any)?.token_type;
+      if (tokenType && tokenType !== 'facebook') {
+        toast({
+          title: "Chưa có Facebook token",
+          description: "Token này không phải Facebook token",
+        });
+        setIsLoadingFacebookToken(false);
+        return;
+      }
+      
       if (data) {
-        setCurrentFacebookToken(data);
-        setFacebookBearerToken(data.bearer_token);
+        setCurrentFacebookToken(data as any);
+        setFacebookBearerToken((data as any).bearer_token);
         toast({
           title: "Tải Facebook token thành công",
           description: "Token hiện tại đã được tải",

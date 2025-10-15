@@ -38,21 +38,39 @@ serve(async (req) => {
   }
 
   try {
-    const bearerToken = Deno.env.get("FACEBOOK_BEARER_TOKEN");
+    // Initialize Supabase client for token lookup
+    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
 
-    if (!bearerToken) {
+    // Fetch TPOS token from database
+    const { data: tokenData, error: tokenError } = await supabase
+      .from('tpos_config')
+      .select('bearer_token, token_status')
+      .eq('token_type', 'tpos')
+      .eq('is_active', true)
+      .maybeSingle();
+    
+    if (tokenError || !tokenData?.bearer_token) {
       return new Response(
-        JSON.stringify({
-          is_valid: false,
-          error:
-            "TPOS API credentials (FACEBOOK_BEARER_TOKEN) not configured in Supabase Secrets.",
+        JSON.stringify({ 
+          is_valid: false, 
+          error: 'TPOS Bearer Token not found in database' 
         }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
+        { 
+          status: 401, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
       );
     }
+
+    if (tokenData.token_status === 'expired') {
+      console.warn('⚠️ TPOS token đã hết hạn');
+    }
+
+    const bearerToken = tokenData.bearer_token;
 
     // Attempt a lightweight API call to TPOS to check credentials
     const tposUrl = `https://tomato.tpos.vn/odata/Partner/ODataService.GetViewV2?$top=1`; // Fetch 1 partner to check access

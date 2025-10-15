@@ -32,10 +32,30 @@ serve(async (req) => {
   }
 
   try {
-    const bearerToken = Deno.env.get('FACEBOOK_BEARER_TOKEN');
-    if (!bearerToken) {
-      throw new Error('Facebook bearer token not configured');
+    // Initialize Supabase client for token lookup
+    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    // Fetch TPOS token from database
+    const { data: tokenData, error: tokenError } = await supabase
+      .from('tpos_config')
+      .select('bearer_token, token_status')
+      .eq('token_type', 'tpos')
+      .eq('is_active', true)
+      .maybeSingle();
+    
+    if (tokenError || !tokenData?.bearer_token) {
+      throw new Error('TPOS Bearer Token not found or expired');
     }
+
+    if (tokenData.token_status === 'expired') {
+      console.warn('⚠️ TPOS token đã hết hạn');
+    }
+
+    const bearerToken = tokenData.bearer_token;
 
     const url = "https://tomato.tpos.vn/odata/CRMTeam/ODataService.GetAllFacebook?$expand=Childs";
     

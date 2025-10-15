@@ -25,14 +25,34 @@ serve(async (req) => {
       );
     }
 
-    const bearerToken = Deno.env.get('FACEBOOK_BEARER_TOKEN');
-    if (!bearerToken) {
-      console.error('TPOS_BEARER_TOKEN not configured');
+    // Initialize Supabase client for token lookup
+    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    // Fetch Facebook token from database
+    const { data: tokenData, error: tokenError } = await supabase
+      .from('tpos_config')
+      .select('bearer_token, token_status')
+      .eq('token_type', 'facebook')
+      .eq('is_active', true)
+      .maybeSingle();
+    
+    if (tokenError || !tokenData?.bearer_token) {
+      console.error('❌ Facebook token not found:', tokenError);
       return new Response(
-        JSON.stringify({ error: 'Bearer token not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Facebook Bearer Token not found or expired' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    if (tokenData.token_status === 'expired') {
+      console.warn('⚠️ Facebook token đã hết hạn');
+    }
+
+    const bearerToken = tokenData.bearer_token;
 
     console.log(`Fetching Facebook live videos for pageId: ${pageId}, limit: ${limit}, facebook_Type: ${facebook_Type}`);
 

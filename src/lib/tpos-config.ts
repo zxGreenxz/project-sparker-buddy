@@ -29,6 +29,7 @@ export async function getActiveTPOSToken(): Promise<string | null> {
     const { data, error } = await supabase
       .from('tpos_config')
       .select('bearer_token')
+      .eq('token_type' as any, 'tpos')
       .eq('is_active', true)
       .maybeSingle();
     
@@ -40,6 +41,27 @@ export async function getActiveTPOSToken(): Promise<string | null> {
     return data?.bearer_token || null;
   } catch (error) {
     console.error('Exception fetching TPOS token:', error);
+    return null;
+  }
+}
+
+export async function getActiveFacebookToken(): Promise<string | null> {
+  try {
+    const { data, error } = await supabase
+      .from('tpos_config')
+      .select('bearer_token')
+      .eq('token_type' as any, 'facebook')
+      .eq('is_active', true)
+      .maybeSingle();
+    
+    if (error) {
+      console.error('Error fetching Facebook token:', error);
+      return null;
+    }
+    
+    return data?.bearer_token || null;
+  } catch (error) {
+    console.error('Exception fetching Facebook token:', error);
     return null;
   }
 }

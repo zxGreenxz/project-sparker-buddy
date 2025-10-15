@@ -19,11 +19,30 @@ Deno.serve(async (req) => {
 
     console.log('Fetching orders for postId:', postId);
 
-    const bearerToken = Deno.env.get('FACEBOOK_BEARER_TOKEN');
-    if (!bearerToken) {
-      console.error('FACEBOOK_BEARER_TOKEN not configured');
-      throw new Error('Facebook bearer token not configured');
+    // Initialize Supabase client for token lookup
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    // Fetch Facebook token from database
+    const { data: tokenData, error: tokenError } = await supabase
+      .from('tpos_config')
+      .select('bearer_token, token_status')
+      .eq('token_type', 'facebook')
+      .eq('is_active', true)
+      .maybeSingle();
+    
+    if (tokenError || !tokenData?.bearer_token) {
+      console.error('❌ Facebook token not found:', tokenError);
+      throw new Error('Facebook Bearer Token not found or expired');
     }
+
+    if (tokenData.token_status === 'expired') {
+      console.warn('⚠️ Facebook token đã hết hạn');
+    }
+
+    const bearerToken = tokenData.bearer_token;
 
     const url = `https://tomato.tpos.vn/odata/SaleOnline_Order/ODataService.GetOrdersByPostId?PostId=${postId}&&%24top=${top}&%24orderby=DateCreated+desc&%24count=true`;
 

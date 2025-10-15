@@ -26,20 +26,33 @@ serve(async (req) => {
       );
     }
 
-    const bearerToken = Deno.env.get('FACEBOOK_BEARER_TOKEN');
-    if (!bearerToken) {
-      console.error('❌ FACEBOOK_BEARER_TOKEN not configured');
-      return new Response(
-        JSON.stringify({ error: 'Bearer token not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     // Initialize Supabase client
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
+
+    // Fetch Facebook token from database
+    const { data: tokenData, error: tokenError } = await supabaseClient
+      .from('tpos_config')
+      .select('bearer_token, token_status')
+      .eq('token_type', 'facebook')
+      .eq('is_active', true)
+      .maybeSingle();
+    
+    if (tokenError || !tokenData?.bearer_token) {
+      console.error('❌ Facebook token not found:', tokenError);
+      return new Response(
+        JSON.stringify({ error: 'Facebook Bearer Token not found or expired' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (tokenData.token_status === 'expired') {
+      console.warn('⚠️ Facebook token đã hết hạn');
+    }
+
+    const bearerToken = tokenData.bearer_token;
 
     // ========== STEP 1: Try TPOS API first ==========
     try {

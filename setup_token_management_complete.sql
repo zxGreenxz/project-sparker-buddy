@@ -27,8 +27,11 @@ DROP INDEX IF EXISTS tpos_config_is_active_key;
 -- Create unique index for token_type + is_active
 -- This ensures only one token of each type can be active at a time
 CREATE UNIQUE INDEX IF NOT EXISTS idx_tpos_config_token_type_active 
-ON public.tpos_config(token_type) 
+ON public.tpos_config(token_type, is_active) 
 WHERE is_active = true;
+
+COMMENT ON INDEX idx_tpos_config_token_type_active IS 
+'Đảm bảo chỉ có 1 active token cho mỗi token_type (tpos hoặc facebook)';
 
 -- Migrate existing data to set token_type = 'tpos' and refresh_interval_days = 3
 UPDATE public.tpos_config 

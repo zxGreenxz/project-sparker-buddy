@@ -55,23 +55,33 @@ serve(async (req) => {
       );
     }
 
-    const bearerToken = Deno.env.get("FACEBOOK_BEARER_TOKEN");
+    // Initialize Supabase client for token lookup
+    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
 
-    if (!bearerToken) {
-      console.error(
-        "FACEBOOK_BEARER_TOKEN not configured in Supabase secrets.",
-      );
+    // Fetch TPOS token from database
+    const { data: tokenData, error: tokenError } = await supabase
+      .from('tpos_config')
+      .select('bearer_token, token_status')
+      .eq('token_type', 'tpos')
+      .eq('is_active', true)
+      .maybeSingle();
+    
+    if (tokenError || !tokenData?.bearer_token) {
       return new Response(
-        JSON.stringify({
-          error:
-            "TPOS API credentials not configured. Please set FACEBOOK_BEARER_TOKEN in Supabase Secrets.",
-        }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
+        JSON.stringify({ error: 'TPOS Bearer Token not found or expired' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    if (tokenData.token_status === 'expired') {
+      console.warn('⚠️ TPOS token đã hết hạn');
+    }
+
+    const bearerToken = tokenData.bearer_token;
 
     const results: { idkh: string; data?: any; error?: string }[] = [];
 
