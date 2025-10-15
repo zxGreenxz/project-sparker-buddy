@@ -15,6 +15,7 @@ export interface PrinterTemplate {
     bold?: boolean;
     italic?: boolean;
   }>;
+  placeholderSizes?: Record<string, number>;
 }
 
 export const DEFAULT_TEMPLATE: PrinterTemplate = {
@@ -35,6 +36,15 @@ export const DEFAULT_TEMPLATE: PrinterTemplate = {
     line3: { fontSize: 14, bold: true },
     line4: { fontSize: 22, bold: true, italic: true },
     line5: { fontSize: 9, bold: true }
+  },
+  placeholderSizes: {
+    sessionIndex: 22,
+    phone: 18,
+    customerName: 22,
+    productCode: 14,
+    productName: 14,
+    comment: 22,
+    time: 9
   }
 };
 
@@ -42,14 +52,25 @@ const STORAGE_KEY = 'printer_templates';
 const ACTIVE_TEMPLATE_KEY = 'active_printer_template';
 
 /**
- * Parse template content with placeholders
+ * Parse template content with placeholders and apply custom sizes
  */
-export const parseTemplate = (template: string, data: Record<string, string>): string => {
+export const parseTemplate = (
+  template: string, 
+  data: Record<string, string>,
+  placeholderSizes?: Record<string, number>
+): string => {
   let result = template;
   
   Object.entries(data).forEach(([key, value]) => {
     const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
-    result = result.replace(regex, value || '');
+    
+    // Wrap with span if custom size is defined
+    if (placeholderSizes && placeholderSizes[key]) {
+      const wrappedValue = `<span style="font-size: ${placeholderSizes[key]}pt">${value || ''}</span>`;
+      result = result.replace(regex, wrappedValue);
+    } else {
+      result = result.replace(regex, value || '');
+    }
   });
   
   return result;
@@ -59,7 +80,7 @@ export const parseTemplate = (template: string, data: Record<string, string>): s
  * Apply data to template and return formatted content
  */
 export const applyTemplate = (template: PrinterTemplate, data: Record<string, string>): string => {
-  return parseTemplate(template.content, data);
+  return parseTemplate(template.content, data, template.placeholderSizes);
 };
 
 /**

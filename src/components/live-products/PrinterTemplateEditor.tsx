@@ -38,6 +38,12 @@ export function PrinterTemplateEditor() {
     const loaded = loadAllTemplates();
     setTemplates(loaded);
     const active = getActiveTemplate();
+    
+    // Ensure placeholderSizes exists
+    if (!active.placeholderSizes) {
+      active.placeholderSizes = {};
+    }
+    
     setActiveTemplateState(active);
     setEditingTemplate({ ...active });
     updatePreview(active);
@@ -82,6 +88,11 @@ export function PrinterTemplateEditor() {
   const handleLoadTemplate = (templateName: string) => {
     const template = templates.find(t => t.name === templateName);
     if (template) {
+      // Ensure placeholderSizes exists
+      if (!template.placeholderSizes) {
+        template.placeholderSizes = {};
+      }
+      
       setEditingTemplate({ ...template });
       setActiveTemplate(template.name);
       setActiveTemplateState(template);
@@ -115,7 +126,8 @@ export function PrinterTemplateEditor() {
   const handleNewTemplate = () => {
     const newTemplate: PrinterTemplate = {
       ...DEFAULT_TEMPLATE,
-      name: `Template ${templates.length + 1}`
+      name: `Template ${templates.length + 1}`,
+      placeholderSizes: { ...DEFAULT_TEMPLATE.placeholderSizes }
     };
     setEditingTemplate(newTemplate);
   };
@@ -141,6 +153,7 @@ export function PrinterTemplateEditor() {
           const fontWeight = style?.bold ? 'bold' : 'normal';
           const fontStyle = style?.italic ? 'italic' : 'normal';
           
+          // Line already has <span> tags from parseTemplate with custom sizes
           return `<div style="font-size: ${fontSize}pt; font-weight: ${fontWeight}; font-style: ${fontStyle}; line-height: ${editingTemplate.settings.lineHeight};">${line}</div>`;
         }).join('');
 
@@ -276,9 +289,10 @@ export function PrinterTemplateEditor() {
           </div>
 
           <Tabs defaultValue="general" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="general">Cài đặt chung</TabsTrigger>
               <TabsTrigger value="lines">Từng dòng</TabsTrigger>
+              <TabsTrigger value="variables">Biến</TabsTrigger>
             </TabsList>
 
             <TabsContent value="general" className="space-y-4 mt-4">
@@ -455,6 +469,77 @@ export function PrinterTemplateEditor() {
                 );
               })}
             </TabsContent>
+
+            <TabsContent value="variables" className="space-y-4 mt-4">
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertDescription className="text-xs">
+                  Chỉnh kích thước riêng cho từng biến. Kích thước tối đa theo dòng chứa biến đó.
+                </AlertDescription>
+              </Alert>
+
+              {/* Define which placeholders are in which lines */}
+              {[
+                { line: 1, placeholders: ['sessionIndex', 'phone'], lineLabel: 'Dòng 1: #{{sessionIndex}} - {{phone}}' },
+                { line: 2, placeholders: ['customerName'], lineLabel: 'Dòng 2: {{customerName}}' },
+                { line: 3, placeholders: ['productCode', 'productName'], lineLabel: 'Dòng 3: {{productCode}} - {{productName}}' },
+                { line: 4, placeholders: ['comment'], lineLabel: 'Dòng 4: {{comment}}' },
+                { line: 5, placeholders: ['time'], lineLabel: 'Dòng 5: {{time}}' }
+              ].map(({ line, placeholders, lineLabel }) => {
+                const lineKey = `line${line}`;
+                const lineStyle = editingTemplate.lineStyles[lineKey] || {};
+                const maxSize = lineStyle.fontSize || editingTemplate.settings.fontSize;
+
+                return (
+                  <Card key={lineKey}>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm">{lineLabel}</CardTitle>
+                      <CardDescription className="text-xs">
+                        Kích thước tối đa: {maxSize}pt
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {placeholders.map(placeholder => {
+                        const currentSize = editingTemplate.placeholderSizes?.[placeholder] || maxSize;
+                        const placeholderLabels: Record<string, string> = {
+                          sessionIndex: 'Số phiên (#123)',
+                          phone: 'Số điện thoại',
+                          customerName: 'Tên khách hàng',
+                          productCode: 'Mã sản phẩm',
+                          productName: 'Tên sản phẩm',
+                          comment: 'Ghi chú',
+                          time: 'Thời gian'
+                        };
+
+                        return (
+                          <div key={placeholder} className="space-y-2">
+                            <Label className="text-xs">
+                              {placeholderLabels[placeholder]}: {currentSize}pt
+                            </Label>
+                            <Slider
+                              value={[currentSize]}
+                              onValueChange={([value]) => {
+                                const clampedValue = Math.min(value, maxSize);
+                                setEditingTemplate(prev => ({
+                                  ...prev,
+                                  placeholderSizes: {
+                                    ...prev.placeholderSizes,
+                                    [placeholder]: clampedValue
+                                  }
+                                }));
+                              }}
+                              min={6}
+                              max={maxSize}
+                              step={1}
+                            />
+                          </div>
+                        );
+                      })}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </TabsContent>
           </Tabs>
 
           {/* Errors */}
@@ -521,9 +606,8 @@ export function PrinterTemplateEditor() {
                     lineHeight: editingTemplate.settings.lineHeight,
                     wordBreak: 'break-word'
                   }}
-                >
-                  {line || '\u00A0'}
-                </div>
+                  dangerouslySetInnerHTML={{ __html: line || '&nbsp;' }}
+                />
               );
             })}
           </div>
