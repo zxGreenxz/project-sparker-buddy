@@ -25,6 +25,7 @@ export function ProductImage({
   const [isZoomed, setIsZoomed] = useState(false);
   const [zoomPosition, setZoomPosition] = useState({ top: 0, left: 0 });
   const imgRef = useRef<HTMLImageElement>(null);
+  const zoomedImgRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
     // Get initial image URL based on priority
@@ -76,7 +77,7 @@ export function ProductImage({
     setIsZoomed(false);
   };
 
-  const handleImageClick = async () => {
+  const handleImageClick = async (fallbackImgElement?: HTMLImageElement | null) => {
     if (!imageUrl) return;
     
     try {
@@ -124,15 +125,50 @@ export function ProductImage({
       ]);
       
       toast.success("Đã copy ảnh vào clipboard!");
-    } catch (error) {
-      console.error("Error copying image:", error);
+    } catch (fetchError) {
+      console.error("Fetch failed, trying DOM capture:", fetchError);
       
-      // Fallback: Copy image URL to clipboard if image copy fails
+      // Fallback 1: If fetch fails (CORS), capture from DOM
       try {
-        await navigator.clipboard.writeText(imageUrl);
-        toast.success("Không thể copy ảnh. Đã copy link ảnh vào clipboard!");
-      } catch (urlError) {
-        toast.error("Không thể copy. Vui lòng thử lại.");
+        const imgElement = fallbackImgElement || zoomedImgRef.current || imgRef.current;
+        
+        if (!imgElement || !imgElement.complete) {
+          throw new Error("DOM image not ready");
+        }
+        
+        // Capture already rendered image from DOM
+        const canvas = document.createElement("canvas");
+        canvas.width = imgElement.naturalWidth;
+        canvas.height = imgElement.naturalHeight;
+        
+        const ctx = canvas.getContext("2d");
+        if (!ctx) throw new Error("Could not get canvas context");
+        
+        ctx.drawImage(imgElement, 0, 0);
+        
+        const pngBlob = await new Promise<Blob>((resolve, reject) => {
+          canvas.toBlob((blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error("Could not create blob"));
+          }, "image/png");
+        });
+        
+        await navigator.clipboard.write([
+          new ClipboardItem({ "image/png": pngBlob })
+        ]);
+        
+        toast.success("Đã copy ảnh vào clipboard!");
+        
+      } catch (domError) {
+        console.error("DOM capture failed:", domError);
+        
+        // Fallback 2: Copy image URL to clipboard
+        try {
+          await navigator.clipboard.writeText(imageUrl);
+          toast.success("Không thể copy ảnh. Đã copy link ảnh vào clipboard!");
+        } catch (urlError) {
+          toast.error("Không thể copy. Vui lòng thử lại.");
+        }
       }
     }
   };
@@ -162,7 +198,8 @@ export function ProductImage({
         className="w-10 h-10 object-cover rounded cursor-pointer transition-opacity duration-200 hover:opacity-80"
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        onClick={handleImageClick}
+        onClick={() => handleImageClick(imgRef.current)}
+        crossOrigin="anonymous"
         onError={(e) => {
           e.currentTarget.style.display = 'none';
           e.currentTarget.parentElement?.querySelector('.fallback-icon')?.classList.remove('hidden');
@@ -174,18 +211,22 @@ export function ProductImage({
 
       {isZoomed && (
         <div
-          className="fixed pointer-events-none z-[9999]"
+          className="fixed z-[9999]"
           style={{
             top: `${zoomPosition.top}px`,
             left: `${zoomPosition.left}px`,
             maxWidth: '600px',
             maxHeight: '600px'
           }}
+          onMouseLeave={handleMouseLeave}
         >
           <img
+            ref={zoomedImgRef}
             src={imageUrl}
             alt={productCode}
-            className="w-auto h-auto max-w-[600px] max-h-[600px] object-contain rounded-lg shadow-2xl border-4 border-background"
+            className="w-auto h-auto max-w-[600px] max-h-[600px] object-contain rounded-lg shadow-2xl border-4 border-background cursor-pointer hover:border-primary transition-colors"
+            onClick={() => handleImageClick(zoomedImgRef.current)}
+            crossOrigin="anonymous"
           />
         </div>
       )}
