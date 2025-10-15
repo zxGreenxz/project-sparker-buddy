@@ -31,6 +31,7 @@ import NetworkPrinterManager from "@/components/settings/NetworkPrinterManager";
 import { FacebookCommentsManager } from "@/components/facebook/FacebookCommentsManager";
 import { CommentsSidebar } from "@/components/live-products/CommentsSidebar";
 import { useCommentsSidebar } from "@/contexts/CommentsSidebarContext";
+import { TPOSCredentialsManager } from "@/components/settings/TPOSCredentialsManager";
 
 const Settings = () => {
   const [isChecking, setIsChecking] = useState(false);
@@ -1052,6 +1053,8 @@ const Settings = () => {
               </CardContent>
             </Card>
           </div>
+          
+          <TPOSCredentialsManager />
           
           <div className="grid grid-cols-1 gap-6">
             <FacebookPageManager />
