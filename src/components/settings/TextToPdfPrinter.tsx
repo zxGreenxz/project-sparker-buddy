@@ -4,11 +4,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Loader2, FileText, Download, Printer } from "lucide-react";
 import { getActivePrinter } from "@/lib/printer-utils";
 import { textToESCPOSBitmap } from "@/lib/text-to-bitmap";
+import jsPDF from "jspdf";
 
 export const TextToPdfPrinter = () => {
   const [text, setText] = useState("");
@@ -103,7 +103,7 @@ export const TextToPdfPrinter = () => {
     }
   };
 
-  const handleDownload = () => {
+  const handleDownloadImage = () => {
     if (!previewImage) {
       toast.error("Vui lòng tạo ảnh xem trước trước");
       return;
@@ -118,6 +118,32 @@ export const TextToPdfPrinter = () => {
     } catch (error) {
       console.error("Download error:", error);
       toast.error("❌ Lỗi khi tải xuống");
+    }
+  };
+
+  const handleDownloadPDF = () => {
+    if (!text.trim()) {
+      toast.error("Vui lòng nhập nội dung");
+      return;
+    }
+
+    try {
+      const doc = new jsPDF();
+      
+      // Set font to support Vietnamese
+      doc.setFont("helvetica");
+      doc.setFontSize(parseInt(fontSize));
+      
+      // Split text into lines and add to PDF
+      const lines = doc.splitTextToSize(text, 180); // 180mm width for A4
+      doc.text(lines, 15, 15);
+      
+      // Save PDF
+      doc.save(`document-${Date.now()}.pdf`);
+      toast.success("✅ Đã tải PDF xuống!");
+    } catch (error) {
+      console.error("PDF error:", error);
+      toast.error("❌ Lỗi khi tạo PDF");
     }
   };
 
@@ -170,7 +196,11 @@ export const TextToPdfPrinter = () => {
       }
     } catch (error: any) {
       console.error("Print error:", error);
-      toast.error(`❌ Lỗi khi in: ${error.message}`);
+      if (error.message?.includes("404") || error.message?.includes("Failed to fetch")) {
+        toast.error("❌ Không kết nối được máy in. Vui lòng kiểm tra:\n1. Print Bridge đang chạy\n2. Địa chỉ máy in đúng\n3. Máy in đang bật");
+      } else {
+        toast.error(`❌ Lỗi khi in: ${error.message}`);
+      }
     } finally {
       setIsPrinting(false);
     }
@@ -180,11 +210,11 @@ export const TextToPdfPrinter = () => {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Printer className="h-5 w-5" />
-          Text Printer (Tahoma Font)
+          <FileText className="h-5 w-5" />
+          Text to PDF & Printer (Tahoma Font)
         </CardTitle>
         <CardDescription>
-          In văn bản trực tiếp lên máy in nhiệt với font Tahoma hỗ trợ tiếng Việt
+          Tạo PDF hoặc in văn bản trực tiếp lên máy in nhiệt với font Tahoma hỗ trợ tiếng Việt
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -250,7 +280,16 @@ export const TextToPdfPrinter = () => {
           </Button>
 
           <Button 
-            onClick={handleDownload} 
+            onClick={handleDownloadPDF} 
+            disabled={!text.trim()}
+            variant="secondary"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Tải PDF xuống
+          </Button>
+
+          <Button 
+            onClick={handleDownloadImage} 
             disabled={!previewImage}
             variant="secondary"
           >
@@ -295,11 +334,12 @@ export const TextToPdfPrinter = () => {
         <div className="text-sm text-muted-foreground space-y-1 pt-2 border-t">
           <p>💡 <strong>Hướng dẫn:</strong></p>
           <ul className="list-disc list-inside space-y-1 ml-2">
-            <li><strong>Bước 1:</strong> Nhập nội dung và điều chỉnh cỡ chữ, line height</li>
-            <li><strong>Bước 2:</strong> Nhấn "Tạo ảnh xem trước" để xem kết quả</li>
-            <li><strong>Bước 3:</strong> Nhấn "Tải ảnh xuống" để kiểm tra trên máy tính</li>
-            <li><strong>Bước 4:</strong> Nhấn "In ngay" để in lên máy in nhiệt</li>
+            <li><strong>Tải PDF:</strong> Nhấn "Tải PDF xuống" để tạo file PDF từ văn bản</li>
+            <li><strong>Xem trước ảnh:</strong> Nhấn "Tạo ảnh xem trước" để xem kết quả in</li>
+            <li><strong>Tải ảnh:</strong> Nhấn "Tải ảnh xuống" để lưu ảnh xem trước</li>
+            <li><strong>In nhiệt:</strong> Nhấn "In ngay" để in lên máy in nhiệt (cần cấu hình Print Bridge)</li>
             <li><strong>Font Tahoma:</strong> Hỗ trợ tiếng Việt tốt, hiển thị chính xác dấu</li>
+            <li><strong>Lưu ý:</strong> Nếu lỗi 404 khi in, kiểm tra Print Bridge và cấu hình máy in</li>
           </ul>
         </div>
       </CardContent>
