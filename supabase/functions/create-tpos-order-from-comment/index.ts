@@ -294,6 +294,8 @@ serve(async (req) => {
     }
 
     console.log('📝 Received commentType:', commentType || 'not provided');
+    console.log('📝 commentType type:', typeof commentType);
+    console.log('📝 commentType === "hang_dat":', commentType === 'hang_dat');
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
@@ -410,6 +412,7 @@ serve(async (req) => {
     }
 
     // Save to facebook_pending_orders table
+    console.log('💾 About to save to facebook_pending_orders with commentType:', commentType);
     try {
       // Check for existing order with the same comment_id
       const { data: existingOrder } = await supabase
