@@ -307,11 +307,11 @@ export function QuickAddOrder({
             const bitmapData = await textToESCPOSBitmap('', {
               width: 576,  // Standard width for 80mm thermal printer
               fontFamily: 'Arial, sans-serif',
-              lineHeight: 0.8,  // Very tight line height
+              lineHeight: 1.0,  // Minimal line height
               align: 'center',
               padding: 0,  // No padding
               lines: printLines,
-              lineSpacing: -10  // Negative spacing to compress more
+              lineSpacing: 2  // Minimal spacing between lines
             });
             
             // Convert to base64 for transmission
