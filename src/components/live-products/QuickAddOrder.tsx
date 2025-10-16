@@ -97,12 +97,16 @@ export function QuickAddOrder({
     queryKey: ['facebook-pending-orders', phaseData?.phase_date],
     queryFn: async () => {
       if (!phaseData?.phase_date) return [];
-      const {
-        data,
-        error
-      } = await supabase.from('facebook_pending_orders').select('*, order_count').gte('created_time', `${phaseData.phase_date}T00:00:00`).lt('created_time', `${phaseData.phase_date}T23:59:59`).order('created_time', {
-        ascending: false
-      });
+      let query: any = supabase
+        .from('facebook_pending_orders')
+        .select('*, order_count');
+      
+      query = query.eq('comment_type', 'hang_dat');
+      query = query.gte('created_time', `${phaseData.phase_date}T00:00:00`);
+      query = query.lt('created_time', `${phaseData.phase_date}T23:59:59`);
+      query = query.order('created_time', { ascending: false });
+      
+      const { data, error } = await query;
       if (error) throw error;
       return (data || []) as PendingOrder[];
     },
