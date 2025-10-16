@@ -21,6 +21,68 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useDebounce } from "@/hooks/use-debounce";
 import { applyMultiKeywordSearch } from "@/lib/search-utils";
 
+// Helper: Extract base name prefix from product name
+const extractBaseNamePrefix = (productName: string): string | null => {
+  if (!productName) return null;
+  
+  // Priority 1: Format "xxx (y)" - extract xxx
+  if (productName.includes('(')) {
+    const basePrefix = productName.split('(')[0].trim();
+    if (basePrefix.length > 0) return basePrefix;
+  }
+  
+  // Priority 2: Format "xxx - y" - extract xxx
+  if (productName.includes(' - ')) {
+    return productName.split(' - ')[0].trim();
+  }
+  
+  // Priority 3: Format "xxx-y" (no space) - extract xxx
+  if (productName.includes('-')) {
+    return productName.split('-')[0].trim();
+  }
+  
+  return null; // No pattern detected
+};
+
+// Helper: Fetch all variants by name pattern or base_product_code
+const fetchAllVariants = async (product: InventoryProduct) => {
+  // CASE 1: Product name has "-" → Find by name pattern
+  if (product.product_name.includes('-')) {
+    const basePrefix = extractBaseNamePrefix(product.product_name);
+    if (!basePrefix) return [product]; // Fallback to single product
+    
+    const { data: matchingProducts, error } = await supabase
+      .from("products")
+      .select("*")
+      .ilike("product_name", `${basePrefix}%`);
+    
+    if (error) throw error;
+    
+    // Filter locally to ensure exact prefix match
+    const filtered = (matchingProducts || []).filter((p: InventoryProduct) => {
+      const pPrefix = extractBaseNamePrefix(p.product_name);
+      return pPrefix === basePrefix;
+    });
+    
+    return filtered.length > 1 ? filtered : [product];
+  }
+  
+  // CASE 2: No "-" in name → Use base_product_code
+  const baseCode = product.base_product_code || product.product_code;
+  
+  const { data: variants, error } = await supabase
+    .from("products")
+    .select("*")
+    .eq("base_product_code", baseCode)
+    .not("variant", "is", null)
+    .neq("variant", "")
+    .neq("product_code", baseCode);
+  
+  if (error) throw error;
+  
+  return variants && variants.length > 0 ? variants : [product];
+};
+
 interface SelectProductFromInventoryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -33,6 +95,7 @@ interface InventoryProduct {
   product_code: string;
   product_name: string;
   variant?: string;
+  base_product_code?: string;
   selling_price: number;
   purchase_price: number;
   stock_quantity: number;
@@ -90,42 +153,68 @@ export function SelectProductFromInventoryDialog({
       const product = products.find((p) => p.id === productId);
       if (!product) throw new Error("Product not found");
 
-      // Check if product already exists in this phase
-      const { data: existingProduct, error: checkError } = await supabase
+      // Fetch all variants (similar to barcode scanning logic)
+      const allVariants = await fetchAllVariants(product);
+      
+      if (allVariants.length === 0) {
+        throw new Error("Không tìm thấy sản phẩm hoặc biến thể nào");
+      }
+
+      // Check existing products in live session
+      const variantCodes = allVariants.map((v: InventoryProduct) => v.product_code);
+      const { data: existingProducts, error: checkError } = await supabase
         .from("live_products")
-        .select("id")
-        .eq("product_code", product.product_code)
+        .select("id, product_code")
         .eq("live_phase_id", phaseId)
-        .maybeSingle();
+        .in("product_code", variantCodes);
 
       if (checkError) throw checkError;
 
-      if (existingProduct) {
-        throw new Error("Sản phẩm đã tồn tại trong phiên live này");
+      const existingMap = new Map(
+        (existingProducts || []).map((p: { product_code: string }) => [p.product_code, true])
+      );
+
+      // Prepare batch insert (only insert variants that don't exist yet)
+      const toInsert = allVariants
+        .filter((variant: InventoryProduct) => !existingMap.has(variant.product_code))
+        .map((variant: InventoryProduct) => {
+          const imageUrl = variant.product_images?.[0] || variant.tpos_image_url || null;
+          
+          return {
+            product_code: variant.product_code,
+            product_name: variant.product_name,
+            variant: variant.variant,
+            base_product_code: variant.base_product_code,
+            prepared_quantity: quantity,
+            sold_quantity: 0,
+            live_session_id: sessionId,
+            live_phase_id: phaseId,
+            image_url: imageUrl,
+          };
+        });
+
+      if (toInsert.length === 0) {
+        throw new Error("Tất cả sản phẩm đã tồn tại trong phiên live này");
       }
 
-      // Determine image URL with priority: product_images[0] > tpos_image_url > null
-      const imageUrl = product.product_images?.[0] || product.tpos_image_url || null;
-
-      // Insert new product to live_products
-      const { error: insertError } = await supabase.from("live_products").insert({
-        product_code: product.product_code,
-        product_name: product.product_name,
-        variant: product.variant,
-        prepared_quantity: quantity,
-        sold_quantity: 0,
-        live_session_id: sessionId,
-        live_phase_id: phaseId,
-        image_url: imageUrl,
-      });
+      // Batch insert
+      const { error: insertError } = await supabase
+        .from("live_products")
+        .insert(toInsert);
 
       if (insertError) throw insertError;
 
-      return product;
+      return {
+        totalVariants: allVariants.length,
+        insertedCount: toInsert.length,
+        skippedCount: allVariants.length - toInsert.length,
+        baseProductCode: allVariants[0]?.product_code.split('X')[0] || product.product_code,
+        baseProductName: allVariants[0]?.product_name || product.product_name,
+      };
     },
-    onSuccess: (product) => {
+    onSuccess: (result) => {
       toast.success("Đã thêm sản phẩm", {
-        description: `${product.product_code} - ${product.product_name}`,
+        description: `${result.baseProductCode} - ${result.baseProductName}\nThêm mới: ${result.insertedCount} | Đã có: ${result.skippedCount}`,
       });
       queryClient.invalidateQueries({ queryKey: ["live-products", phaseId] });
       onOpenChange(false);
