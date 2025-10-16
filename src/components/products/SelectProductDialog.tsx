@@ -164,6 +164,13 @@ export function SelectProductDialog({ open, onOpenChange, onSelect, onSelectMult
                             className="mt-1"
                           />
                         )}
+                        <ProductImage
+                          productId={product.id}
+                          productCode={product.product_code}
+                          productImages={product.product_images}
+                          tposImageUrl={product.tpos_image_url}
+                          tposProductId={product.tpos_product_id}
+                        />
                         <div className="flex-1 space-y-2 cursor-pointer" onClick={() => handleSelect(product)}>
                           <div className="font-semibold">{product.product_name}</div>
                           <div className="text-sm text-muted-foreground">
