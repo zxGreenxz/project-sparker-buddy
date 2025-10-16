@@ -139,10 +139,23 @@ const STORAGE_KEYS = {
 } as const;
 
 const DEFAULT_HIDE_NAMES = ["Nhi Judy House"];
-const REALTIME_CHECK_INTERVAL = 10000; // 10 seconds
+const REALTIME_CHECK_INTERVAL = 5000; // 5 seconds ⚡
 const DEBOUNCE_DELAY = 100;
 const FETCH_LIMIT = 500;
 const ORDERS_TOP = 200;
+
+// ============================================================================
+// CACHE HELPER
+// ============================================================================
+
+const getCommentsQueryKey = (
+  pageId: string | null, 
+  videoId: string | null, 
+  isLive: boolean
+) => {
+  const cacheType = isLive ? "live" : "offline";
+  return ["facebook-comments", cacheType, pageId, videoId];
+};
 
 const STATUS_MAP: Record<string, string> = {
   normal: "Bình thường",
@@ -382,12 +395,16 @@ export function FacebookCommentsManager({
     refetch: refetchComments,
     isLoading: commentsLoading,
   } = useInfiniteQuery({
-    queryKey: ["facebook-comments", pageId, selectedVideo?.objectId],
+    queryKey: getCommentsQueryKey(
+      pageId, 
+      selectedVideo?.objectId, 
+      selectedVideo?.statusLive === 1
+    ),
     queryFn: async ({ pageParam }) => {
       if (!pageId || !selectedVideo?.objectId) return { data: [], paging: {} };
 
       console.log(
-        `[FacebookCommentsManager] Fetching comments, pageParam: ${pageParam}`,
+        `[FacebookCommentsManager] Fetching comments (${selectedVideo?.statusLive === 1 ? 'LIVE' : 'OFFLINE'}), pageParam: ${pageParam}`,
       );
       const startTime = Date.now();
 
@@ -555,7 +572,11 @@ export function FacebookCommentsManager({
         queryKey: ["tpos-orders", selectedVideo?.objectId],
       });
       queryClient.invalidateQueries({
-        queryKey: ["facebook-comments", pageId, selectedVideo?.objectId],
+        queryKey: getCommentsQueryKey(
+          pageId, 
+          selectedVideo?.objectId, 
+          selectedVideo?.statusLive === 1
+        ),
       });
     },
   });
@@ -602,7 +623,11 @@ export function FacebookCommentsManager({
 
       checkCacheStatus();
       queryClient.invalidateQueries({
-        queryKey: ["facebook-comments", pageId, postId],
+        queryKey: getCommentsQueryKey(
+          pageId, 
+          postId, 
+          selectedVideo?.statusLive === 1
+        ),
       });
     },
     onError: (error: Error) => {
@@ -712,6 +737,29 @@ export function FacebookCommentsManager({
   ]);
 
   // ============================================================================
+  // CLEAR OPPOSITE CACHE WHEN VIDEO CHANGES
+  // ============================================================================
+
+  useEffect(() => {
+    if (selectedVideo) {
+      // Reset realtime tracking refs
+      lastKnownCountRef.current = selectedVideo.countComment || 0;
+      deletedCountRef.current = 0;
+      
+      // Clear cache của trạng thái khác
+      const isLive = selectedVideo.statusLive === 1;
+      const oppositeCacheKey = getCommentsQueryKey(
+        pageId,
+        selectedVideo.objectId,
+        !isLive // Clear cache của trạng thái ngược lại
+      );
+      queryClient.removeQueries({ queryKey: oppositeCacheKey });
+      
+      console.log(`[Cache] Cleared ${isLive ? 'offline' : 'live'} cache for video ${selectedVideo.objectId}`);
+    }
+  }, [selectedVideo?.objectId, selectedVideo?.statusLive]);
+
+  // ============================================================================
   // REALTIME CHECK FOR NEW COMMENTS
   // ============================================================================
 
@@ -790,7 +838,13 @@ export function FacebookCommentsManager({
             console.log(`[Realtime Check] ⚠️ TPOS API unavailable`);
           } else {
             console.log(`[Realtime Check] ✅ Successfully fetched from TPOS`);
-            queryClient.invalidateQueries({ queryKey: ['facebook-comments', pageId, selectedVideo.objectId] });
+            queryClient.invalidateQueries({ 
+              queryKey: getCommentsQueryKey(
+                pageId, 
+                selectedVideo.objectId, 
+                true // Realtime check chỉ chạy cho live videos
+              )
+            });
             
             toast({
               title: "📥 Comment mới",
@@ -1203,7 +1257,11 @@ export function FacebookCommentsManager({
 
   const handleRefreshFromTPOS = () => {
     queryClient.removeQueries({
-      queryKey: ["facebook-comments", pageId, selectedVideo?.objectId],
+      queryKey: getCommentsQueryKey(
+        pageId, 
+        selectedVideo?.objectId, 
+        selectedVideo?.statusLive === 1
+      ),
     });
     refetchComments();
     toast({
