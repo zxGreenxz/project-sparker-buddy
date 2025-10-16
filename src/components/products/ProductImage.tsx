@@ -48,37 +48,6 @@ export function ProductImage({
   }, [productId, productCode, productImages, tposImageUrl, tposProductId]);
 
   const handleMouseEnter = () => {
-    if (!imgRef.current || !imageUrl) return;
-    
-    const rect = imgRef.current.getBoundingClientRect();
-    const viewportHeight = window.innerHeight;
-    const viewportWidth = window.innerWidth;
-    const zoomedHeight = 600;
-    const zoomedWidth = 600;
-    
-    let top = rect.top;
-    
-    if (rect.top + zoomedHeight > viewportHeight) {
-      top = rect.bottom - zoomedHeight;
-    }
-    
-    if (top < 0) {
-      top = rect.top;
-    }
-    
-    // Position to the left of the thumbnail (with 10px gap)
-    let left = rect.left - zoomedWidth - 10;
-    
-    // If not enough space on the left, show on the right
-    if (left < 0) {
-      left = rect.right + 10;
-    }
-    
-    setZoomPosition({
-      top: top,
-      left: left
-    });
-    
     setIsZoomed(true);
   };
 
@@ -184,10 +153,8 @@ export function ProductImage({
 
       {isZoomed && (
         <div
-          className="fixed pointer-events-none z-[99999]"
+          className="absolute pointer-events-none z-[99999] left-[calc(100%+10px)] top-0"
           style={{
-            top: `${zoomPosition.top}px`,
-            left: `${zoomPosition.left}px`,
             maxWidth: '600px',
             maxHeight: '600px'
           }}
