@@ -13,6 +13,7 @@ interface UploadOrderToTPOSParams {
     end_date: string;
     session_index: number;
   };
+  orderItemIds?: string[]; // ✅ Track specific live_orders IDs to update
   onProgress?: (step: number, message: string) => void;
 }
 
@@ -94,21 +95,25 @@ async function getTPOSOrderDetail(orderId: number, bearerToken: string) {
   return await response.json();
 }
 
-// Update TPOS order with new products
+// Update TPOS order with new products - APPEND instead of overwrite
 async function updateTPOSOrder(
   orderId: number,
   orderDetail: any,
-  products: any[],
+  newProducts: any[],
   bearerToken: string
 ) {
   const url = `https://tomato.tpos.vn/odata/SaleOnline_Order(${orderId})`;
 
+  // ✅ Keep existing products and append new ones
+  const existingDetails = orderDetail.Details || [];
+  const mergedProducts = [...existingDetails, ...newProducts];
+
   const payload = {
     ...orderDetail,
-    Details: products,
+    Details: mergedProducts,
   };
 
-  console.log(`Updating TPOS order ${orderId} with ${products.length} products`);
+  console.log(`Updating TPOS order ${orderId}: adding ${newProducts.length} products (total: ${mergedProducts.length})`);
 
   const response = await fetch(url, {
     method: 'PUT',
@@ -202,19 +207,36 @@ export async function uploadOrderToTPOS(
     
     await updateTPOSOrder(selectedOrder.Id, orderDetail, tposProducts, bearerToken);
 
-    // Update database
-    const { error: updateError } = await supabase
-      .from('live_orders')
-      .update({
-        tpos_order_id: selectedOrder.Id.toString(),
-        code_tpos_order_id: selectedOrder.Code,
-        upload_status: 'success',
-        uploaded_at: new Date().toISOString(),
-      })
-      .eq('order_code', params.orderCode);
+    // Update database - only update specific items if orderItemIds provided
+    if (params.orderItemIds && params.orderItemIds.length > 0) {
+      const { error: updateError } = await supabase
+        .from('live_orders')
+        .update({
+          tpos_order_id: selectedOrder.Id.toString(),
+          code_tpos_order_id: selectedOrder.Code,
+          upload_status: 'success',
+          uploaded_at: new Date().toISOString(),
+        })
+        .in('id', params.orderItemIds);
 
-    if (updateError) {
-      console.error('Failed to update database:', updateError);
+      if (updateError) {
+        console.error('Failed to update database:', updateError);
+      }
+    } else {
+      // Fallback: Update all items with this order_code
+      const { error: updateError } = await supabase
+        .from('live_orders')
+        .update({
+          tpos_order_id: selectedOrder.Id.toString(),
+          code_tpos_order_id: selectedOrder.Code,
+          upload_status: 'success',
+          uploaded_at: new Date().toISOString(),
+        })
+        .eq('order_code', params.orderCode);
+
+      if (updateError) {
+        console.error('Failed to update database:', updateError);
+      }
     }
 
     return {
@@ -225,14 +247,24 @@ export async function uploadOrderToTPOS(
   } catch (error) {
     console.error('Upload error:', error);
     
-    // Update database with failed status
-    await supabase
-      .from('live_orders')
-      .update({
-        upload_status: 'failed',
-        uploaded_at: new Date().toISOString(),
-      })
-      .eq('order_code', params.orderCode);
+    // Update database with failed status - only update specific items if orderItemIds provided
+    if (params.orderItemIds && params.orderItemIds.length > 0) {
+      await supabase
+        .from('live_orders')
+        .update({
+          upload_status: 'failed',
+          uploaded_at: new Date().toISOString(),
+        })
+        .in('id', params.orderItemIds);
+    } else {
+      await supabase
+        .from('live_orders')
+        .update({
+          upload_status: 'failed',
+          uploaded_at: new Date().toISOString(),
+        })
+        .eq('order_code', params.orderCode);
+    }
 
     return {
       success: false,

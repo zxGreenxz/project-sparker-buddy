@@ -25,6 +25,7 @@ interface OrderWithProduct {
   quantity: number;
   variant?: string | null;
   upload_status?: string | null;
+  live_product_id: string;
 }
 
 interface UploadLiveOrdersToTPOSDialogProps {
@@ -47,9 +48,11 @@ interface GroupedOrder {
     product_name: string;
     quantity: number;
     variant?: string | null;
+    orderItemIds: string[]; // ✅ Track live_orders IDs for this product
   }>;
   totalQuantity: number;
   uploadStatus?: string | null;
+  hasUploadedItems: boolean; // ✅ Has at least one uploaded item
 }
 
 export function UploadLiveOrdersToTPOSDialog({
@@ -88,33 +91,53 @@ export function UploadLiveOrdersToTPOSDialog({
     }
   }, [open]);
 
-  // Group orders by order_code
+  // Group orders by order_code, skip uploaded items
   const groupedOrders = useMemo<GroupedOrder[]>(() => {
     const groups = ordersWithProducts.reduce((acc, order) => {
+      // ✅ Skip items that have already been uploaded successfully
+      if (order.upload_status === 'success') {
+        // Still track that this order_code has uploaded items
+        if (!acc[order.order_code]) {
+          acc[order.order_code] = {
+            order_code: order.order_code,
+            products: [],
+            totalQuantity: 0,
+            uploadStatus: null,
+            hasUploadedItems: true,
+          };
+        } else {
+          acc[order.order_code].hasUploadedItems = true;
+        }
+        return acc;
+      }
+
       if (!acc[order.order_code]) {
         acc[order.order_code] = {
           order_code: order.order_code,
           products: [],
           totalQuantity: 0,
           uploadStatus: order.upload_status,
+          hasUploadedItems: false,
         };
       }
       
-      // Tìm sản phẩm đã tồn tại trong mảng products
+      // Find existing product in the products array
       const existingProduct = acc[order.order_code].products.find(
         p => p.product_code === order.product_code
       );
       
       if (existingProduct) {
-        // Nếu đã tồn tại, cộng dồn số lượng
+        // If exists, add to quantity and track ID
         existingProduct.quantity += order.quantity;
+        existingProduct.orderItemIds.push(order.id);
       } else {
-        // Nếu chưa tồn tại, thêm mới
+        // If new, add to products array
         acc[order.order_code].products.push({
           product_code: order.product_code,
           product_name: order.product_name,
           quantity: order.quantity,
           variant: order.variant,
+          orderItemIds: [order.id], // ✅ Track IDs
         });
       }
       
@@ -122,9 +145,10 @@ export function UploadLiveOrdersToTPOSDialog({
       return acc;
     }, {} as Record<string, GroupedOrder>);
 
-    return Object.values(groups).sort((a, b) => 
-      parseInt(a.order_code) - parseInt(b.order_code)
-    );
+    // ✅ Only keep order_codes with at least one non-uploaded product
+    return Object.values(groups)
+      .filter(g => g.products.length > 0)
+      .sort((a, b) => parseInt(a.order_code) - parseInt(b.order_code));
   }, [ordersWithProducts]);
 
   // Handle select all / deselect all
@@ -175,7 +199,10 @@ export function UploadLiveOrdersToTPOSDialog({
     // Process each order
     for (const orderCode of selectedOrdersList) {
       const groupedOrder = groupedOrders.find(g => g.order_code === orderCode);
-      if (!groupedOrder) continue;
+      if (!groupedOrder || groupedOrder.products.length === 0) continue;
+
+      // ✅ Collect all orderItemIds that need to be uploaded
+      const allOrderItemIds = groupedOrder.products.flatMap(p => p.orderItemIds);
 
       // Update status to uploading
       setUploadProgress(prev => ({
@@ -199,6 +226,7 @@ export function UploadLiveOrdersToTPOSDialog({
             end_date: sessionData.end_date,
             session_index: sessionIndex,
           },
+          orderItemIds: allOrderItemIds, // ✅ Pass specific IDs
           onProgress: (step, message) => {
             setUploadProgress(prev => ({
               ...prev,
@@ -212,7 +240,7 @@ export function UploadLiveOrdersToTPOSDialog({
             ...prev,
             [orderCode]: { 
               status: 'success', 
-              message: `Đã upload vào đơn TPOS: ${result.codeTPOSOrderId}` 
+              message: `Đã thêm ${groupedOrder.products.length} sản phẩm vào đơn TPOS: ${result.codeTPOSOrderId}` 
             }
           }));
           successCount++;
@@ -353,6 +381,12 @@ export function UploadLiveOrdersToTPOSDialog({
                             <span className="font-semibold">{product.quantity}</span>
                           </div>
                         ))}
+                        {/* ✅ Show badge if some items are already uploaded */}
+                        {group.hasUploadedItems && (
+                          <Badge variant="secondary" className="text-xs mt-1">
+                            ✓ Một số sản phẩm đã upload
+                          </Badge>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell className="text-center">

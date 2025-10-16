@@ -1939,7 +1939,7 @@ export default function LiveProducts() {
                       <h3 className="text-lg font-semibold">Danh sách đơn hàng</h3>
                       <Badge variant="outline">{ordersWithProducts.length} đơn</Badge>
                     </div>
-                    <Button variant="default" onClick={() => setIsUploadLiveOrdersOpen(true)} disabled={!selectedSession || selectedPhase !== "all" || ordersWithProducts.length === 0}>
+                    <Button variant="default" onClick={() => setIsUploadLiveOrdersOpen(true)} disabled={!selectedSession || ordersWithProducts.length === 0}>
                       <Upload className="h-4 w-4 mr-2" />
                       Upload TPOS
                     </Button>
@@ -2060,30 +2060,40 @@ export default function LiveProducts() {
                                       </label>
                                     </div>
                                   </TableCell>}
-                              {index === 0 && <TableCell rowSpan={aggregatedProducts.length} className="text-center py-2 align-middle border-r">
-                                  <div className="flex flex-col gap-1 items-center">
-                                    {(() => {
-                                  const uploadStatus = orders[0]?.upload_status;
-                                  const uploadedAt = orders[0]?.uploaded_at;
-                                  if (!uploadStatus) {
-                                    return <span className="text-xs text-muted-foreground">Chưa upload</span>;
-                                  }
-                                  const timestamp = uploadedAt ? new Date(uploadedAt) : null;
-                                  const timeStr = timestamp ? timestamp.toLocaleString('vi-VN', {
-                                    day: '2-digit',
-                                    month: '2-digit',
-                                    hour: '2-digit',
-                                    minute: '2-digit'
-                                  }) : '';
-                                  return <div className="flex flex-col gap-1 items-center">
-                                          <Badge variant={uploadStatus === 'success' ? 'default' : 'destructive'} className={uploadStatus === 'success' ? 'bg-green-600' : ''}>
-                                            {uploadStatus === 'success' ? 'Thành công' : 'Thất bại'}
-                                          </Badge>
-                                          {timeStr && <span className="text-xs text-muted-foreground">{timeStr}</span>}
-                                        </div>;
-                                })()}
-                                  </div>
-                                </TableCell>}
+                              <TableCell className="text-center py-2 border-r">
+                                <div className="flex flex-col gap-1 items-center">
+                                  {(() => {
+                                    // ✅ Show status per product item, not per order_code
+                                    const firstOrder = product.orders[0];
+                                    const uploadStatus = firstOrder?.upload_status;
+                                    const uploadedAt = firstOrder?.uploaded_at;
+                                    
+                                    if (!uploadStatus) {
+                                      return <span className="text-xs text-muted-foreground">Chưa upload</span>;
+                                    }
+                                    
+                                    const timestamp = uploadedAt ? new Date(uploadedAt) : null;
+                                    const timeStr = timestamp ? timestamp.toLocaleString('vi-VN', {
+                                      day: '2-digit',
+                                      month: '2-digit',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    }) : '';
+                                    
+                                    return (
+                                      <div className="flex flex-col gap-1 items-center">
+                                        <Badge 
+                                          variant={uploadStatus === 'success' ? 'default' : 'destructive'} 
+                                          className={uploadStatus === 'success' ? 'bg-green-600' : ''}
+                                        >
+                                          {uploadStatus === 'success' ? 'Thành công' : 'Thất bại'}
+                                        </Badge>
+                                        {timeStr && <span className="text-xs text-muted-foreground">{timeStr}</span>}
+                                      </div>
+                                    );
+                                  })()}
+                                </div>
+                              </TableCell>
                             </TableRow>;
                         });
                       });

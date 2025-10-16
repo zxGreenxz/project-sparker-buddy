@@ -127,11 +127,15 @@ export function EditOrderItemDialog({
         const firstOrder = orders[0];
         const ordersToDelete = orders.slice(1).map(o => o.id);
 
-        // Update the first order with new total quantity
+        // Update the first order with new total quantity and reset upload status
         const { error: updateError } = await supabase
           .from("live_orders")
           .update({ 
             quantity: newTotalQty,
+            upload_status: null,
+            uploaded_at: null,
+            tpos_order_id: null,
+            code_tpos_order_id: null,
           })
           .eq("id", firstOrder.id);
 
@@ -168,14 +172,18 @@ export function EditOrderItemDialog({
         }
 
       } else {
-        // Single order item - update quantity directly
+        // Single order item - update quantity directly and reset upload status
         const quantityDiff = values.quantity - orderItem.quantity;
 
-        // Update order quantity
+        // Update order quantity and reset upload status
         const { error: orderError } = await supabase
           .from("live_orders")
           .update({ 
             quantity: values.quantity,
+            upload_status: null,
+            uploaded_at: null,
+            tpos_order_id: null,
+            code_tpos_order_id: null,
           })
           .eq("id", orderItem.id);
 
