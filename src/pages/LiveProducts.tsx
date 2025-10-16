@@ -1945,51 +1945,22 @@ export default function LiveProducts() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {(() => {
-                  // Group orders by order_code to calculate rowSpans
-                  const orderGroups = ordersWithProducts.reduce((acc, order) => {
-                    if (!acc[order.order_code]) {
-                      acc[order.order_code] = [];
-                    }
-                    acc[order.order_code].push(order);
-                    return acc;
-                  }, {} as Record<string, typeof ordersWithProducts>);
-
-                  // Create a map to track which order_code should show the merged cell
-                  const orderCodeRowSpans = new Map<string, number>();
-                  const firstOrderOfCode = new Map<string, string>(); // order_code -> first order.id
-
-                  Object.entries(orderGroups).forEach(([orderCode, orders]) => {
-                    orderCodeRowSpans.set(orderCode, orders.length);
-                    firstOrderOfCode.set(orderCode, orders[0].id);
-                  });
-
-                  return ordersWithProducts.map((order, index) => {
-                    const bgColorClass = index % 2 === 1 ? 'bg-muted/30' : '';
-                    const oversellClass = order.is_oversell 
-                      ? 'bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-900' 
-                      : '';
-                    
-                    // Check if this is the first order in its order_code group
-                    const isFirstInGroup = firstOrderOfCode.get(order.order_code) === order.id;
-                    const rowSpan = orderCodeRowSpans.get(order.order_code) || 1;
-                    
-                    return (
-                      <TableRow 
-                        key={order.id} 
-                        className={`h-12 ${bgColorClass} ${oversellClass}`}
-                      >
-                        {/* Only render order_code cell for the first order in group */}
-                        {isFirstInGroup && (
-                          <TableCell 
-                            className="border-r border-l text-center align-top" 
-                            rowSpan={rowSpan}
-                          >
-                            <Badge className="text-sm font-mono">
-                              {order.order_code}
-                            </Badge>
-                          </TableCell>
-                        )}
+                {ordersWithProducts.map((order, index) => {
+                  const bgColorClass = index % 2 === 1 ? 'bg-muted/30' : '';
+                  const oversellClass = order.is_oversell 
+                    ? 'bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-900' 
+                    : '';
+                  
+                  return (
+                    <TableRow 
+                      key={order.id} 
+                      className={`h-12 ${bgColorClass} ${oversellClass}`}
+                    >
+                      <TableCell className="border-r border-l text-center">
+                        <Badge className="text-sm font-mono">
+                          {order.order_code}
+                        </Badge>
+                      </TableCell>
                       
                       <TableCell className="py-2 border-r">
                         <div className="font-medium text-sm">{order.product_name}</div>
@@ -2085,9 +2056,8 @@ export default function LiveProducts() {
                         })()}
                       </TableCell>
                     </TableRow>
-                    );
-                  });
-                })()}
+                  );
+                })}
               </TableBody>
                   </Table>
                 </Card>
