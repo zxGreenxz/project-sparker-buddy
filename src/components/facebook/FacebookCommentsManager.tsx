@@ -736,10 +736,87 @@ export function FacebookCommentsManager({
       isCheckingNewCommentsRef.current = true;
 
       try {
-        // Archive table disabled - skip check
-        return;
+        // 1. Count non-deleted comments in DB
+        const { count: dbCount } = await supabase
+          .from('facebook_comments_archive' as any)
+          .select('*', { count: 'exact', head: true })
+          .eq('facebook_post_id', selectedVideo.objectId)
+          .eq('is_deleted', false);
+        
+        const currentDbCount = dbCount || 0;
+        const tposCount = selectedVideo.countComment || 0;
+        
+        console.log(`[Realtime Check] Video: ${selectedVideo.objectId}`);
+        console.log(`  DB: ${currentDbCount}, TPOS: ${tposCount}, Deleted: ${deletedCountRef.current}, Last TPOS: ${lastKnownCountRef.current}`);
+        
+        // 2. Check if TPOS deleted comments
+        if (lastKnownCountRef.current > 0 && tposCount < lastKnownCountRef.current) {
+          const deletedThisTime = lastKnownCountRef.current - tposCount;
+          deletedCountRef.current += deletedThisTime;
+          console.log(`[Realtime Check] ⚠️ TPOS deleted ${deletedThisTime} comments (Total deleted: ${deletedCountRef.current})`);
+          lastKnownCountRef.current = tposCount;
+          
+          toast({
+            title: "Comment bị xóa",
+            description: `TPOS đã xóa ${deletedThisTime} comment`,
+            variant: "destructive"
+          });
+        }
+        
+        // 3. Calculate expected DB count
+        const expectedDbCount = tposCount + deletedCountRef.current;
+        console.log(`  Expected DB count: ${tposCount} + ${deletedCountRef.current} = ${expectedDbCount}`);
+        
+        // 4. Check if we need to fetch new comments
+        if (currentDbCount < expectedDbCount) {
+          const newCommentsCount = expectedDbCount - currentDbCount;
+          console.log(`[Realtime Check] 📥 Fetching ${newCommentsCount} new comments`);
+          
+          const { data: { session } } = await supabase.auth.getSession();
+          
+          const response = await fetch(
+            `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/facebook-comments?pageId=${pageId}&postId=${selectedVideo.objectId}&limit=100&order=reverse_chronological`,
+            {
+              headers: {
+                'Authorization': `Bearer ${session?.access_token}`,
+                'Content-Type': 'application/json',
+              },
+            }
+          );
+          
+          const result = await response.json();
+          
+          if (result.source === 'database') {
+            console.log(`[Realtime Check] ⚠️ TPOS API unavailable`);
+          } else {
+            console.log(`[Realtime Check] ✅ Successfully fetched from TPOS`);
+            queryClient.invalidateQueries({ queryKey: ['facebook-comments', pageId, selectedVideo.objectId] });
+            
+            toast({
+              title: "📥 Comment mới",
+              description: `Có ${newCommentsCount} comment mới`,
+            });
+          }
+        } else if (currentDbCount === expectedDbCount) {
+          console.log(`[Realtime Check] ✅ DB in sync: ${currentDbCount} = ${expectedDbCount}`);
+        } else if (currentDbCount > expectedDbCount) {
+          console.log(`[Realtime Check] ⚠️ DB has MORE than expected: ${currentDbCount} > ${expectedDbCount}`);
+          const excess = currentDbCount - tposCount;
+          deletedCountRef.current = excess;
+          console.log(`[Realtime Check] Adjusted deletedCount to ${deletedCountRef.current}`);
+        }
+        
+        // Always update lastKnownCountRef
+        if (lastKnownCountRef.current !== tposCount) {
+          lastKnownCountRef.current = tposCount;
+        }
       } catch (error) {
         console.error("[Realtime Check] Error:", error);
+        toast({
+          title: "Lỗi real-time check",
+          description: error instanceof Error ? error.message : "Unknown error",
+          variant: "destructive"
+        });
       } finally {
         isCheckingNewCommentsRef.current = false;
       }
