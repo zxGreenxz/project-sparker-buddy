@@ -24,6 +24,8 @@ export interface FacebookComment {
   created_time: string;
   like_count: number;
   is_deleted?: boolean;
+  is_deleted_by_tpos?: boolean;
+  deleted_at?: string;
 }
 
 // ============================================================================

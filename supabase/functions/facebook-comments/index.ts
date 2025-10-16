@@ -152,18 +152,38 @@ serve(async (req) => {
           .eq('facebook_post_id', postId)
           .maybeSingle();
         
+        // 2. Create map of current TPOS comment IDs
+        const tposCommentIds = new Set(comments.map((c: any) => c.id));
+        
         let updatedCommentsArray = [];
-        let existingCommentIds = new Set();
+        const fetchedAt = new Date().toISOString();
         
         if (existingSnapshot) {
-          // Load existing comments
-          updatedCommentsArray = existingSnapshot.comments_data || [];
-          updatedCommentsArray.forEach((c: any) => existingCommentIds.add(c.id));
+          // 3. Process existing comments: check if deleted
+          updatedCommentsArray = (existingSnapshot.comments_data || []).map((existingComment: any) => {
+            if (!tposCommentIds.has(existingComment.id)) {
+              // Comment was deleted by TPOS
+              return {
+                ...existingComment,
+                is_deleted_by_tpos: true,
+                deleted_at: existingComment.is_deleted_by_tpos ? existingComment.deleted_at : fetchedAt,
+              };
+            }
+            
+            // Comment still exists - update info from TPOS
+            const tposComment = comments.find((c: any) => c.id === existingComment.id);
+            return {
+              ...existingComment,
+              like_count: tposComment?.like_count || existingComment.like_count,
+              is_hidden: tposComment?.is_hidden || existingComment.is_hidden,
+              is_deleted_by_tpos: false,
+            };
+          });
         }
         
-        // 2. Add only NEW comments (not in existing array)
+        // 4. Add NEW comments from TPOS
+        const existingCommentIds = new Set(updatedCommentsArray.map((c: any) => c.id));
         let newCommentsCount = 0;
-        const fetchedAt = new Date().toISOString();
         
         comments.forEach((comment: any) => {
           if (!existingCommentIds.has(comment.id)) {
@@ -183,25 +203,19 @@ serve(async (req) => {
         
         console.log(`📊 Snapshot: ${updatedCommentsArray.length} total, ${newCommentsCount} new`);
         
-        // 3. Detect deleted comments by TPOS
-        const currentTPOSCount = comments.length;
-        const lastTPOSCount = existingSnapshot?.last_tpos_count || 0;
-        let deletedCount = 0;
+        // 5. Count deleted comments
+        const deletedComments = updatedCommentsArray.filter((c: any) => c.is_deleted_by_tpos);
+        console.log(`🗑️ Deleted comments: ${deletedComments.length}`);
         
-        if (lastTPOSCount > 0 && currentTPOSCount < lastTPOSCount) {
-          deletedCount = lastTPOSCount - currentTPOSCount;
-          console.log(`🗑️ TPOS deleted ${deletedCount} comments`);
-        }
-        
-        // 4. Upsert snapshot
+        // 6. Upsert snapshot
         const { error: upsertError } = await supabaseClient
           .from('facebook_live_comments_snapshot')
           .upsert({
             facebook_post_id: postId,
             comments_data: updatedCommentsArray,
             total_comments: updatedCommentsArray.length,
-            last_tpos_count: currentTPOSCount,
-            deleted_count: deletedCount,
+            last_tpos_count: comments.length,
+            deleted_count: deletedComments.length,
             last_fetched_at: fetchedAt,
             updated_at: fetchedAt,
           }, {
@@ -211,7 +225,7 @@ serve(async (req) => {
         if (upsertError) {
           console.error('❌ Snapshot save error:', upsertError.message);
         } else {
-          console.log(`✅ Saved snapshot: ${updatedCommentsArray.length} comments`);
+          console.log(`✅ Saved snapshot: ${updatedCommentsArray.length} comments (${deletedComments.length} deleted)`);
         }
       }
       

@@ -598,6 +598,19 @@ export function LiveCommentsPanel({
                             {comment.from.name}
                           </span>
 
+                          {/* Deleted Badge */}
+                          {comment.is_deleted_by_tpos && (
+                            <Badge 
+                              variant="destructive" 
+                              className={cn(
+                                "font-semibold",
+                                isMobile ? "text-[9px] px-1 py-0" : "text-[10px] px-1.5 py-0"
+                              )}
+                            >
+                              Đã xóa
+                            </Badge>
+                          )}
+
                           {/* Order Count Badge */}
                           {comment.orderInfo?.order_count && comment.orderInfo.order_count > 1 && (
                             <Badge className={cn(
@@ -630,7 +643,8 @@ export function LiveCommentsPanel({
                       {/* Comment Message */}
                       <p className={cn(
                         "text-foreground break-words font-semibold",
-                        isMobile ? "text-xs" : "text-sm"
+                        isMobile ? "text-xs" : "text-sm",
+                        comment.is_deleted_by_tpos && "line-through opacity-60"
                       )}>
                         {comment.message || "(Không có nội dung)"}
                       </p>
