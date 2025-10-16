@@ -244,7 +244,6 @@ export function SelectProductDialog({ open, onOpenChange, onSelect, onSelectMult
                   <TableHead>Variant</TableHead>
                   {!hidePurchasePrice && <TableHead>Giá mua</TableHead>}
                   <TableHead>Giá bán</TableHead>
-                  <TableHead></TableHead>
                   {onSelectMultiple && (
                     <TableHead className="w-12 text-center">
                       <Checkbox
@@ -265,7 +264,6 @@ export function SelectProductDialog({ open, onOpenChange, onSelect, onSelectMult
                       <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                       {!hidePurchasePrice && <TableCell><Skeleton className="h-4 w-24" /></TableCell>}
                       <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                      <TableCell><Skeleton className="h-8 w-16" /></TableCell>
                       {onSelectMultiple && <TableCell><Skeleton className="h-4 w-4" /></TableCell>}
                     </TableRow>
                   ))
@@ -277,8 +275,12 @@ export function SelectProductDialog({ open, onOpenChange, onSelect, onSelectMult
                   </TableRow>
                 ) : (
                   products.map((product) => (
-                    <TableRow key={product.id} className="hover:bg-muted/50">
-                      <TableCell className="cursor-pointer" onClick={() => handleSelect(product)}>
+                    <TableRow 
+                      key={product.id} 
+                      className="hover:bg-muted/50 cursor-pointer"
+                      onClick={() => !onSelectMultiple && handleSelect(product)}
+                    >
+                      <TableCell>
                         <ProductImage
                           productId={product.id}
                           productCode={product.product_code}
@@ -287,22 +289,13 @@ export function SelectProductDialog({ open, onOpenChange, onSelect, onSelectMult
                           tposProductId={product.tpos_product_id}
                         />
                       </TableCell>
-                      <TableCell className="font-medium cursor-pointer" onClick={() => handleSelect(product)}>{product.product_code}</TableCell>
-                      <TableCell className="cursor-pointer" onClick={() => handleSelect(product)}>{product.product_name}</TableCell>
-                      <TableCell className="text-muted-foreground cursor-pointer" onClick={() => handleSelect(product)}>
+                      <TableCell className="font-medium">{product.product_code}</TableCell>
+                      <TableCell>{product.product_name}</TableCell>
+                      <TableCell className="text-muted-foreground">
                         {product.variant || "-"}
                       </TableCell>
-                      {!hidePurchasePrice && <TableCell className="cursor-pointer" onClick={() => handleSelect(product)}>{formatVND(product.purchase_price)}</TableCell>}
-                      <TableCell className="cursor-pointer" onClick={() => handleSelect(product)}>{formatVND(product.selling_price)}</TableCell>
-                      <TableCell>
-                        <Button
-                          size="sm"
-                          onClick={() => handleSelect(product)}
-                        >
-                          <Check className="h-4 w-4 mr-1" />
-                          Chọn
-                        </Button>
-                      </TableCell>
+                      {!hidePurchasePrice && <TableCell>{formatVND(product.purchase_price)}</TableCell>}
+                      <TableCell>{formatVND(product.selling_price)}</TableCell>
                       {onSelectMultiple && (
                         <TableCell onClick={(e) => e.stopPropagation()} className="text-center">
                           <Checkbox
