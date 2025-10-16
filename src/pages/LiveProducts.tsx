@@ -2029,14 +2029,18 @@ export default function LiveProducts() {
                       
                       <TableCell className="text-center py-2 border-r">
                         <div className="flex items-center justify-center gap-1">
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => handleEditOrderItem(order)} 
-                            className="h-7 w-7 p-0"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
+                          {/* Chỉ hiển thị nút Edit nếu chưa upload thành công */}
+                          {order.upload_status !== 'success' && (
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => handleEditOrderItem(order)} 
+                              className="h-7 w-7 p-0"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          {/* Nút Delete luôn hiển thị */}
                           <Button 
                             variant="ghost" 
                             size="sm" 
