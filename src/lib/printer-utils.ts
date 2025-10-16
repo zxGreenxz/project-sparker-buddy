@@ -65,17 +65,16 @@ export const printPDFToXC80 = async (
     // Step 4: Encode to base64
     const base64Bitmap = btoa(String.fromCharCode(...finalData));
     
-    console.log(`📦 Sending to print bridge: ${printer.bridgeUrl}/print/bitmap`);
+    console.log(`📦 Sending to print bridge: ${printer.bridgeUrl}/print-bitmap`);
     
     // Step 5: Send to bridge
-    const response = await fetch(`${printer.bridgeUrl}/print/bitmap`, {
+    const response = await fetch(`${printer.bridgeUrl}/print-bitmap`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        printerIp: printer.ipAddress,
-        bitmap: base64Bitmap,
-        width: bitmap.width,
-        height: bitmap.height
+        ip: printer.ipAddress,
+        port: printer.port,
+        bitmap: base64Bitmap
       })
     });
     
