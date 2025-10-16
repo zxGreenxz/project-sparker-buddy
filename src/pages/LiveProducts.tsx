@@ -703,7 +703,7 @@ export default function LiveProducts() {
         ordersQuery = ordersQuery.eq("live_phase_id", selectedPhase);
       }
       
-      ordersQuery = ordersQuery.order("order_code", { ascending: true });
+      ordersQuery = ordersQuery.order("created_at", { ascending: false });
       
       const { data: ordersData, error: ordersError } = await ordersQuery;
       
