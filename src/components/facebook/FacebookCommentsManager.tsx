@@ -820,36 +820,37 @@ export function FacebookCommentsManager({
           const newCommentsCount = expectedDbCount - currentDbCount;
           console.log(`[Realtime Check] 📥 Fetching ${newCommentsCount} new comments`);
           
-          const { data: { session } } = await supabase.auth.getSession();
+          // Just invalidate cache and let useInfiniteQuery handle the fetch
+          // Edge Function will be called by useInfiniteQuery and will save to DB
+          queryClient.invalidateQueries({ 
+            queryKey: getCommentsQueryKey(
+              pageId, 
+              selectedVideo.objectId, 
+              true // Realtime check chỉ chạy cho live videos
+            )
+          });
           
-          const response = await fetch(
-            `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/facebook-comments?pageId=${pageId}&postId=${selectedVideo.objectId}&limit=100&order=reverse_chronological`,
-            {
-              headers: {
-                'Authorization': `Bearer ${session?.access_token}`,
-                'Content-Type': 'application/json',
-              },
-            }
-          );
+          // Wait a bit for DB to be updated, then verify
+          await new Promise(resolve => setTimeout(resolve, 2000));
           
-          const result = await response.json();
+          // Verify DB was updated
+          const { count: verifyCount } = await supabase
+            .from('facebook_comments_archive' as any)
+            .select('*', { count: 'exact', head: true })
+            .eq('facebook_post_id', selectedVideo.objectId)
+            .eq('is_deleted', false);
           
-          if (result.source === 'database') {
-            console.log(`[Realtime Check] ⚠️ TPOS API unavailable`);
-          } else {
-            console.log(`[Realtime Check] ✅ Successfully fetched from TPOS`);
-            queryClient.invalidateQueries({ 
-              queryKey: getCommentsQueryKey(
-                pageId, 
-                selectedVideo.objectId, 
-                true // Realtime check chỉ chạy cho live videos
-              )
-            });
+          console.log(`[Realtime Check] 🔍 After fetch - DB count: ${verifyCount || 0}`);
+          
+          if ((verifyCount || 0) > currentDbCount) {
+            console.log(`[Realtime Check] ✅ Successfully saved ${(verifyCount || 0) - currentDbCount} new comments to DB`);
             
             toast({
               title: "📥 Comment mới",
-              description: `Có ${newCommentsCount} comment mới`,
+              description: `Có ${(verifyCount || 0) - currentDbCount} comment mới`,
             });
+          } else {
+            console.warn(`[Realtime Check] ⚠️ DB not updated after fetch. Check Edge Function logs.`);
           }
         } else if (currentDbCount === expectedDbCount) {
           console.log(`[Realtime Check] ✅ DB in sync: ${currentDbCount} = ${expectedDbCount}`);
