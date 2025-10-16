@@ -218,7 +218,7 @@ export function EditOrderItemDialog({
       queryClient.invalidateQueries({ queryKey: ["live-orders", phaseId] });
       queryClient.invalidateQueries({ queryKey: ["live-products", phaseId] });
       queryClient.invalidateQueries({ queryKey: ["orders-with-products", phaseId] });
-      toast.success("Đã cập nhật số lượng sản phẩm");
+      toast.success("Đã cập nhật sản phẩm thành công");
       onOpenChange(false);
       form.reset();
     },
