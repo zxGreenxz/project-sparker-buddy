@@ -703,15 +703,20 @@ export default function LiveProducts() {
         ordersQuery = ordersQuery.eq("live_phase_id", selectedPhase);
       }
       
-      ordersQuery = ordersQuery.order("created_at", { ascending: false });
-      
       const { data: ordersData, error: ordersError } = await ordersQuery;
       
       if (ordersError) throw ordersError;
       if (!ordersData || ordersData.length === 0) return [];
       
+      // Sort orders by order_code numerically (ascending)
+      const sortedOrdersData = [...ordersData].sort((a, b) => {
+        const numA = parseInt(a.order_code, 10) || 0;
+        const numB = parseInt(b.order_code, 10) || 0;
+        return numA - numB;
+      });
+      
       // Collect all facebook_comment_ids
-      const commentIds = ordersData
+      const commentIds = sortedOrdersData
         .map(order => order.facebook_comment_id)
         .filter(Boolean) as string[];
       
@@ -736,7 +741,7 @@ export default function LiveProducts() {
       }
       
       // Merge data
-      return ordersData.map(order => {
+      return sortedOrdersData.map(order => {
         const commentData = order.facebook_comment_id 
           ? commentsMap.get(order.facebook_comment_id) 
           : null;
