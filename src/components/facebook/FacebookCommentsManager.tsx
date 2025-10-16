@@ -133,7 +133,7 @@ const STORAGE_KEYS = {
 } as const;
 
 const DEFAULT_HIDE_NAMES = ["Nhi Judy House"];
-const REALTIME_CHECK_INTERVAL = 30000; // 30 seconds - reduced with realtime subscription
+const REALTIME_CHECK_INTERVAL = 5000; // 5 seconds
 const DEBOUNCE_DELAY = 100;
 const FETCH_LIMIT = 500;
 const ORDERS_TOP = 200;
@@ -307,9 +307,7 @@ export function FacebookCommentsManager({
   const allCommentIdsRef = useRef<Set<string>>(new Set());
   const fetchInProgress = useRef(false);
   const customerStatusMapRef = useRef<Map<string, StatusMapEntry>>(new Map());
-  const lastKnownCountRef = useRef<number>(0);
   const isCheckingNewCommentsRef = useRef(false);
-  const deletedCountRef = useRef<number>(0);
   const realtimeIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // ============================================================================
@@ -569,10 +567,6 @@ export function FacebookCommentsManager({
 
   useEffect(() => {
     if (selectedVideo) {
-      // Reset realtime tracking refs
-      lastKnownCountRef.current = selectedVideo.countComment || 0;
-      deletedCountRef.current = 0;
-      
       // Clear cache của trạng thái khác
       const isLive = selectedVideo.statusLive === 1;
       const oppositeCacheKey = getCommentsQueryKey(
@@ -611,103 +605,24 @@ export function FacebookCommentsManager({
       isCheckingNewCommentsRef.current = true;
 
       try {
-        // 1. Count non-deleted comments in DB
-        const { count: dbCount } = await supabase
-          .from('facebook_comments_archive' as any)
-          .select('*', { count: 'exact', head: true })
-          .eq('facebook_post_id', selectedVideo.objectId)
-          .eq('is_deleted', false);
+        console.log(`[Realtime Check] Invalidating queries for video ${selectedVideo.objectId}`);
         
-        const currentDbCount = dbCount || 0;
-        const tposCount = selectedVideo.countComment || 0;
+        // Chỉ invalidate query - để use-facebook-comments.ts xử lý fetch
+        queryClient.invalidateQueries({ 
+          queryKey: getCommentsQueryKey(
+            pageId, 
+            selectedVideo.objectId, 
+            true // Live video
+          )
+        });
         
-        console.log(`[Realtime Check] Video: ${selectedVideo.objectId}`);
-        console.log(`  DB: ${currentDbCount}, TPOS: ${tposCount}, Deleted: ${deletedCountRef.current}, Last TPOS: ${lastKnownCountRef.current}`);
-        
-        // 2. Check if TPOS deleted comments
-        if (lastKnownCountRef.current > 0 && tposCount < lastKnownCountRef.current) {
-          const deletedThisTime = lastKnownCountRef.current - tposCount;
-          deletedCountRef.current += deletedThisTime;
-          console.log(`[Realtime Check] ⚠️ TPOS deleted ${deletedThisTime} comments (Total deleted: ${deletedCountRef.current})`);
-          lastKnownCountRef.current = tposCount;
-          
-          toast({
-            title: "Comment bị xóa",
-            description: `TPOS đã xóa ${deletedThisTime} comment`,
-            variant: "destructive"
-          });
-        }
-        
-        // 3. Calculate expected DB count
-        const expectedDbCount = tposCount + deletedCountRef.current;
-        console.log(`  Expected DB count: ${tposCount} + ${deletedCountRef.current} = ${expectedDbCount}`);
-        
-        // 4. Check if we need to fetch new comments
-        if (currentDbCount < expectedDbCount) {
-          const newCommentsCount = expectedDbCount - currentDbCount;
-          console.log(`[Realtime Check] 📥 Fetching ${newCommentsCount} new comments`);
-          
-          // Just invalidate cache and let useInfiniteQuery handle the fetch
-          // Edge Function will be called by useInfiniteQuery and will save to DB
-          queryClient.invalidateQueries({ 
-            queryKey: getCommentsQueryKey(
-              pageId, 
-              selectedVideo.objectId, 
-              true // Realtime check chỉ chạy cho live videos
-            )
-          });
-          
-          // Wait a bit for DB to be updated, then verify
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          
-          // Verify DB was updated
-          const { count: verifyCount } = await supabase
-            .from('facebook_comments_archive' as any)
-            .select('*', { count: 'exact', head: true })
-            .eq('facebook_post_id', selectedVideo.objectId)
-            .eq('is_deleted', false);
-          
-          console.log(`[Realtime Check] 🔍 After fetch - DB count: ${verifyCount || 0}`);
-          
-          if ((verifyCount || 0) > currentDbCount) {
-            console.log(`[Realtime Check] ✅ Successfully saved ${(verifyCount || 0) - currentDbCount} new comments to DB`);
-            
-            toast({
-              title: "📥 Comment mới",
-              description: `Có ${(verifyCount || 0) - currentDbCount} comment mới`,
-            });
-          } else {
-            console.warn(`[Realtime Check] ⚠️ DB not updated after fetch. Check Edge Function logs.`);
-          }
-        } else if (currentDbCount === expectedDbCount) {
-          console.log(`[Realtime Check] ✅ DB in sync: ${currentDbCount} = ${expectedDbCount}`);
-        } else if (currentDbCount > expectedDbCount) {
-          console.log(`[Realtime Check] ⚠️ DB has MORE than expected: ${currentDbCount} > ${expectedDbCount}`);
-          const excess = currentDbCount - tposCount;
-          deletedCountRef.current = excess;
-          console.log(`[Realtime Check] Adjusted deletedCount to ${deletedCountRef.current}`);
-        }
-        
-        // Always update lastKnownCountRef
-        if (lastKnownCountRef.current !== tposCount) {
-          lastKnownCountRef.current = tposCount;
-        }
+        console.log(`[Realtime Check] ✅ Invalidated`);
       } catch (error) {
         console.error("[Realtime Check] Error:", error);
-        toast({
-          title: "Lỗi real-time check",
-          description: error instanceof Error ? error.message : "Unknown error",
-          variant: "destructive"
-        });
       } finally {
         isCheckingNewCommentsRef.current = false;
       }
     };
-
-    // Initial count
-    if (lastKnownCountRef.current === 0) {
-      lastKnownCountRef.current = selectedVideo.countComment || 0;
-    }
 
     // Set up interval
     realtimeIntervalRef.current = setInterval(
@@ -1054,8 +969,6 @@ export function FacebookCommentsManager({
     allCommentIdsRef.current = new Set();
     setNewCommentIds(new Set());
     setSearchQuery("");
-    lastKnownCountRef.current = video.countComment || 0;
-    deletedCountRef.current = 0;
 
     // Clear customer status map for new video
     customerStatusMapRef.current = new Map();
