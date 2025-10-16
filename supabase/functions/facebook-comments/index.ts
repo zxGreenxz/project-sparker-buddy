@@ -109,40 +109,82 @@ serve(async (req) => {
         throw new Error(`TPOS API failed: ${response.status}`);
       }
 
-      // ========== STEP 2B: TPOS success - Parse and save to DB ==========
+      // ========== STEP 2B: TPOS success - Save to JSON snapshot ==========
       const data = await response.json();
       const comments = data?.data || [];
-      
+
       console.log(`✅ TPOS API returned ${comments.length} comments`);
-      
-      // ALWAYS save to database when TPOS API is successful
+
       if (comments.length > 0) {
-        console.log(`💾 Saving ${comments.length} comments to DB...`);
+        console.log(`💾 Saving snapshot for post ${postId}...`);
         
-        const upsertData = comments.map((comment: any) => ({
-          facebook_comment_id: comment.id,
-          facebook_post_id: postId,
-          facebook_user_id: comment.from?.id || null,
-          facebook_user_name: comment.from?.name || null,
-          comment_message: comment.message || '',
-          comment_created_time: comment.created_time,
-          like_count: comment.like_count || 0,
-          is_deleted: false,
-          last_fetched_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }));
-
+        // 1. Get existing snapshot
+        const { data: existingSnapshot } = await supabaseClient
+          .from('facebook_live_comments_snapshot')
+          .select('comments_data, last_tpos_count')
+          .eq('facebook_post_id', postId)
+          .maybeSingle();
+        
+        let updatedCommentsArray = [];
+        let existingCommentIds = new Set();
+        
+        if (existingSnapshot) {
+          // Load existing comments
+          updatedCommentsArray = existingSnapshot.comments_data || [];
+          updatedCommentsArray.forEach((c: any) => existingCommentIds.add(c.id));
+        }
+        
+        // 2. Add only NEW comments (not in existing array)
+        let newCommentsCount = 0;
+        const fetchedAt = new Date().toISOString();
+        
+        comments.forEach((comment: any) => {
+          if (!existingCommentIds.has(comment.id)) {
+            updatedCommentsArray.push({
+              id: comment.id,
+              message: comment.message || '',
+              from: comment.from || { name: 'Unknown', id: '' },
+              created_time: comment.created_time,
+              like_count: comment.like_count || 0,
+              is_hidden: comment.is_hidden || false,
+              fetched_at: fetchedAt,
+              is_deleted_by_tpos: false,
+            });
+            newCommentsCount++;
+          }
+        });
+        
+        console.log(`📊 Snapshot: ${updatedCommentsArray.length} total, ${newCommentsCount} new`);
+        
+        // 3. Detect deleted comments by TPOS
+        const currentTPOSCount = comments.length;
+        const lastTPOSCount = existingSnapshot?.last_tpos_count || 0;
+        let deletedCount = 0;
+        
+        if (lastTPOSCount > 0 && currentTPOSCount < lastTPOSCount) {
+          deletedCount = lastTPOSCount - currentTPOSCount;
+          console.log(`🗑️ TPOS deleted ${deletedCount} comments`);
+        }
+        
+        // 4. Upsert snapshot
         const { error: upsertError } = await supabaseClient
-          .from('facebook_comments_archive')
-          .upsert(upsertData, { 
-            onConflict: 'facebook_comment_id',
-            ignoreDuplicates: false 
+          .from('facebook_live_comments_snapshot')
+          .upsert({
+            facebook_post_id: postId,
+            comments_data: updatedCommentsArray,
+            total_comments: updatedCommentsArray.length,
+            last_tpos_count: currentTPOSCount,
+            deleted_count: deletedCount,
+            last_fetched_at: fetchedAt,
+            updated_at: fetchedAt,
+          }, {
+            onConflict: 'facebook_post_id',
           });
-
+        
         if (upsertError) {
-          console.error('❌ DB save error:', upsertError.message);
+          console.error('❌ Snapshot save error:', upsertError.message);
         } else {
-          console.log(`✅ Saved ${upsertData.length} comments to DB`);
+          console.log(`✅ Saved snapshot: ${updatedCommentsArray.length} comments`);
         }
       }
       
@@ -173,50 +215,39 @@ serve(async (req) => {
       );
       
     } catch (tposError) {
-      // ========== STEP 3: TPOS failed - Fallback to DB (read-only) ==========
-      console.log(`🔄 TPOS unavailable, reading from DB...`);
+      // ========== STEP 3: TPOS failed - Fallback to snapshot ==========
+      console.log(`🔄 TPOS unavailable, reading snapshot...`);
       console.error('TPOS error:', tposError instanceof Error ? tposError.message : String(tposError));
-      
-      const { data: dbComments, error: dbError } = await supabaseClient
-        .from('facebook_comments_archive')
-        .select('*')
-        .eq('facebook_post_id', postId)
-        .eq('is_deleted', false)
-        .order('comment_created_time', { ascending: order === 'chronological' })
-        .limit(parseInt(limit));
 
-      if (dbError) {
-        console.error('❌ DB query failed:', dbError);
+      const { data: snapshot, error: dbError } = await supabaseClient
+        .from('facebook_live_comments_snapshot')
+        .select('comments_data, total_comments')
+        .eq('facebook_post_id', postId)
+        .maybeSingle();
+
+      if (dbError || !snapshot) {
+        console.error('❌ Snapshot not found:', dbError);
         return new Response(
           JSON.stringify({ 
-            error: 'Both TPOS API and database unavailable',
-            details: dbError.message
+            error: 'No cached data available',
+            details: dbError?.message
           }),
           { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      // Transform DB format to TPOS format
+      // Transform snapshot to TPOS format
       const transformedData = {
-        data: (dbComments || []).map(comment => ({
-          id: comment.facebook_comment_id,
-          message: comment.comment_message,
-          from: {
-            name: comment.facebook_user_name,
-            id: comment.facebook_user_id
-          },
-          created_time: comment.comment_created_time,
-          like_count: comment.like_count
-        })),
+        data: snapshot.comments_data || [],
         paging: { cursors: {} }
       };
 
-      console.log(`✅ Retrieved ${dbComments?.length || 0} comments from DB`);
+      console.log(`✅ Retrieved ${snapshot.total_comments} comments from snapshot`);
 
       return new Response(
         JSON.stringify({
           ...transformedData,
-          source: 'database'
+          source: 'snapshot'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );

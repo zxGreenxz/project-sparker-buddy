@@ -32,76 +32,48 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
       isCheckingNewCommentsRef.current = true;
       
       try {
-        // 1. Count non-deleted comments in DB
-        const { count: dbCount } = await supabase
-          .from('facebook_comments_archive' as any)
-          .select('*', { count: 'exact', head: true })
+        // 1. Get snapshot from DB
+        const { data: snapshot } = await supabase
+          .from('facebook_live_comments_snapshot' as any)
+          .select('total_comments, last_tpos_count, deleted_count')
           .eq('facebook_post_id', videoId)
-          .eq('is_deleted', false);
+          .maybeSingle() as { data: { total_comments: number; last_tpos_count: number; deleted_count: number } | null };
         
-        const currentDbCount = dbCount || 0;
-        const tposCount = selectedVideo.countComment || 0;
-        
-        console.log(`[Realtime Hook] Video: ${videoId}`);
-        console.log(`  DB: ${currentDbCount}, TPOS: ${tposCount}, Deleted: ${deletedCountRef.current}, Last TPOS: ${lastKnownCountRef.current}`);
-        
-        // 2. Check if TPOS deleted comments (TPOS count decreased)
-        if (lastKnownCountRef.current > 0 && tposCount < lastKnownCountRef.current) {
-          const deletedThisTime = lastKnownCountRef.current - tposCount;
-          deletedCountRef.current += deletedThisTime;
-          console.log(`[Realtime Hook] ⚠️ TPOS deleted ${deletedThisTime} comments (Total deleted: ${deletedCountRef.current})`);
-          
-          // Also update expected count immediately
-          lastKnownCountRef.current = tposCount;
-        }
-        
-        // 3. Calculate expected DB count: TPOS count + deleted count
-        const expectedDbCount = tposCount + deletedCountRef.current;
-        console.log(`  Expected DB count: ${tposCount} + ${deletedCountRef.current} = ${expectedDbCount}`);
-        
-        // 4. Check if we need to fetch new comments
-        if (currentDbCount < expectedDbCount) {
-          const newCommentsCount = expectedDbCount - currentDbCount;
-          console.log(`[Realtime Hook] 📥 Fetching ${newCommentsCount} new comments`);
-          
+        if (!snapshot) {
+          console.log('[Realtime Check] No snapshot yet, fetching...');
+          // Trigger fetch
           const { data: { session } } = await supabase.auth.getSession();
-          
-          const response = await fetch(
-            `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/facebook-comments?pageId=${pageId}&postId=${videoId}&limit=100&order=reverse_chronological`,
+          await fetch(
+            `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/facebook-comments?pageId=${pageId}&postId=${videoId}&limit=100`,
             {
               headers: {
                 'Authorization': `Bearer ${session?.access_token}`,
-                'Content-Type': 'application/json',
               },
             }
           );
-          
-          const result = await response.json();
-          
-          // If Edge Function returned from database (TPOS failed), it means post/comment was deleted
-          if (result.source === 'database') {
-            console.log(`[Realtime Hook] ⚠️ TPOS API unavailable - comments may have been deleted by Facebook/TPOS`);
-            // Don't invalidate queries if data is stale
-          } else {
-            console.log(`[Realtime Hook] ✅ Successfully fetched from TPOS`);
-            queryClient.invalidateQueries({ queryKey: ['facebook-comments', pageId, videoId] });
-          }
-        } else if (currentDbCount === expectedDbCount) {
-          console.log(`[Realtime Hook] ✅ DB in sync: ${currentDbCount} = ${expectedDbCount}`);
-        } else if (currentDbCount > expectedDbCount) {
-          // DB has more than expected - this shouldn't happen, but if it does, adjust deleted count
-          console.log(`[Realtime Hook] ⚠️ DB has MORE than expected: ${currentDbCount} > ${expectedDbCount}`);
-          const excess = currentDbCount - tposCount;
-          deletedCountRef.current = excess;
-          console.log(`[Realtime Hook] Adjusted deletedCount to ${deletedCountRef.current}`);
+          return;
         }
         
-        // Always update lastKnownCountRef if not already updated
-        if (lastKnownCountRef.current !== tposCount) {
-          lastKnownCountRef.current = tposCount;
+        console.log(`[Realtime Check] Snapshot: ${snapshot.total_comments} total, ${snapshot.last_tpos_count} from TPOS, ${snapshot.deleted_count} deleted`);
+        
+        // 2. Check if TPOS count changed
+        const tposCount = selectedVideo?.countComment || 0;
+        
+        if (tposCount !== snapshot.last_tpos_count) {
+          console.log(`[Realtime Check] 📥 TPOS count changed: ${snapshot.last_tpos_count} → ${tposCount}`);
+          
+          const { data: { session } } = await supabase.auth.getSession();
+          await fetch(
+            `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/facebook-comments?pageId=${pageId}&postId=${videoId}&limit=100`,
+            {
+              headers: {
+                'Authorization': `Bearer ${session?.access_token}`,
+              },
+            }
+          );
         }
       } catch (error) {
-        console.error('[Realtime Hook] Error:', error);
+        console.error('[Realtime Check] Error:', error);
       } finally {
         isCheckingNewCommentsRef.current = false;
       }
@@ -115,8 +87,8 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
     
     checkForNewComments();
     
-    // Check every 8 seconds when live
-    const interval = setInterval(checkForNewComments, 8000);
+    // Check every 5 seconds when live
+    const interval = setInterval(checkForNewComments, 5000);
     
     return () => clearInterval(interval);
   }, [videoId, selectedVideo, isAutoRefresh, pageId, queryClient]);
@@ -348,38 +320,20 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
         (payload) => {
           console.log('[Realtime] facebook_pending_orders change:', payload);
           queryClient.invalidateQueries({ queryKey: ['tpos-orders', videoId] });
-          queryClient.invalidateQueries({ queryKey: ['facebook-comments', pageId, videoId] });
         }
       )
       
-      // Subscribe to comment INSERT (new comments)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'facebook_comments_archive',
-          filter: `facebook_post_id=eq.${videoId}`,
-        },
-        (payload) => {
-          console.log('[Realtime] New comment inserted:', payload);
-          queryClient.invalidateQueries({ 
-            queryKey: ['facebook-comments', pageId, videoId] 
-          });
-        }
-      )
-      
-      // Subscribe to comment UPDATE (e.g., is_deleted changes)
+      // Subscribe to snapshot UPDATE (comments array changed)
       .on(
         'postgres_changes',
         {
           event: 'UPDATE',
           schema: 'public',
-          table: 'facebook_comments_archive',
+          table: 'facebook_live_comments_snapshot' as any,
           filter: `facebook_post_id=eq.${videoId}`,
         },
         (payload) => {
-          console.log('[Realtime] Comment updated:', payload);
+          console.log('[Realtime] Comments snapshot updated:', payload);
           queryClient.invalidateQueries({ 
             queryKey: ['facebook-comments', pageId, videoId] 
           });
