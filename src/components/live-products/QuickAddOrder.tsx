@@ -201,19 +201,21 @@ export function QuickAddOrder({
       } = await supabase.from('live_products').select('sold_quantity, prepared_quantity, product_code, product_name').eq('id', productId).single();
       if (fetchError) throw fetchError;
 
-      // Get pending order details for bill
-      const pendingOrder = pendingOrders.find(order => order.facebook_comment_id === commentId);
+      // Get pending order details for bill (null if manual entry)
+      const pendingOrder = commentId !== 'MANUAL_ENTRY' 
+        ? pendingOrders.find(order => order.facebook_comment_id === commentId)
+        : null;
 
       // Check if this order will be an oversell
       const newSoldQuantity = (product.sold_quantity || 0) + 1;
       const isOversell = newSoldQuantity > product.prepared_quantity;
 
-      // Insert new order with oversell flag and comment ID
+      // Insert new order with oversell flag and comment ID (null if manual entry)
       const {
         error: orderError
       } = await supabase.from('live_orders').insert({
         order_code: sessionIndex,
-        facebook_comment_id: commentId,
+        facebook_comment_id: commentId === 'MANUAL_ENTRY' ? null : commentId,
         tpos_order_id: pendingOrder?.code || null,
         code_tpos_order_id: pendingOrder?.tpos_order_id || null,
         live_session_id: sessionId,
@@ -438,9 +440,12 @@ export function QuickAddOrder({
           }
         }
       }
+      const isManualEntry = !billData;
       toast({
         title: isOversell ? "⚠️ Đơn oversell" : "Thành công",
-        description: isOversell ? `Đã thêm đơn ${sessionIndex} (vượt số lượng - đánh dấu đỏ)` : `Đã thêm đơn hàng ${sessionIndex}`,
+        description: isOversell 
+          ? `Đã thêm đơn ${sessionIndex} (vượt số lượng - đánh dấu đỏ)${isManualEntry ? ' (nhập tay)' : ''}`
+          : `Đã thêm đơn hàng ${sessionIndex}${isManualEntry ? ' (nhập tay)' : ''}`,
         variant: isOversell ? "destructive" : "default"
       });
     },
@@ -485,15 +490,10 @@ export function QuickAddOrder({
 
     // Find first comment matching sessionIndex
     const matchedComment = flatComments.find(c => c.sessionIndex === trimmedValue);
-    if (!matchedComment) {
-      toast({
-        title: "Không tìm thấy",
-        description: `Mã "${trimmedValue}" không có comment khả dụng hoặc đã dùng hết`,
-        variant: "destructive"
-      });
-      return;
-    }
-    handleSelectComment(matchedComment.sessionIndex, matchedComment.facebook_comment_id);
+    
+    // Allow manual entry even if no comment found
+    const commentIdToUse = matchedComment?.facebook_comment_id || 'MANUAL_ENTRY';
+    handleSelectComment(trimmedValue, commentIdToUse);
   };
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
