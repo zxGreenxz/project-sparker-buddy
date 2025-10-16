@@ -170,17 +170,31 @@ export function SelectProductFromInventoryDialog({
 
       if (checkError) throw checkError;
 
+      // Map: product_code -> { id, exists }
       const existingMap = new Map(
-        (existingProducts || []).map((p: { product_code: string }) => [p.product_code, true])
+        (existingProducts || []).map((p: { id: string; product_code: string }) => [
+          p.product_code, 
+          { id: p.id, exists: true }
+        ])
       );
 
-      // Prepare batch insert (only insert variants that don't exist yet)
-      const toInsert = allVariants
-        .filter((variant: InventoryProduct) => !existingMap.has(variant.product_code))
-        .map((variant: InventoryProduct) => {
+      // Separate insert & update logic
+      const toInsert: any[] = [];
+      const toUpdate: any[] = [];
+
+      for (const variant of allVariants) {
+        const existing = existingMap.get(variant.product_code);
+        
+        if (existing) {
+          // Sản phẩm đã tồn tại → Update created_at để đẩy lên đầu
+          toUpdate.push({
+            id: existing.id,
+            created_at: new Date().toISOString()
+          });
+        } else {
+          // Sản phẩm chưa tồn tại → Insert mới
           const imageUrl = variant.product_images?.[0] || variant.tpos_image_url || null;
-          
-          return {
+          toInsert.push({
             product_code: variant.product_code,
             product_name: variant.product_name,
             variant: variant.variant,
@@ -190,32 +204,41 @@ export function SelectProductFromInventoryDialog({
             live_session_id: sessionId,
             live_phase_id: phaseId,
             image_url: imageUrl,
-          };
-        });
-
-      if (toInsert.length === 0) {
-        throw new Error("Tất cả sản phẩm đã tồn tại trong phiên live này");
+          });
+        }
       }
 
-      // Batch insert
-      const { error: insertError } = await supabase
-        .from("live_products")
-        .insert(toInsert);
+      // Batch insert (nếu có sản phẩm mới)
+      if (toInsert.length > 0) {
+        const { error: insertError } = await supabase
+          .from("live_products")
+          .insert(toInsert);
+        if (insertError) throw insertError;
+      }
 
-      if (insertError) throw insertError;
+      // Batch update created_at (nếu có sản phẩm đã tồn tại)
+      if (toUpdate.length > 0) {
+        for (const update of toUpdate) {
+          const { error: updateError } = await supabase
+            .from("live_products")
+            .update({ created_at: update.created_at })
+            .eq("id", update.id);
+          if (updateError) throw updateError;
+        }
+      }
 
       return {
         totalVariants: allVariants.length,
         insertedCount: toInsert.length,
-        skippedCount: allVariants.length - toInsert.length,
+        updatedCount: toUpdate.length,
         baseProductCode: allVariants[0]?.product_code.split('X')[0] || product.product_code,
         baseProductName: allVariants[0]?.product_name || product.product_name,
       };
     },
-    onSuccess: (result) => {
-      toast.success("Đã thêm sản phẩm", {
-        description: `${result.baseProductCode} - ${result.baseProductName}\nThêm mới: ${result.insertedCount} | Đã có: ${result.skippedCount}`,
-      });
+  onSuccess: (result) => {
+    toast.success("Đã thêm sản phẩm", {
+      description: `${result.baseProductCode} - ${result.baseProductName}\nThêm mới: ${result.insertedCount} | Đã có: ${result.updatedCount}`,
+    });
       queryClient.invalidateQueries({ queryKey: ["live-products", phaseId] });
       onOpenChange(false);
       setSearchQuery("");
