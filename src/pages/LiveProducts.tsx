@@ -1973,7 +1973,7 @@ export default function LiveProducts() {
                       <TableCell className="py-2 border-r">
                         {order.facebook_comment_id ? (
                           <div className="flex flex-col gap-0.5">
-                            <span className="text-xs text-muted-foreground line-clamp-2">
+                            <span className="text-xs text-muted-foreground line-clamp-2 font-semibold">
                               {order.comment || '-'}
                             </span>
                             <span className="text-xs text-muted-foreground/70">
