@@ -180,44 +180,8 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
         };
       }
       
-      // ========== LIVE VIDEO: Check cache first, then Edge Function ==========
-      if (!pageParam) {
-        const oneMonthAgo = new Date();
-        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-        
-        const { data: cachedComments, error: dbError } = await supabase
-          .from('facebook_comments_archive' as any)
-          .select('*')
-          .eq('facebook_post_id', videoId)
-          .gte('comment_created_time', oneMonthAgo.toISOString())
-          .order('comment_created_time', { ascending: false })
-          .limit(1000);
-        
-        if (!dbError && cachedComments && cachedComments.length > 0) {
-          console.log(`[useFacebookComments] Using ${cachedComments.length} cached comments from DB`);
-          
-          const formattedComments = cachedComments.map((c: any) => ({
-            id: c.facebook_comment_id,
-            message: c.comment_message || '',
-            from: {
-              name: c.facebook_user_name || 'Unknown',
-              id: c.facebook_user_id || '',
-            },
-            created_time: c.comment_created_time,
-            like_count: c.like_count || 0,
-            is_deleted: c.is_deleted || false,
-          }));
-          
-          setErrorCount(0);
-          setHasError(false);
-          
-          return { 
-            data: formattedComments, 
-            paging: {},
-            fromCache: true 
-          };
-        }
-      }
+      // ========== LIVE VIDEO: ALWAYS fetch from TPOS, NEVER use cache ==========
+      console.log('[useFacebookComments] Video LIVE - fetching from TPOS API (no cache)');
       
       const order = 'reverse_chronological';
       
