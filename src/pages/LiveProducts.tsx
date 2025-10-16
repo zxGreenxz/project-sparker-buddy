@@ -2153,35 +2153,19 @@ export default function LiveProducts() {
 
       {/* Floating Action Buttons */}
       {selectedPhase && selectedPhase !== "all" && <div className="fixed top-6 right-6 flex flex-col gap-3 z-50">
-          {/* Thêm sản phẩm mới */}
+          {/* Thêm từ kho - Primary eye-catching button */}
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button type="button" size="lg" onClick={e => {
-                e.preventDefault();
-                tabsRef.current?.scrollIntoView({
-                  behavior: 'smooth',
-                  block: 'start'
-                });
-                setIsAddProductOpen(true);
-              }} className="h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-shadow">
-                  <Plus className="h-6 w-6" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="left">
-                <p>Thêm sản phẩm mới</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-
-          {/* Thêm từ kho */}
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button type="button" size="lg" variant="secondary" onClick={e => {
-                e.preventDefault();
-                setIsSelectFromInventoryOpen(true);
-              }} className="h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-shadow">
+                <Button 
+                  type="button" 
+                  size="lg" 
+                  onClick={e => {
+                    e.preventDefault();
+                    setIsSelectFromInventoryOpen(true);
+                  }} 
+                  className="h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-110 bg-gradient-to-br from-primary to-primary/80"
+                >
                   <Package className="h-6 w-6" />
                 </Button>
               </TooltipTrigger>
