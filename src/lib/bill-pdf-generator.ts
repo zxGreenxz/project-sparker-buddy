@@ -49,8 +49,13 @@ export const generateBillPDF = (
       field.fontWeight === 'bold' ? 'bold' : 'normal'
     );
 
+    // Calculate available width for text (subtract padding from both sides)
+    const maxWidth = widthMm - template.styles.padding.left - template.styles.padding.right;
+    
+    // Split text into lines that fit within maxWidth
+    const lines = doc.splitTextToSize(value, maxWidth);
+
     // Calculate x position based on alignment
-    const textWidth = doc.getTextWidth(value);
     let xPosition = template.styles.padding.left;
     
     if (field.align === 'center') {
@@ -59,11 +64,12 @@ export const generateBillPDF = (
       xPosition = widthMm - template.styles.padding.right;
     }
 
-    // Add text
-    doc.text(value, xPosition, yPosition, { align: field.align });
+    // Add text (all lines)
+    doc.text(lines, xPosition, yPosition, { align: field.align });
 
-    // Move to next line
-    yPosition += (field.fontSize * template.styles.lineSpacing * 0.3527); // pt to mm
+    // Move to next line(s) - account for multiple lines
+    const lineHeight = field.fontSize * template.styles.lineSpacing * 0.3527; // pt to mm
+    yPosition += lineHeight * lines.length;
   });
 
   return doc;
