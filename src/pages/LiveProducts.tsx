@@ -719,16 +719,16 @@ export default function LiveProducts() {
       let commentsMap = new Map<string, { comment: string; created_time: string }>();
       if (commentIds.length > 0) {
         const { data: commentsData } = await supabase
-          .from('facebook_pending_orders')
-          .select('facebook_comment_id, comment, created_time')
+          .from('facebook_comments_archive' as any)
+          .select('facebook_comment_id, comment_message, comment_created_time')
           .in('facebook_comment_id', commentIds);
         
         if (commentsData) {
-          commentsData.forEach(item => {
+          commentsData.forEach((item: any) => {
             if (item.facebook_comment_id) {
               commentsMap.set(item.facebook_comment_id, {
-                comment: item.comment || "",
-                created_time: item.created_time || ""
+                comment: item.comment_message || "",
+                created_time: item.comment_created_time || ""
               });
             }
           });
@@ -1973,7 +1973,7 @@ export default function LiveProducts() {
                       <TableCell className="py-2 border-r">
                         {order.facebook_comment_id ? (
                           <div className="flex flex-col gap-0.5">
-                            <span className="text-xs text-muted-foreground line-clamp-2">
+                            <span className="text-xs font-semibold line-clamp-2">
                               {order.comment || '-'}
                             </span>
                             <span className="text-xs text-muted-foreground/70">
