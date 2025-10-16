@@ -2166,7 +2166,7 @@ export default function LiveProducts() {
                   }} 
                   className="h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-110 bg-gradient-to-br from-primary to-primary/80"
                 >
-                  <Package className="h-8 w-8" />
+                  <Package className="h-10 w-10" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="left">
