@@ -115,8 +115,8 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
     
     checkForNewComments();
     
-    // Check every 10 seconds when live
-    const interval = setInterval(checkForNewComments, 10000);
+    // Check every 8 seconds when live
+    const interval = setInterval(checkForNewComments, 8000);
     
     return () => clearInterval(interval);
   }, [videoId, selectedVideo, isAutoRefresh, pageId, queryClient]);
@@ -365,12 +365,14 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
     staleTime: 5 * 60 * 1000,
   });
 
-  // Real-time subscription for facebook_pending_orders
+  // Real-time subscription for facebook_pending_orders and facebook_comments_archive
   useEffect(() => {
     if (!videoId) return;
 
     const channel = supabase
-      .channel('facebook-pending-orders-comments-realtime')
+      .channel(`facebook-realtime-${videoId}`)
+      
+      // Subscribe to pending orders changes
       .on(
         'postgres_changes',
         {
@@ -379,11 +381,47 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
           table: 'facebook_pending_orders',
           filter: `facebook_post_id=eq.${videoId}`,
         },
-        () => {
+        (payload) => {
+          console.log('[Realtime] facebook_pending_orders change:', payload);
           queryClient.invalidateQueries({ queryKey: ['tpos-orders', videoId] });
           queryClient.invalidateQueries({ queryKey: ['facebook-comments', pageId, videoId] });
         }
       )
+      
+      // Subscribe to comment INSERT (new comments)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'facebook_comments_archive',
+          filter: `facebook_post_id=eq.${videoId}`,
+        },
+        (payload) => {
+          console.log('[Realtime] New comment inserted:', payload);
+          queryClient.invalidateQueries({ 
+            queryKey: ['facebook-comments', pageId, videoId] 
+          });
+        }
+      )
+      
+      // Subscribe to comment UPDATE (e.g., is_deleted changes)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'facebook_comments_archive',
+          filter: `facebook_post_id=eq.${videoId}`,
+        },
+        (payload) => {
+          console.log('[Realtime] Comment updated:', payload);
+          queryClient.invalidateQueries({ 
+            queryKey: ['facebook-comments', pageId, videoId] 
+          });
+        }
+      )
+      
       .subscribe();
 
     return () => {

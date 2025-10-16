@@ -51,7 +51,6 @@ import {
   Maximize,
   AlertCircle,
   Minimize,
-  Database,
   Trash2,
 } from "lucide-react";
 import {
@@ -122,11 +121,6 @@ interface FacebookCommentsManagerProps {
   ) => void;
 }
 
-interface CacheStatus {
-  isCached: boolean;
-  count: number;
-  lastUpdated: string | null;
-}
 
 // ============================================================================
 // CONSTANTS
@@ -139,7 +133,7 @@ const STORAGE_KEYS = {
 } as const;
 
 const DEFAULT_HIDE_NAMES = ["Nhi Judy House"];
-const REALTIME_CHECK_INTERVAL = 5000; // 5 seconds ⚡
+const REALTIME_CHECK_INTERVAL = 30000; // 30 seconds - reduced with realtime subscription
 const DEBOUNCE_DELAY = 100;
 const FETCH_LIMIT = 500;
 const ORDERS_TOP = 200;
@@ -304,19 +298,6 @@ export function FacebookCommentsManager({
   const [pendingCommentIds, setPendingCommentIds] = useState<Set<string>>(
     new Set(),
   );
-
-  // Cache-related state
-  const [cacheStatus, setCacheStatus] = useState<CacheStatus>({
-    isCached: false,
-    count: 0,
-    lastUpdated: null,
-  });
-  const [cacheError, setCacheError] = useState<{
-    error: string;
-    details?: string;
-    statusCode?: number;
-    postId?: string;
-  } | null>(null);
 
   // ============================================================================
   // REFS
@@ -581,160 +562,6 @@ export function FacebookCommentsManager({
     },
   });
 
-  // Cache comments mutation
-  const cacheCommentsMutation = useMutation({
-    mutationFn: async (postId: string) => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) throw new Error("User not authenticated");
-
-      const response = await fetch(
-        `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/cache-facebook-comments`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ postId }),
-        },
-      );
-
-      const responseData = await response.json();
-
-      // CHỈ throw error cho server error (5xx), không throw cho 4xx
-      if (!response.ok && response.status >= 500) {
-        throw new Error(responseData.error || "Server error");
-      }
-
-      return responseData;
-    },
-    onSuccess: (data, postId) => {
-      const cached = data.totalCached || 0;
-
-      toast({
-        title: cached > 0 ? "✅ Cache thành công!" : "ℹ️ Hoàn tất",
-        description:
-          cached > 0
-            ? `Đã lưu ${cached} comments vào database`
-            : "Một số comment có thể đã bị xóa",
-      });
-
-      checkCacheStatus();
-      queryClient.invalidateQueries({
-        queryKey: getCommentsQueryKey(
-          pageId, 
-          postId, 
-          selectedVideo?.statusLive === 1
-        ),
-      });
-    },
-    onError: (error: Error) => {
-      // CHỈ show error cho lỗi server nghiêm trọng
-      toast({
-        title: "❌ Lỗi server",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  // ============================================================================
-  // CACHE STATUS CHECKER
-  // ============================================================================
-
-  const checkCacheStatus = useCallback(async () => {
-    if (!selectedVideo?.objectId) {
-      setCacheStatus({ isCached: false, count: 0, lastUpdated: null });
-      return;
-    }
-
-    try {
-      const { count, error } = await supabase
-        .from("facebook_comments_archive" as any)
-        .select("id", { count: "exact", head: true })
-        .eq("facebook_post_id", selectedVideo.objectId);
-
-      if (error) throw error;
-
-      if (count && count > 0) {
-        const { data: lastUpdate, error: lastUpdateError } = await supabase
-          .from("facebook_comments_archive" as any)
-          .select("created_at")
-          .eq("facebook_post_id", selectedVideo.objectId)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .single();
-        
-        if (lastUpdateError) throw lastUpdateError;
-
-        setCacheStatus({
-          isCached: true,
-          count: count,
-          lastUpdated: lastUpdate && 'created_at' in lastUpdate ? (lastUpdate.created_at as string) : null,
-        });
-      } else {
-        setCacheStatus({ isCached: false, count: 0, lastUpdated: null });
-      }
-    } catch (err) {
-      console.error("Error checking cache status:", err);
-      setCacheStatus({ isCached: false, count: 0, lastUpdated: null });
-    }
-  }, [selectedVideo?.objectId]);
-
-  // Check cache status when video selected
-  useEffect(() => {
-    checkCacheStatus();
-  }, [checkCacheStatus]);
-
-  // Auto-cache for OFFLINE videos only (with debounce to prevent multiple calls)
-  useEffect(() => {
-    if (!selectedVideo) return;
-
-    // ========================================================================
-    // ONLY AUTO-CACHE FOR OFFLINE VIDEOS
-    // Live videos always fetch real-time, no cache needed
-    // ========================================================================
-    if (selectedVideo.statusLive !== 0) {
-      console.log("[Auto-cache] Skipping - video is LIVE, no cache needed");
-      return;
-    }
-
-    // Only auto-cache once per video
-    const hasTriedCache = sessionStorage.getItem(
-      `cache_tried_${selectedVideo.objectId}`,
-    );
-
-    // Auto-cache offline videos with comments that aren't cached yet
-    if (
-      selectedVideo.countComment > 0 &&
-      !cacheStatus.isCached &&
-      !cacheCommentsMutation.isPending &&
-      !hasTriedCache
-    ) {
-      console.log(
-        `[Auto-cache] 📦 Triggering cache for OFFLINE video: ${selectedVideo.objectId} (${selectedVideo.countComment} comments)`,
-      );
-
-      // Mark as tried to prevent duplicate calls
-      sessionStorage.setItem(`cache_tried_${selectedVideo.objectId}`, "true");
-
-      // Trigger cache in background
-      const timeoutId = setTimeout(() => {
-        cacheCommentsMutation.mutate(selectedVideo.objectId);
-      }, 2000); // Delay 2s to avoid blocking UI
-
-      return () => clearTimeout(timeoutId);
-    } else if (cacheStatus.isCached) {
-      console.log("[Auto-cache] ✅ Video already cached, skipping");
-    }
-  }, [
-    selectedVideo?.objectId,
-    selectedVideo?.statusLive,
-    cacheStatus.isCached,
-    cacheCommentsMutation.isPending,
-  ]);
 
   // ============================================================================
   // CLEAR OPPOSITE CACHE WHEN VIDEO CHANGES
@@ -1233,9 +1060,6 @@ export function FacebookCommentsManager({
     // Clear customer status map for new video
     customerStatusMapRef.current = new Map();
     setCustomerStatusMap(new Map());
-
-    // Reset cache status (will be checked in useEffect)
-    setCacheStatus({ isCached: false, count: 0, lastUpdated: null });
   };
 
   const handleShowInfo = (orderInfo: TPOSOrder | undefined) => {
@@ -1269,12 +1093,6 @@ export function FacebookCommentsManager({
       title: "Đang làm mới",
       description: "Đang tải lại comments từ TPOS...",
     });
-  };
-
-  const handleCacheComments = () => {
-    if (selectedVideo) {
-      cacheCommentsMutation.mutate(selectedVideo.objectId);
-    }
   };
 
   // ============================================================================
@@ -1691,37 +1509,6 @@ export function FacebookCommentsManager({
               </CardHeader>
 
               <CardContent className="pt-4 space-y-4">
-                {/* Cache Status Card - Only show for OFFLINE videos */}
-                {cacheStatus.isCached && selectedVideo.statusLive === 0 && (
-                  <Card className="border-green-500/50 bg-green-500/5">
-                    <CardContent className="pt-3 pb-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Database className="h-4 w-4 text-green-600" />
-                          <span className="text-sm font-medium">
-                            Cache Active (Offline Video)
-                          </span>
-                        </div>
-                        <Badge
-                          variant="secondary"
-                          className="bg-green-100 text-green-700"
-                        >
-                          {cacheStatus.count} cached
-                        </Badge>
-                      </div>
-                      {cacheStatus.lastUpdated && (
-                        <div className="mt-1 text-xs text-muted-foreground">
-                          Last:{" "}
-                          {format(
-                            new Date(cacheStatus.lastUpdated),
-                            "dd/MM HH:mm",
-                          )}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                )}
-
                 <div className="flex items-center gap-2 flex-wrap">
                   <Button
                     variant="outline"
@@ -2090,10 +1877,7 @@ export function FacebookCommentsManager({
                     : `Hiển thị ${filteredComments.length} / ${commentsWithStatus.length} comments (🔴 Live - Real-time)`}
                   {isAutoRefresh &&
                     selectedVideo.statusLive === 1 &&
-                    " • Auto-refresh mỗi 10s"}
-                  {cacheStatus.isCached &&
-                    selectedVideo.statusLive === 0 &&
-                    ` • 📦 ${cacheStatus.count} cached`}
+                    " • Auto-refresh mỗi 8s"}
                   {commentsData?.pages[0]?.fromCache &&
                     " • ⚡ Loaded from cache"}
                 </div>
