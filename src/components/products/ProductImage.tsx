@@ -52,7 +52,9 @@ export function ProductImage({
     
     const rect = imgRef.current.getBoundingClientRect();
     const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
     const zoomedHeight = 600;
+    const zoomedWidth = 600;
     
     let top = rect.top;
     
@@ -64,9 +66,17 @@ export function ProductImage({
       top = rect.top;
     }
     
+    // Position to the left of the thumbnail (with 10px gap)
+    let left = rect.left - zoomedWidth - 10;
+    
+    // If not enough space on the left, show on the right
+    if (left < 0) {
+      left = rect.right + 10;
+    }
+    
     setZoomPosition({
       top: top,
-      left: rect.right + 10
+      left: left
     });
     
     setIsZoomed(true);
