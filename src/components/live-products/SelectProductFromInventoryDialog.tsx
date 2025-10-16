@@ -104,6 +104,9 @@ export function SelectProductFromInventoryDialog({
         throw new Error("Sản phẩm đã tồn tại trong phiên live này");
       }
 
+      // Determine image URL with priority: product_images[0] > tpos_image_url > null
+      const imageUrl = product.product_images?.[0] || product.tpos_image_url || null;
+
       // Insert new product to live_products
       const { error: insertError } = await supabase.from("live_products").insert({
         product_code: product.product_code,
@@ -113,6 +116,7 @@ export function SelectProductFromInventoryDialog({
         sold_quantity: 0,
         live_session_id: sessionId,
         live_phase_id: phaseId,
+        image_url: imageUrl,
       });
 
       if (insertError) throw insertError;
