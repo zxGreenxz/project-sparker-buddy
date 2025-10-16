@@ -10,7 +10,7 @@ import { OrderBillNotification } from './OrderBillNotification';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { getActivePrinter } from '@/lib/printer-utils';
+import { getActivePrinter, printPDFToXC80 } from '@/lib/printer-utils';
 import { textToESCPOSBitmap } from '@/lib/text-to-bitmap';
 interface QuickAddOrderProps {
   productId: string;
@@ -290,7 +290,7 @@ export function QuickAddOrder({
         const activePrinter = getActivePrinter();
         if (activePrinter) {
           try {
-            console.log(`🖨️ Generating PDF bill for printing...`);
+            console.log(`🖨️ Auto-printing bill for order #${billData.sessionIndex}...`);
             
             // Load saved template from localStorage
             const savedTemplate = localStorage.getItem('billTemplate');
@@ -311,26 +311,23 @@ export function QuickAddOrder({
               createdTime: billData.createdTime,
             });
             
-            console.log("✅ PDF generated, opening browser print dialog...");
+            const pdfDataUri = pdf.output('datauristring');
+            console.log('✅ PDF generated, converting to bitmap...');
             
-            // Convert PDF to blob and open in new window for printing
-            const pdfBlob = pdf.output('blob');
-            const pdfUrl = URL.createObjectURL(pdfBlob);
+            // Print via bitmap conversion (automated, no user interaction)
+            const printResult = await printPDFToXC80(activePrinter, pdfDataUri);
             
-            const printWindow = window.open(pdfUrl, '_blank');
-            if (printWindow) {
-              printWindow.onload = () => {
-                printWindow.print();
-                // Clean up after a delay
-                setTimeout(() => URL.revokeObjectURL(pdfUrl), 1000);
-              };
+            if (printResult.success) {
+              console.log("✅ Bill printed successfully");
+            } else {
+              throw new Error(printResult.error);
             }
             
           } catch (error) {
-            console.error('❌ Print error:', error);
+            console.error('❌ Auto-print error:', error);
             toast({
-              title: "⚠️ Lỗi in bill",
-              description: `Không thể in lên ${activePrinter.name}. Lỗi: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              title: "⚠️ Lỗi in bill tự động",
+              description: error instanceof Error ? error.message : "Unknown error",
               variant: "destructive"
             });
           }

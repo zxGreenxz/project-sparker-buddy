@@ -41,7 +41,7 @@ import {
   Upload,
   Printer
 } from 'lucide-react';
-import { getActivePrinter } from '@/lib/printer-utils';
+import { getActivePrinter, printPDFToXC80 } from '@/lib/printer-utils';
 
 const FIELD_LABELS: Record<string, string> = {
   sessionIndex: 'Số thứ tự (#)',
@@ -327,6 +327,15 @@ export function PdfBillEditor() {
   };
 
   const handleTestPrint = async () => {
+    if (!previewUrl) {
+      toast({
+        variant: 'destructive',
+        title: 'Chưa có preview',
+        description: 'Vui lòng đợi preview được tạo'
+      });
+      return;
+    }
+
     const activePrinter = getActivePrinter();
     if (!activePrinter) {
       toast({
@@ -338,32 +347,31 @@ export function PdfBillEditor() {
     }
 
     try {
-      const sampleData = {
-        sessionIndex: '999',
-        phone: '0901234567',
-        customerName: 'TEST PRINT',
-        productCode: 'TEST001',
-        productName: 'Test Product Name',
-        comment: 'Test comment',
-        createdTime: new Date().toISOString()
-      };
-
-      const pdf = generateBillPDF(template, sampleData);
-      const pdfBase64 = pdf.output('datauristring').split(',')[1];
-
-      // Note: Print bridge doesn't support PDF yet, this will fail
+      console.log('🖨️ Printing test bill via bitmap...');
+      
       toast({
-        variant: 'destructive',
-        title: 'Chưa hỗ trợ in PDF',
-        description: 'Chức năng in PDF đang được phát triển. Hiện tại vui lòng dùng Download PDF.'
+        title: '⏳ Đang in...',
+        description: `Đang chuyển PDF sang bitmap và gửi tới ${activePrinter.name}`
       });
-
-    } catch (error) {
-      console.error('Test print error:', error);
+      
+      // Print PDF as bitmap
+      const result = await printPDFToXC80(activePrinter, previewUrl);
+      
+      if (result.success) {
+        toast({
+          title: '✅ In thử thành công',
+          description: `Đã gửi tới ${activePrinter.name}`
+        });
+      } else {
+        throw new Error(result.error);
+      }
+      
+    } catch (error: any) {
+      console.error('Print error:', error);
       toast({
         variant: 'destructive',
-        title: 'Lỗi in thử',
-        description: error instanceof Error ? error.message : 'Unknown error'
+        title: '❌ Lỗi in',
+        description: error.message || 'Không thể in PDF'
       });
     }
   };

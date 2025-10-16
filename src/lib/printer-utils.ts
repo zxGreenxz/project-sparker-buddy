@@ -28,6 +28,77 @@ export const getActivePrinter = (): NetworkPrinter | null => {
 };
 
 /**
+ * In PDF lên máy in XC80 qua bitmap conversion
+ * @param printer Thông tin máy in
+ * @param pdfDataUri PDF data URI (data:application/pdf;base64,...)
+ * @returns Promise với kết quả in
+ */
+export const printPDFToXC80 = async (
+  printer: NetworkPrinter,
+  pdfDataUri: string
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    console.log('📄 Converting PDF to bitmap...');
+    
+    // Dynamic import to avoid loading PDF.js until needed
+    const { pdfToBitmap, encodeBitmapToESCPOS } = await import('./pdf-to-bitmap');
+    
+    // Step 1: PDF → Bitmap
+    const bitmap = await pdfToBitmap(pdfDataUri, { width: 384 });
+    console.log(`✅ Bitmap created: ${bitmap.width}x${bitmap.height}px`);
+    
+    // Step 2: Bitmap → ESC/POS
+    const escposData = encodeBitmapToESCPOS(bitmap);
+    
+    // Step 3: Add paper feed + cut commands
+    const cutCommands = new Uint8Array([
+      0x1B, 0x64, 0x03,  // ESC d 3 - Feed 3 lines
+      0x1D, 0x56, 0x00   // GS V 0 - Full cut
+    ]);
+    
+    const finalData = new Uint8Array(escposData.length + cutCommands.length);
+    finalData.set(escposData, 0);
+    finalData.set(cutCommands, escposData.length);
+    
+    console.log(`✅ ESC/POS data ready: ${finalData.length} bytes`);
+    
+    // Step 4: Encode to base64
+    const base64Bitmap = btoa(String.fromCharCode(...finalData));
+    
+    console.log(`📦 Sending to print bridge: ${printer.bridgeUrl}/print/bitmap`);
+    
+    // Step 5: Send to bridge
+    const response = await fetch(`${printer.bridgeUrl}/print/bitmap`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        printerIp: printer.ipAddress,
+        bitmap: base64Bitmap,
+        width: bitmap.width,
+        height: bitmap.height
+      })
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
+    
+    const result = await response.json();
+    console.log('✅ Print result:', result);
+    
+    return { success: true };
+    
+  } catch (error: any) {
+    console.error('❌ PDF print error:', error);
+    return {
+      success: false,
+      error: error.message || 'Không thể in PDF'
+    };
+  }
+};
+
+/**
  * In nội dung text lên máy in XC80 qua Print Bridge
  * @param printer Thông tin máy in
  * @param content Nội dung text cần in
