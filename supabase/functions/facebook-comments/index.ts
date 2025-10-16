@@ -53,6 +53,33 @@ serve(async (req) => {
 
     const bearerToken = tokenData.bearer_token;
 
+    // ========== DEBOUNCE CHECK: Skip if fetched recently ==========
+    const { data: snapshotCheck } = await supabaseClient
+      .from('facebook_live_comments_snapshot')
+      .select('last_fetched_at, comments_data')
+      .eq('facebook_post_id', postId)
+      .maybeSingle();
+
+    if (snapshotCheck?.last_fetched_at) {
+      const now = new Date();
+      const lastFetch = new Date(snapshotCheck.last_fetched_at);
+      const diffMs = now.getTime() - lastFetch.getTime();
+
+      // Skip if fetched within last 3 seconds
+      if (diffMs < 3000) {
+        console.log(`⏭️ Skipping TPOS fetch - fetched ${Math.round(diffMs / 1000)}s ago`);
+        
+        return new Response(
+          JSON.stringify({
+            data: snapshotCheck.comments_data || [],
+            paging: {},
+            source: 'debounced'
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     // ========== STEP 1: Try TPOS API first ==========
     try {
       let tposUrl = `https://tomato.tpos.vn/api/facebook-graph/comment?pageid=${pageId}&facebook_type=Page&postId=${postId}&limit=${limit}&order=${order}`;

@@ -16,9 +16,7 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
   const allCommentIdsRef = useRef<Set<string>>(new Set());
   const [errorCount, setErrorCount] = useState(0);
   const [hasError, setHasError] = useState(false);
-  const lastKnownCountRef = useRef<number>(0);
   const isCheckingNewCommentsRef = useRef(false);
-  const deletedCountRef = useRef<number>(0); // Track deleted comments
 
   // Realtime check for new comments (only when live)
   useEffect(() => {
@@ -32,58 +30,27 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
       isCheckingNewCommentsRef.current = true;
       
       try {
-        // 1. Get snapshot from DB
-        const { data: snapshot } = await supabase
-          .from('facebook_live_comments_snapshot' as any)
-          .select('total_comments, last_tpos_count, deleted_count')
-          .eq('facebook_post_id', videoId)
-          .maybeSingle() as { data: { total_comments: number; last_tpos_count: number; deleted_count: number } | null };
+        console.log('[Realtime Check] Fetching from TPOS API...');
         
-        if (!snapshot) {
-          console.log('[Realtime Check] No snapshot yet, fetching...');
-          // Trigger fetch
-          const { data: { session } } = await supabase.auth.getSession();
-          await fetch(
-            `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/facebook-comments?pageId=${pageId}&postId=${videoId}&limit=100`,
-            {
-              headers: {
-                'Authorization': `Bearer ${session?.access_token}`,
-              },
-            }
-          );
-          return;
-        }
+        const { data: { session } } = await supabase.auth.getSession();
         
-        console.log(`[Realtime Check] Snapshot: ${snapshot.total_comments} total, ${snapshot.last_tpos_count} from TPOS, ${snapshot.deleted_count} deleted`);
+        // Fetch trực tiếp - Edge function sẽ xử lý merge và debounce
+        await fetch(
+          `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/facebook-comments?pageId=${pageId}&postId=${videoId}&limit=500`,
+          {
+            headers: {
+              'Authorization': `Bearer ${session?.access_token}`,
+            },
+          }
+        );
         
-        // 2. Check if TPOS count changed
-        const tposCount = selectedVideo?.countComment || 0;
-        
-        if (tposCount !== snapshot.last_tpos_count) {
-          console.log(`[Realtime Check] 📥 TPOS count changed: ${snapshot.last_tpos_count} → ${tposCount}`);
-          
-          const { data: { session } } = await supabase.auth.getSession();
-          await fetch(
-            `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/facebook-comments?pageId=${pageId}&postId=${videoId}&limit=100`,
-            {
-              headers: {
-                'Authorization': `Bearer ${session?.access_token}`,
-              },
-            }
-          );
-        }
+        console.log('[Realtime Check] ✅ Fetch completed');
       } catch (error) {
         console.error('[Realtime Check] Error:', error);
       } finally {
         isCheckingNewCommentsRef.current = false;
       }
     };
-
-    // Initial check
-    if (lastKnownCountRef.current === 0) {
-      lastKnownCountRef.current = selectedVideo.countComment || 0;
-      deletedCountRef.current = 0;
-    }
     
     checkForNewComments();
     
