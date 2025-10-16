@@ -43,6 +43,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useProcessPendingOrders } from "@/hooks/use-process-pending-orders";
+import warehouseIcon from "@/assets/warehouse-icon.png";
 
 /**
  * Client-side multi-keyword product filter
@@ -2164,9 +2165,9 @@ export default function LiveProducts() {
                     e.preventDefault();
                     setIsSelectFromInventoryOpen(true);
                   }} 
-                  className="h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-110 bg-gradient-to-br from-primary to-primary/80"
+                  className="h-16 w-16 rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-110 bg-gradient-to-br from-primary to-primary/80 p-2"
                 >
-                  <Package className="h-8 w-8" />
+                  <img src={warehouseIcon} alt="Warehouse" className="h-full w-full object-contain" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="left">
