@@ -48,6 +48,27 @@ export function ProductImage({
   }, [productId, productCode, productImages, tposImageUrl, tposProductId]);
 
   const handleMouseEnter = () => {
+    if (!imgRef.current || !imageUrl) return;
+    
+    const rect = imgRef.current.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const zoomedHeight = 600;
+    
+    // Check if zoomed image would be cut off at bottom
+    const wouldOverflowBottom = rect.top + zoomedHeight > viewportHeight;
+    
+    // Check if positioning above would cut off at top
+    const wouldOverflowTop = rect.bottom - zoomedHeight < 0;
+    
+    // Determine vertical position
+    let top = 0; // default: align with thumbnail top
+    
+    if (wouldOverflowBottom && !wouldOverflowTop) {
+      // Position above thumbnail if cut off at bottom and won't overflow top
+      top = -(zoomedHeight - rect.height);
+    }
+    
+    setZoomPosition({ top, left: 0 });
     setIsZoomed(true);
   };
 
@@ -153,8 +174,9 @@ export function ProductImage({
 
       {isZoomed && (
         <div
-          className="absolute pointer-events-none z-[99999] left-[calc(100%+10px)] top-0"
+          className="absolute pointer-events-none z-[99999] left-[calc(100%+10px)]"
           style={{
+            top: `${zoomPosition.top}px`,
             maxWidth: '600px',
             maxHeight: '600px'
           }}
