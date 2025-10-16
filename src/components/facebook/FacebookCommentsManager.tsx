@@ -308,6 +308,7 @@ export function FacebookCommentsManager({
   const fetchInProgress = useRef(false);
   const customerStatusMapRef = useRef<Map<string, StatusMapEntry>>(new Map());
   const isCheckingNewCommentsRef = useRef(false);
+  const fetchedNonLiveVideosRef = useRef<Set<string>>(new Set());
   const pendingInvalidationRef = useRef<NodeJS.Timeout | null>(null);
   const pendingCommentsRef = useRef<Set<string>>(new Set());
   const realtimeIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -1105,6 +1106,49 @@ export function FacebookCommentsManager({
     customerStatusMapRef.current = new Map();
     setCustomerStatusMap(new Map());
   };
+
+  // First-time fetch for non-live videos
+  useEffect(() => {
+    if (!selectedVideo || !pageId) return;
+    
+    // Only handle non-live videos
+    if (selectedVideo.statusLive === 1) return;
+    
+    // Skip if already fetched this video in this session
+    if (fetchedNonLiveVideosRef.current.has(selectedVideo.objectId)) {
+      console.log(`[Non-Live Video] Already fetched comments for ${selectedVideo.objectId}, skipping`);
+      return;
+    }
+    
+    // For non-live videos, fetch comments once from TPOS on first selection
+    const fetchCommentsOnce = async () => {
+      try {
+        console.log(`[Non-Live Video] Fetching comments for ${selectedVideo.objectId}...`);
+        
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        await supabase.functions.invoke('facebook-comments', {
+          body: {
+            pageId,
+            postId: selectedVideo.objectId,
+            sessionIndex: selectedVideo.objectId,
+            limit: 500,
+          },
+          headers: session?.access_token ? {
+            Authorization: `Bearer ${session.access_token}`,
+          } : {},
+        });
+        
+        // Mark as fetched
+        fetchedNonLiveVideosRef.current.add(selectedVideo.objectId);
+        console.log(`[Non-Live Video] ✅ Comments saved to archive`);
+      } catch (error) {
+        console.error('[Non-Live Video] Error fetching comments:', error);
+      }
+    };
+    
+    fetchCommentsOnce();
+  }, [selectedVideo?.objectId, selectedVideo?.statusLive, pageId]);
 
   const handleShowInfo = (orderInfo: TPOSOrder | undefined) => {
     if (orderInfo) {
