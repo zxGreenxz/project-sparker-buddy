@@ -130,6 +130,9 @@ interface OrderWithProduct extends LiveOrder {
   product_images?: string[];
   customer_status?: string;
   note?: string | null;
+  facebook_comment_id?: string | null;
+  comment?: string | null;
+  created_time?: string | null;
 }
 
 // Helper function to calculate oversell status dynamically
@@ -259,7 +262,8 @@ export default function LiveProducts() {
     product_id: string;
     product_name: string;
     quantity: number;
-    orders?: OrderWithProduct[];
+    note?: string | null;
+    facebook_comment_id?: string | null;
   } | null>(null);
   const [isUploadLiveOrdersOpen, setIsUploadLiveOrdersOpen] = useState(false);
 
@@ -1047,67 +1051,51 @@ export default function LiveProducts() {
       });
     }
   };
-  const handleEditOrderItem = (aggregatedProduct: {
-    product_code: string;
-    product_name: string;
-    live_product_id: string;
-    total_quantity: number;
-    orders: OrderWithProduct[];
-  }) => {
+  const handleEditOrderItem = (order: OrderWithProduct) => {
     setEditingOrderItem({
-      id: aggregatedProduct.orders[0].id,
-      product_id: aggregatedProduct.live_product_id,
-      product_name: aggregatedProduct.product_name,
-      quantity: aggregatedProduct.total_quantity,
-      orders: aggregatedProduct.orders.map((o: OrderWithProduct) => ({
-        ...o,
-        customer_status: o.customer_status || 'normal'
-      }))
+      id: order.id,
+      product_id: order.live_product_id,
+      product_name: order.product_name,
+      quantity: order.quantity,
+      note: order.note,
+      facebook_comment_id: order.facebook_comment_id
     });
     setIsEditOrderItemOpen(true);
   };
-  const handleDeleteAggregatedProduct = async (aggregatedProduct: {
-    product_code: string;
-    product_name: string;
-    live_product_id: string;
-    total_quantity: number;
-    orders: OrderWithProduct[];
-  }) => {
-    if (window.confirm(`Bạn có chắc muốn xóa tất cả ${aggregatedProduct.total_quantity} sản phẩm ${aggregatedProduct.product_name}?`)) {
-      const orderIds = aggregatedProduct.orders.map(o => o.id);
+
+  const handleDeleteSingleOrder = async (order: OrderWithProduct) => {
+    if (window.confirm(`Bạn có chắc muốn xóa ${order.quantity} x ${order.product_name}?`)) {
       try {
-        // Delete all orders
-        const {
-          error: deleteError
-        } = await supabase.from("live_orders").delete().in("id", orderIds);
+        // Delete the order
+        const { error: deleteError } = await supabase
+          .from('live_orders')
+          .delete()
+          .eq('id', order.id);
+        
         if (deleteError) throw deleteError;
-
-        // Fetch current sold_quantity
-        const {
-          data: product,
-          error: productFetchError
-        } = await supabase.from("live_products").select("sold_quantity").eq("id", aggregatedProduct.live_product_id).single();
-        if (productFetchError) throw productFetchError;
-
+        
         // Update sold_quantity
-        const {
-          error: productError
-        } = await supabase.from("live_products").update({
-          sold_quantity: Math.max(0, product.sold_quantity - aggregatedProduct.total_quantity)
-        }).eq("id", aggregatedProduct.live_product_id);
-        if (productError) throw productError;
-        queryClient.invalidateQueries({
-          queryKey: ["live-orders", selectedPhase]
-        });
-        queryClient.invalidateQueries({
-          queryKey: ["live-products", selectedPhase]
-        });
-        queryClient.invalidateQueries({
-          queryKey: ["orders-with-products", selectedPhase]
-        });
-        toast.success("Đã xóa sản phẩm khỏi đơn hàng");
-      } catch (error) {
-        console.error("Error deleting aggregated product:", error);
+        const { data: product } = await supabase
+          .from('live_products')
+          .select('sold_quantity')
+          .eq('id', order.live_product_id)
+          .single();
+        
+        if (product) {
+          await supabase
+            .from('live_products')
+            .update({ 
+              sold_quantity: Math.max(0, product.sold_quantity - order.quantity) 
+            })
+            .eq('id', order.live_product_id);
+        }
+        
+        toast.success("Đã xóa sản phẩm");
+        queryClient.invalidateQueries({ queryKey: ["live-orders", selectedPhase] });
+        queryClient.invalidateQueries({ queryKey: ["orders-with-products", selectedPhase] });
+        queryClient.invalidateQueries({ queryKey: ["live-products", selectedPhase] });
+      } catch (error: any) {
+        console.error('Delete order error:', error);
         toast.error("Có lỗi xảy ra khi xóa sản phẩm");
       }
     }
@@ -1579,17 +1567,7 @@ export default function LiveProducts() {
                                       return <TooltipProvider key={order.id}>
                                                   <Tooltip>
                                                     <TooltipTrigger asChild>
-                                                      <Badge variant={badgeVariant} className={`cursor-pointer text-xs ${customerStatusColor}`} onClick={() => {
-                                              const ordersWithSameCode = productOrders.filter(o => o.order_code === order.order_code);
-                                              const aggregatedProduct = {
-                                                product_code: product.product_code,
-                                                product_name: product.product_name,
-                                                live_product_id: product.id,
-                                                total_quantity: ordersWithSameCode.reduce((sum, o) => sum + o.quantity, 0),
-                                                orders: ordersWithSameCode
-                                              };
-                                              handleEditOrderItem(aggregatedProduct);
-                                            }}>
+                                                      <Badge variant={badgeVariant} className={`cursor-pointer text-xs ${customerStatusColor}`} onClick={() => handleEditOrderItem(order)}>
                                                         {order.order_code}
                                                         {isOversell && " ⚠️"}
                                                         {order.uploaded_at && " ✓"}
@@ -1765,16 +1743,7 @@ export default function LiveProducts() {
                                   return <TooltipProvider key={order.id}>
                                             <Tooltip>
                                               <TooltipTrigger asChild>
-                                                <Badge variant="secondary" className={`text-xs cursor-pointer hover:scale-105 transition-transform ${badgeColor}`} onClick={() => {
-                                          const aggregatedProduct = {
-                                            product_code: order.product_code,
-                                            product_name: order.product_name,
-                                            live_product_id: order.live_product_id,
-                                            total_quantity: order.quantity,
-                                            orders: [order]
-                                          };
-                                          handleEditOrderItem(aggregatedProduct);
-                                        }}>
+                                                <Badge variant="secondary" className={`text-xs cursor-pointer hover:scale-105 transition-transform ${badgeColor}`} onClick={() => handleEditOrderItem(order)}>
                                                   {isOversell && <AlertTriangle className="h-3 w-3 mr-1" />}
                                                   {order.quantity === 1 ? order.order_code : `${order.order_code} x${order.quantity}`}
                                                 </Badge>
@@ -1880,16 +1849,7 @@ export default function LiveProducts() {
                                 return <TooltipProvider key={order.id}>
                                           <Tooltip>
                                             <TooltipTrigger asChild>
-                                              <Badge variant="secondary" className={`text-xs cursor-pointer hover:scale-105 transition-transform ${badgeColor}`} onClick={() => {
-                                        const aggregatedProduct = {
-                                          product_code: product.product_code,
-                                          product_name: product.product_name,
-                                          live_product_id: order.live_product_id,
-                                          total_quantity: order.quantity,
-                                          orders: [order]
-                                        };
-                                        handleEditOrderItem(aggregatedProduct);
-                                      }}>
+                                              <Badge variant="secondary" className={`text-xs cursor-pointer hover:scale-105 transition-transform ${badgeColor}`} onClick={() => handleEditOrderItem(order)}>
                                                 {isOversell && <AlertTriangle className="h-3 w-3 mr-1" />}
                                                 {order.quantity === 1 ? order.order_code : `${order.order_code} x${order.quantity}`}
                                               </Badge>
@@ -1949,163 +1909,132 @@ export default function LiveProducts() {
                     <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-32 font-bold text-base">Mã đơn hàng</TableHead>
-                  <TableHead className="w-48 font-bold text-base">Tên sản phẩm</TableHead>
-                  <TableHead className="w-32 font-bold text-base">Mã sản phẩm</TableHead>
-                  <TableHead className="w-20 text-center font-bold text-base">Số lượng</TableHead>
-                  <TableHead className="w-32 font-bold text-base">Ghi chú</TableHead>
-                  <TableHead className="w-24 text-center font-bold text-base">Thao tác SP</TableHead>
-                  <TableHead className="w-24 text-center font-bold text-base">Trạng thái</TableHead>
-                  <TableHead className="w-28 text-center font-bold text-base">Upload</TableHead>
+                  <TableHead className="w-24 font-bold text-base">Mã đơn</TableHead>
+                  <TableHead className="w-40 font-bold text-base">Tên SP</TableHead>
+                  <TableHead className="w-24 font-bold text-base">Mã SP</TableHead>
+                  <TableHead className="w-48 font-bold text-base">Comment</TableHead>
+                  <TableHead className="w-16 text-center font-bold text-base">SL</TableHead>
+                  <TableHead className="w-28 font-bold text-base">Ghi chú</TableHead>
+                  <TableHead className="w-20 text-center font-bold text-base">Thao tác</TableHead>
+                  <TableHead className="w-20 text-center font-bold text-base">Trạng thái</TableHead>
+                  <TableHead className="w-24 text-center font-bold text-base">Upload</TableHead>
                 </TableRow>
               </TableHeader>
-                    <TableBody>
-                      {(() => {
-                      // Group orders by order_code
-                      const orderGroups = ordersWithProducts.reduce((groups, order) => {
-                        if (!groups[order.order_code]) {
-                          groups[order.order_code] = [];
-                        }
-                        groups[order.order_code].push(order);
-                        return groups;
-                      }, {} as Record<string, typeof ordersWithProducts>);
-                      return Object.entries(orderGroups).flatMap(([orderCode, orders], groupIndex) => {
-                        // Group by product_code within order_code
-                        const productGroups = orders.reduce((groups, order) => {
-                          const key = order.product_code;
-                          if (!groups[key]) {
-                            groups[key] = {
-                              product_code: order.product_code,
-                              product_name: order.product_name,
-                              live_product_id: order.live_product_id,
-                              total_quantity: 0,
-                              orders: [] as OrderWithProduct[]
-                            };
-                          }
-                          groups[key].total_quantity += order.quantity;
-                          groups[key].orders.push(order);
-                          return groups;
-                        }, {} as Record<string, {
-                          product_code: string;
-                          product_name: string;
-                          live_product_id: string;
-                          total_quantity: number;
-                          orders: OrderWithProduct[];
-                        }>);
-                        const aggregatedProducts = Object.values(productGroups);
-
-                        // Check if any order in this group is oversell
-                        const hasOversell = aggregatedProducts.some(p => p.orders.some(order => order.is_oversell));
-                        return aggregatedProducts.map((product, index) => {
-                          // Only show oversell color in Orders tab
-                          let bgColorClass = groupIndex % 2 === 1 ? 'bg-muted/30' : '';
-
-                          // Check if any order in this product group has oversell
-                          if (hasOversell) {
-                            bgColorClass = 'bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-900';
-                          }
-                          return <TableRow key={`${orderCode}-${product.product_code}`} id={orders[0]?.tpos_order_id || undefined} className={`h-12 ${index === aggregatedProducts.length - 1 ? 'border-b-2 border-border/60' : 'border-b border-border/20'} ${bgColorClass}`}>
-                    {index === 0 && <TableCell rowSpan={aggregatedProducts.length} className="font-medium align-middle border-r border-l text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <div className="flex items-center gap-2">
-                            {hasOversell && <AlertTriangle className="h-5 w-5 text-yellow-500" />}
-                            <Badge className={`text-base font-bold font-mono px-3 py-1.5 ${hasOversell ? 'bg-yellow-500 text-white hover:bg-yellow-600 dark:bg-yellow-600 dark:hover:bg-yellow-700' : 'bg-primary text-primary-foreground'}`}>
-                              {orderCode}
-                            </Badge>
+              <TableBody>
+                {ordersWithProducts.map((order, index) => {
+                  const bgColorClass = index % 2 === 1 ? 'bg-muted/30' : '';
+                  const oversellClass = order.is_oversell 
+                    ? 'bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-900' 
+                    : '';
+                  
+                  return (
+                    <TableRow 
+                      key={order.id} 
+                      className={`h-12 ${bgColorClass} ${oversellClass}`}
+                    >
+                      <TableCell className="border-r border-l text-center">
+                        <Badge className="text-sm font-mono">
+                          {order.order_code}
+                        </Badge>
+                      </TableCell>
+                      
+                      <TableCell className="py-2 border-r">
+                        <div className="font-medium text-sm">{order.product_name}</div>
+                      </TableCell>
+                      
+                      <TableCell className="py-2 border-r">
+                        <span className="text-sm">{order.product_code}</span>
+                      </TableCell>
+                      
+                      <TableCell className="py-2 border-r">
+                        {order.facebook_comment_id ? (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-xs text-muted-foreground line-clamp-2">
+                              {order.comment || '-'}
+                            </span>
+                            <span className="text-xs text-muted-foreground/70">
+                              {order.created_time ? format(new Date(order.created_time), 'dd/MM HH:mm') : ''}
+                            </span>
                           </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground italic">
+                            (Nhập tay)
+                          </span>
+                        )}
+                      </TableCell>
+                      
+                      <TableCell className="text-center py-2 border-r">
+                        <span className="text-sm font-medium">{order.quantity}</span>
+                      </TableCell>
+                      
+                      <TableCell className="py-2 border-r">
+                        <span className="text-xs text-muted-foreground italic">
+                          {order.note || '-'}
+                        </span>
+                      </TableCell>
+                      
+                      <TableCell className="text-center py-2 border-r">
+                        <div className="flex items-center justify-center gap-1">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => handleEditOrderItem(order)} 
+                            className="h-7 w-7 p-0"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => handleDeleteSingleOrder(order)} 
+                            className="text-red-600 hover:text-red-700 h-7 w-7 p-0"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
-                      </TableCell>}
-                              <TableCell className="py-2 border-r">
-                                <div className="font-medium text-sm">{product.product_name}</div>
-                              </TableCell>
-                              <TableCell className="py-2 border-r">
-                                <span className="text-sm">{product.product_code}</span>
-                              </TableCell>
-                              <TableCell className="text-center py-2 border-r">
-                                <span className="text-sm font-medium">{product.total_quantity}</span>
-                              </TableCell>
-                              <TableCell className="py-2 border-r">
-                                <span className="text-xs text-muted-foreground italic">
-                                  {product.orders[0]?.note || '-'}
-                                </span>
-                              </TableCell>
-                              <TableCell className="text-center py-2 border-r">
-                                <div className="flex items-center justify-center gap-1">
-                                  <Button variant="ghost" size="sm" onClick={() => handleEditOrderItem(product)} className="h-7 w-7 p-0">
-                                    <Pencil className="h-3.5 w-3.5" />
-                                  </Button>
-                                  <Button variant="ghost" size="sm" onClick={() => handleDeleteAggregatedProduct(product)} className="text-red-600 hover:text-red-700 h-7 w-7 p-0">
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
-                                </div>
-                              </TableCell>
-                              {index === 0 && <TableCell rowSpan={aggregatedProducts.length} className="text-center py-2 align-middle border-r">
-                                    <div className="flex items-center justify-center">
-                                      <label className="flex items-center gap-1.5 cursor-pointer">
-                                        <input type="checkbox" className="sr-only" defaultChecked={false} onChange={e => {
-                                    const statusElement = e.target.nextElementSibling;
-                                    const dot = statusElement?.querySelector('.status-dot');
-                                    const text = statusElement?.querySelector('.status-text');
-                                    if (e.target.checked) {
-                                      dot?.classList.remove('bg-red-500');
-                                      dot?.classList.add('bg-green-500');
-                                      text?.classList.remove('text-red-600');
-                                      text?.classList.add('text-green-600');
-                                      if (text) text.textContent = 'Hoàn tất';
-                                    } else {
-                                      dot?.classList.remove('bg-green-500');
-                                      dot?.classList.add('bg-red-500');
-                                      text?.classList.remove('text-green-600');
-                                      text?.classList.add('text-red-600');
-                                      if (text) text.textContent = 'Đang chờ';
-                                    }
-                                  }} />
-                                        <div className="flex items-center gap-1">
-                                          <div className="status-dot w-2.5 h-2.5 rounded-full bg-red-500"></div>
-                                          <span className="status-text text-xs text-red-600 font-medium">Đang chờ</span>
-                                        </div>
-                                      </label>
-                                    </div>
-                                  </TableCell>}
-                              <TableCell className="text-center py-2 border-r">
-                                <div className="flex flex-col gap-1 items-center">
-                                  {(() => {
-                                    // ✅ Show status per product item, not per order_code
-                                    const firstOrder = product.orders[0];
-                                    const uploadStatus = firstOrder?.upload_status;
-                                    const uploadedAt = firstOrder?.uploaded_at;
-                                    
-                                    if (!uploadStatus) {
-                                      return <span className="text-xs text-muted-foreground">Chưa upload</span>;
-                                    }
-                                    
-                                    const timestamp = uploadedAt ? new Date(uploadedAt) : null;
-                                    const timeStr = timestamp ? timestamp.toLocaleString('vi-VN', {
-                                      day: '2-digit',
-                                      month: '2-digit',
-                                      hour: '2-digit',
-                                      minute: '2-digit'
-                                    }) : '';
-                                    
-                                    return (
-                                      <div className="flex flex-col gap-1 items-center">
-                                        <Badge 
-                                          variant={uploadStatus === 'success' ? 'default' : 'destructive'} 
-                                          className={uploadStatus === 'success' ? 'bg-green-600' : ''}
-                                        >
-                                          {uploadStatus === 'success' ? 'Thành công' : 'Thất bại'}
-                                        </Badge>
-                                        {timeStr && <span className="text-xs text-muted-foreground">{timeStr}</span>}
-                                      </div>
-                                    );
-                                  })()}
-                                </div>
-                              </TableCell>
-                            </TableRow>;
-                        });
-                      });
-                    })()}
-                    </TableBody>
+                      </TableCell>
+                      
+                      <TableCell className="text-center py-2 border-r">
+                        <div className="flex items-center justify-center">
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" className="sr-only" defaultChecked={false} />
+                            <div className="flex items-center gap-1">
+                              <div className="status-dot w-2.5 h-2.5 rounded-full bg-red-500"></div>
+                              <span className="status-text text-xs text-red-600 font-medium">Đang chờ</span>
+                            </div>
+                          </label>
+                        </div>
+                      </TableCell>
+                      
+                      <TableCell className="text-center py-2 border-r">
+                        {(() => {
+                          const uploadStatus = order.upload_status;
+                          const uploadedAt = order.uploaded_at;
+                          
+                          if (!uploadStatus) {
+                            return <span className="text-xs text-muted-foreground">Chưa upload</span>;
+                          }
+                          
+                          const timestamp = uploadedAt ? new Date(uploadedAt) : null;
+                          const timeStr = timestamp ? format(timestamp, 'dd/MM HH:mm') : '';
+                          
+                          return (
+                            <div className="flex flex-col gap-1 items-center">
+                              <Badge 
+                                variant={uploadStatus === 'success' ? 'default' : 'destructive'} 
+                                className={uploadStatus === 'success' ? 'bg-green-600' : ''}
+                              >
+                                {uploadStatus === 'success' ? 'Thành công' : 'Thất bại'}
+                              </Badge>
+                              {timeStr && <span className="text-xs text-muted-foreground">{timeStr}</span>}
+                            </div>
+                          );
+                        })()}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
                   </Table>
                 </Card>
                 </>}
