@@ -1127,17 +1127,19 @@ export function FacebookCommentsManager({
         
         const { data: { session } } = await supabase.auth.getSession();
         
-        await supabase.functions.invoke('facebook-comments', {
-          body: {
-            pageId,
-            postId: selectedVideo.objectId,
-            sessionIndex: selectedVideo.objectId,
-            limit: 500,
-          },
-          headers: session?.access_token ? {
-            Authorization: `Bearer ${session.access_token}`,
-          } : {},
-        });
+        const response = await fetch(
+          `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/facebook-comments?pageId=${pageId}&postId=${selectedVideo.objectId}&sessionIndex=${selectedVideo.objectId}&limit=500`,
+          {
+            headers: {
+              'Authorization': `Bearer ${session?.access_token}`,
+            },
+          }
+        );
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Edge function returned ${response.status}: ${errorText}`);
+        }
         
         // Mark as fetched
         fetchedNonLiveVideosRef.current.add(selectedVideo.objectId);
@@ -1459,62 +1461,50 @@ export function FacebookCommentsManager({
                     )}
                     onClick={() => handleVideoClick(video)}
                   >
-                    <div className="relative aspect-video bg-muted">
-                      {video.thumbnail?.url ? (
-                        <img
-                          src={video.thumbnail.url}
-                          alt={video.title}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Video className="h-12 w-12 text-muted-foreground opacity-30" />
-                        </div>
-                      )}
-                      {video.statusLive === 1 && (
-                        <Badge
-                          variant="destructive"
-                          className="absolute top-2 right-2"
-                        >
-                          🔴 LIVE
-                        </Badge>
-                      )}
-                    </div>
-
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base line-clamp-2">
-                        {video.title}
-                      </CardTitle>
-                      <CardDescription className="text-xs">
-                        {video.channelCreatedTime
-                          ? format(
-                              new Date(video.channelCreatedTime),
-                              "dd/MM/yyyy HH:mm",
-                            )
-                          : "N/A"}
-                      </CardDescription>
-                    </CardHeader>
-
-                    <CardContent>
-                      <div className="flex gap-4 text-sm">
-                        <div className="flex items-center gap-1">
-                          <MessageCircle
-                            className="h-4 w-4"
-                            aria-hidden="true"
+                    <div className="flex gap-3 p-3">
+                      {/* Thumbnail nhỏ bên trái */}
+                      <div className="relative w-32 h-20 bg-muted flex-shrink-0 rounded overflow-hidden">
+                        {video.thumbnail?.url ? (
+                          <img
+                            src={video.thumbnail.url}
+                            alt={video.title}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
                           />
-                          <span>
-                            {(video.countComment || 0).toLocaleString()}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Heart className="h-4 w-4" aria-hidden="true" />
-                          <span>
-                            {(video.countReaction || 0).toLocaleString()}
-                          </span>
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Video className="h-6 w-6 text-muted-foreground opacity-30" />
+                          </div>
+                        )}
+                        {video.statusLive === 1 && (
+                          <Badge variant="destructive" className="absolute top-1 right-1 text-xs px-1.5 py-0">
+                            🔴 LIVE
+                          </Badge>
+                        )}
+                      </div>
+
+                      {/* Info bên phải */}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-sm line-clamp-2 mb-1">
+                          {video.title}
+                        </h3>
+                        <p className="text-xs text-muted-foreground mb-2">
+                          {video.channelCreatedTime
+                            ? format(new Date(video.channelCreatedTime), "dd/MM/yyyy HH:mm")
+                            : "N/A"}
+                        </p>
+                        <div className="flex gap-3 text-xs text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <MessageCircle className="h-3 w-3" />
+                            <span>{(video.countComment || 0).toLocaleString()}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Heart className="h-3 w-3" />
+                            <span>{(video.countReaction || 0).toLocaleString()}</span>
+                          </div>
                         </div>
                       </div>
-                    </CardContent>
+                    </div>
                   </Card>
                 ))}
               </div>
