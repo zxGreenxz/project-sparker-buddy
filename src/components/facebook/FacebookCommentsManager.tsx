@@ -1118,9 +1118,9 @@ export function FacebookCommentsManager({
     }
   };
 
-  const handleCreateOrderClick = (comment: CommentWithStatus) => {
+  const handleCreateOrderClick = (comment: CommentWithStatus, commentType: "hang_dat" | "hang_le" = "hang_dat") => {
     if (selectedVideo) {
-      createOrderMutation.mutate({ comment, video: selectedVideo, commentType: "hang_dat" });
+      createOrderMutation.mutate({ comment, video: selectedVideo, commentType });
     }
   };
 
@@ -1864,6 +1864,20 @@ export function FacebookCommentsManager({
                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                       )}
                                       Tạo đơn hàng
+                                    </Button>
+
+                                    <Button
+                                      size="sm"
+                                      variant="secondary"
+                                      className="h-7 text-xs"
+                                      onClick={() => handleCreateOrderClick(comment, "hang_le")}
+                                      disabled={pendingCommentIds.has(comment.id)}
+                                      aria-label="Tạo đơn hàng lẻ"
+                                    >
+                                      {pendingCommentIds.has(comment.id) && (
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                      )}
+                                      Hàng Lẻ
                                     </Button>
 
                                     <Button
