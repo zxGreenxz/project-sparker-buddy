@@ -239,6 +239,7 @@ export function SelectProductFromInventoryDialog({
       description: `${result.baseProductCode} - ${result.baseProductName}\nThêm mới: ${result.insertedCount} | Đã có: ${result.updatedCount}`,
     });
       queryClient.invalidateQueries({ queryKey: ["live-products", phaseId] });
+      onOpenChange(false);
       setSearchQuery("");
     },
     onError: (error: Error) => {
@@ -248,17 +249,18 @@ export function SelectProductFromInventoryDialog({
     },
   });
 
-  // Quick product creation mutation
+  // Quick add product to live session (without adding to inventory)
   const createQuickProductMutation = useMutation({
     mutationFn: async (productName: string) => {
       if (!productName.trim()) {
         throw new Error("Tên sản phẩm không được để trống");
       }
 
-      // Generate product code: N/Ax (x = auto-increment)
-      const { data: existingProducts, error: fetchError } = await supabase
-        .from("products")
+      // Generate product code: N/Ax (x = auto-increment based on current live session)
+      const { data: existingLiveProducts, error: fetchError } = await supabase
+        .from("live_products")
         .select("product_code")
+        .eq("live_phase_id", phaseId)
         .ilike("product_code", "N/A%")
         .order("product_code", { ascending: false })
         .limit(1);
@@ -266,8 +268,8 @@ export function SelectProductFromInventoryDialog({
       if (fetchError) throw fetchError;
 
       let nextNumber = 1;
-      if (existingProducts && existingProducts.length > 0) {
-        const lastCode = existingProducts[0].product_code;
+      if (existingLiveProducts && existingLiveProducts.length > 0) {
+        const lastCode = existingLiveProducts[0].product_code;
         const match = lastCode.match(/N\/A(\d+)/);
         if (match) {
           nextNumber = parseInt(match[1]) + 1;
@@ -276,41 +278,35 @@ export function SelectProductFromInventoryDialog({
 
       const productCode = `N/A${nextNumber}`;
 
-      // Insert new product
-      const { data: newProduct, error: insertError } = await supabase
-        .from("products")
+      // Insert directly to live_products (không thêm vào kho)
+      const { error: insertError } = await supabase
+        .from("live_products")
         .insert({
           product_code: productCode,
           product_name: productName.trim(),
-          selling_price: 0,
-          purchase_price: 0,
-          stock_quantity: 0,
-        })
-        .select()
-        .single();
+          prepared_quantity: 1,
+          sold_quantity: 0,
+          live_session_id: sessionId,
+          live_phase_id: phaseId,
+        });
 
       if (insertError) throw insertError;
 
-      return newProduct;
+      return { product_code: productCode, product_name: productName.trim() };
     },
-    onSuccess: (newProduct) => {
-      toast.success("Đã tạo sản phẩm mới", {
-        description: `${newProduct.product_code} - ${newProduct.product_name}`,
+    onSuccess: (result) => {
+      toast.success("Đã thêm sản phẩm vào phiên live", {
+        description: `${result.product_code} - ${result.product_name}`,
       });
       
-      // Invalidate products query to reload list
-      queryClient.invalidateQueries({ queryKey: ["inventory-products-select"] });
+      // Reload live products list
+      queryClient.invalidateQueries({ queryKey: ["live-products", phaseId] });
       
-      // Auto-add the newly created product to live session
-      addProductMutation.mutate({
-        productId: newProduct.id,
-        quantity: 1,
-      });
-      
+      onOpenChange(false);
       setSearchQuery("");
     },
     onError: (error: Error) => {
-      toast.error("Lỗi tạo sản phẩm", {
+      toast.error("Lỗi thêm sản phẩm", {
         description: error.message,
       });
     },
