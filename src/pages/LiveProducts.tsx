@@ -1555,7 +1555,7 @@ export default function LiveProducts() {
                                   }));
                                 }} className="w-12 h-6 text-center text-xs border rounded px-1" placeholder="SL" />
                                       {copyTotals[product.id] > 0 && <div className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${getCopyStatusColor(copyTotals[product.id], product.sold_quantity)}`}>
-                                          Đã copy: {copyTotals[product.id]}
+                                          Đã Đặt: {copyTotals[product.id]}
                                         </div>}
                                     </div>
                                   </TableCell>
@@ -1736,7 +1736,7 @@ export default function LiveProducts() {
                               }));
                             }} className="w-12 h-6 text-center text-xs border rounded px-1" placeholder="SL" />
                                 {copyTotals[product.id] > 0 && <div className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${getCopyStatusColor(copyTotals[product.id], product.sold_quantity)}`}>
-                                    Đã copy: {copyTotals[product.id]}
+                                    Đã Đặt: {copyTotals[product.id]}
                                   </div>}
                               </div>
                             </TableCell>
