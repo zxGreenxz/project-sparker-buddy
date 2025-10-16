@@ -104,6 +104,14 @@ export function SelectProductDialog({ open, onOpenChange, onSelect, onSelectMult
     setSelectedProducts(new Set());
   };
 
+  const handleSelectAll = () => {
+    if (selectedProducts.size === products.length) {
+      setSelectedProducts(new Set());
+    } else {
+      setSelectedProducts(new Set(products.map(p => p.id)));
+    }
+  };
+
   if (isMobile) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -230,7 +238,6 @@ export function SelectProductDialog({ open, onOpenChange, onSelect, onSelectMult
             <Table>
               <TableHeader>
                 <TableRow>
-                  {onSelectMultiple && <TableHead className="w-12"></TableHead>}
                   <TableHead>Hình ảnh</TableHead>
                   <TableHead>Mã SP</TableHead>
                   <TableHead>Tên sản phẩm</TableHead>
@@ -238,20 +245,28 @@ export function SelectProductDialog({ open, onOpenChange, onSelect, onSelectMult
                   {!hidePurchasePrice && <TableHead>Giá mua</TableHead>}
                   <TableHead>Giá bán</TableHead>
                   <TableHead></TableHead>
+                  {onSelectMultiple && (
+                    <TableHead className="w-12 text-center">
+                      <Checkbox
+                        checked={selectedProducts.size === products.length && products.length > 0}
+                        onCheckedChange={handleSelectAll}
+                      />
+                    </TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <TableRow key={i}>
-                      {onSelectMultiple && <TableCell><Skeleton className="h-4 w-4" /></TableCell>}
                       <TableCell><Skeleton className="h-12 w-12" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-32" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                      {!hidePurchasePrice && <TableCell><Skeleton className="h-4 w-24" /></TableCell>}
                       <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                       <TableCell><Skeleton className="h-8 w-16" /></TableCell>
+                      {onSelectMultiple && <TableCell><Skeleton className="h-4 w-4" /></TableCell>}
                     </TableRow>
                   ))
                 ) : products.length === 0 ? (
@@ -263,14 +278,6 @@ export function SelectProductDialog({ open, onOpenChange, onSelect, onSelectMult
                 ) : (
                   products.map((product) => (
                     <TableRow key={product.id} className="hover:bg-muted/50">
-                      {onSelectMultiple && (
-                        <TableCell onClick={(e) => e.stopPropagation()}>
-                          <Checkbox
-                            checked={selectedProducts.has(product.id)}
-                            onCheckedChange={() => toggleProductSelection(product.id)}
-                          />
-                        </TableCell>
-                      )}
                       <TableCell className="cursor-pointer" onClick={() => handleSelect(product)}>
                         <ProductImage
                           productId={product.id}
@@ -296,6 +303,14 @@ export function SelectProductDialog({ open, onOpenChange, onSelect, onSelectMult
                           Chọn
                         </Button>
                       </TableCell>
+                      {onSelectMultiple && (
+                        <TableCell onClick={(e) => e.stopPropagation()} className="text-center">
+                          <Checkbox
+                            checked={selectedProducts.has(product.id)}
+                            onCheckedChange={() => toggleProductSelection(product.id)}
+                          />
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))
                 )}
