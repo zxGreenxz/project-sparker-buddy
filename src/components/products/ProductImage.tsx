@@ -174,7 +174,7 @@ export function ProductImage({
 
       {isZoomed && (
         <div
-          className="fixed pointer-events-none z-[9999]"
+          className="fixed pointer-events-none z-[99999]"
           style={{
             top: `${zoomPosition.top}px`,
             left: `${zoomPosition.left}px`,
