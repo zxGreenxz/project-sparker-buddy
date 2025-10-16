@@ -164,7 +164,7 @@ export function ProductImage({
   }
 
   return (
-    <>
+    <div className="relative inline-block">
       <img
         ref={imgRef}
         src={imageUrl}
@@ -199,6 +199,6 @@ export function ProductImage({
           />
         </div>
       )}
-    </>
+    </div>
   );
 }
