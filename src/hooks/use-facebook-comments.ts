@@ -189,7 +189,6 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
           .from('facebook_comments_archive' as any)
           .select('*')
           .eq('facebook_post_id', videoId)
-          .eq('is_deleted', false)
           .gte('comment_created_time', oneMonthAgo.toISOString())
           .order('comment_created_time', { ascending: false })
           .limit(1000);
@@ -206,6 +205,7 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
             },
             created_time: c.comment_created_time,
             like_count: c.like_count || 0,
+            is_deleted: c.is_deleted || false,
           }));
           
           setErrorCount(0);

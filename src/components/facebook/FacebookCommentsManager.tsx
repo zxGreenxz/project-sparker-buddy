@@ -1740,6 +1740,7 @@ export function FacebookCommentsManager({
                       filteredComments.map((comment) => {
                         const isNew = newCommentIds.has(comment.id);
                         const status = comment.partnerStatus || "Khách lạ";
+                        const isDeleted = comment.is_deleted || false;
 
                         return (
                           <Card
@@ -1747,6 +1748,7 @@ export function FacebookCommentsManager({
                             className={cn(
                               isNew &&
                                 "border-primary bg-primary/5 animate-in fade-in slide-in-from-bottom-2",
+                              isDeleted && "border-red-300 bg-red-50/50 opacity-75",
                             )}
                           >
                             <CardContent className="pt-4">
@@ -1832,6 +1834,15 @@ export function FacebookCommentsManager({
                                       </Badge>
                                     )}
 
+                                    {isDeleted && (
+                                      <Badge
+                                        variant="destructive"
+                                        className="text-xs"
+                                      >
+                                        ❌ Đã xóa
+                                      </Badge>
+                                    )}
+
                                     <span className="text-xs text-muted-foreground ml-auto">
                                       {comment.created_time
                                         ? format(
@@ -1844,7 +1855,10 @@ export function FacebookCommentsManager({
                                     </span>
                                   </div>
 
-                                  <p className="text-sm font-semibold whitespace-pre-wrap break-words mt-1.5">
+                                  <p className={cn(
+                                    "text-sm font-semibold whitespace-pre-wrap break-words mt-1.5",
+                                    isDeleted && "text-muted-foreground line-through"
+                                  )}>
                                     {comment.message}
                                   </p>
 
@@ -1857,7 +1871,7 @@ export function FacebookCommentsManager({
                                       }
                                       disabled={pendingCommentIds.has(
                                         comment.id,
-                                      )}
+                                      ) || isDeleted}
                                       aria-label="Tạo đơn hàng"
                                     >
                                       {pendingCommentIds.has(comment.id) && (
@@ -1871,7 +1885,7 @@ export function FacebookCommentsManager({
                                       variant="secondary"
                                       className="h-7 text-xs"
                                       onClick={() => handleCreateOrderClick(comment, "hang_le")}
-                                      disabled={pendingCommentIds.has(comment.id)}
+                                      disabled={pendingCommentIds.has(comment.id) || isDeleted}
                                       aria-label="Tạo đơn hàng lẻ"
                                     >
                                       {pendingCommentIds.has(comment.id) && (

@@ -23,6 +23,7 @@ export interface FacebookComment {
   };
   created_time: string;
   like_count: number;
+  is_deleted?: boolean;
 }
 
 // ============================================================================
