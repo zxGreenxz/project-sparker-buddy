@@ -19,12 +19,13 @@ export const generateBillPDF = (
   template: BillTemplate,
   data: BillData
 ): jsPDF => {
-  // Create PDF with paper width (80mm = ~226 pixels at 72 DPI)
+  // Create PDF with paper width and height
   const widthMm = template.paperWidth;
+  const heightMm = template.paperHeight;
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
-    format: [widthMm, 297] // A4 height as max
+    format: [widthMm, heightMm]
   });
 
   // Set font
@@ -48,8 +49,16 @@ export const generateBillPDF = (
       field.fontWeight === 'bold' ? 'bold' : 'normal'
     );
 
+    // Calculate available width for text (accounting for padding)
+    const maxWidth = widthMm - template.styles.padding.left - template.styles.padding.right;
+    
+    // Split text into lines if it's too long
+    const lines = doc.splitTextToSize(value, maxWidth);
+    
+    // Calculate line height
+    const lineHeight = field.fontSize * template.styles.lineSpacing * 0.3527; // pt to mm
+
     // Calculate x position based on alignment
-    const textWidth = doc.getTextWidth(value);
     let xPosition = template.styles.padding.left;
     
     if (field.align === 'center') {
@@ -58,11 +67,13 @@ export const generateBillPDF = (
       xPosition = widthMm - template.styles.padding.right;
     }
 
-    // Add text
-    doc.text(value, xPosition, yPosition, { align: field.align });
+    // Add text lines
+    lines.forEach((line: string, index: number) => {
+      doc.text(line, xPosition, yPosition + (index * lineHeight), { align: field.align });
+    });
 
-    // Move to next line
-    yPosition += (field.fontSize * template.styles.lineSpacing * 0.3527); // pt to mm
+    // Move to next field (accounting for number of lines)
+    yPosition += (lines.length * lineHeight);
   });
 
   return doc;

@@ -408,6 +408,49 @@ export function PdfBillEditor() {
             </DndContext>
           </ScrollArea>
 
+          {/* Paper Size Settings */}
+          <div className="mt-4 space-y-4 border-t pt-4">
+            <div>
+              <Label>Chiều rộng giấy: {template.paperWidth}mm</Label>
+              <div className="flex gap-2 mt-2">
+                <Button
+                  size="sm"
+                  variant={template.paperWidth === 58 ? 'default' : 'outline'}
+                  onClick={() => setTemplate(prev => ({ ...prev, paperWidth: 58 }))}
+                >
+                  58mm
+                </Button>
+                <Button
+                  size="sm"
+                  variant={template.paperWidth === 80 ? 'default' : 'outline'}
+                  onClick={() => setTemplate(prev => ({ ...prev, paperWidth: 80 }))}
+                >
+                  80mm
+                </Button>
+              </div>
+              <Slider
+                value={[template.paperWidth]}
+                onValueChange={([value]) => setTemplate(prev => ({ ...prev, paperWidth: value }))}
+                min={58}
+                max={100}
+                step={1}
+                className="mt-2"
+              />
+            </div>
+
+            <div>
+              <Label>Chiều cao giấy: {template.paperHeight}mm</Label>
+              <Slider
+                value={[template.paperHeight]}
+                onValueChange={([value]) => setTemplate(prev => ({ ...prev, paperHeight: value }))}
+                min={100}
+                max={400}
+                step={10}
+                className="mt-2"
+              />
+            </div>
+          </div>
+
           <div className="mt-4 flex flex-wrap gap-2">
             <Button onClick={handleSave} size="sm">
               <Save className="h-4 w-4 mr-2" />

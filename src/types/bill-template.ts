@@ -1,7 +1,8 @@
 export interface BillTemplate {
   id: string;
   name: string;
-  paperWidth: 80; // 58mm or 80mm
+  paperWidth: number; // 58mm to 100mm
+  paperHeight: number; // 100mm to 400mm
   fields: BillField[];
   styles: BillStyles;
 }
@@ -28,6 +29,7 @@ export const DEFAULT_BILL_TEMPLATE: BillTemplate = {
   id: 'default',
   name: 'Template mặc định',
   paperWidth: 80,
+  paperHeight: 200,
   fields: [
     { id: '1', key: 'sessionIndex', order: 1, visible: true, fontSize: 32, fontWeight: 'bold', align: 'center' },
     { id: '2', key: 'phone', order: 2, visible: true, fontSize: 24, fontWeight: 'bold', align: 'center' },
