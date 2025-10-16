@@ -2152,7 +2152,7 @@ export default function LiveProducts() {
       <UploadLiveOrdersToTPOSDialog open={isUploadLiveOrdersOpen} onOpenChange={setIsUploadLiveOrdersOpen} ordersWithProducts={ordersWithProducts} sessionId={selectedSession} />
 
       {/* Floating Action Buttons */}
-      {selectedPhase && selectedPhase !== "all" && <div className="fixed top-6 right-6 flex flex-col gap-3 z-50">
+      {selectedPhase && selectedPhase !== "all" && <div className="fixed top-16 right-6 flex flex-col gap-3 z-50">
           {/* Thêm từ kho - Primary eye-catching button */}
           <TooltipProvider>
             <Tooltip>
@@ -2166,7 +2166,7 @@ export default function LiveProducts() {
                   }} 
                   className="h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-110 bg-gradient-to-br from-primary to-primary/80"
                 >
-                  <Package className="h-6 w-6" />
+                  <Package className="h-8 w-8" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="left">
