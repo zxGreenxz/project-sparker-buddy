@@ -19,12 +19,13 @@ export const generateBillPDF = (
   template: BillTemplate,
   data: BillData
 ): jsPDF => {
-  // Create PDF with paper width (80mm = ~226 pixels at 72 DPI)
+  // Create PDF with paper dimensions
   const widthMm = template.paperWidth;
+  const heightMm = template.paperHeight;
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
-    format: [widthMm, 297] // A4 height as max
+    format: [widthMm, heightMm]
   });
 
   // Set font
