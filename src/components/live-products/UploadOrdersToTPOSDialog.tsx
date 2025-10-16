@@ -241,17 +241,17 @@ export function UploadOrdersToTPOSDialog({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-12">
+                <TableHead>Mã đơn</TableHead>
+                <TableHead>Sản phẩm</TableHead>
+                <TableHead className="text-right">Tổng SL</TableHead>
+                <TableHead>Trạng thái</TableHead>
+                <TableHead className="w-12 text-center">
                   <Checkbox
                     checked={allSelected}
                     onCheckedChange={handleSelectAll}
                     disabled={isUploading}
                   />
                 </TableHead>
-                <TableHead>Mã đơn</TableHead>
-                <TableHead>Sản phẩm</TableHead>
-                <TableHead className="text-right">Tổng SL</TableHead>
-                <TableHead>Trạng thái</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -285,13 +285,6 @@ export function UploadOrdersToTPOSDialog({
                   
                   return (
                     <TableRow key={orderCode}>
-                      <TableCell>
-                        <Checkbox
-                          checked={selectedOrders.has(orderCode)}
-                          onCheckedChange={(checked) => handleSelectOrder(orderCode, checked as boolean)}
-                          disabled={isUploading}
-                        />
-                      </TableCell>
                       <TableCell className="font-medium">{orderCode}</TableCell>
                       <TableCell>
                         <div className="text-sm">
@@ -351,6 +344,13 @@ export function UploadOrdersToTPOSDialog({
                         ) : (
                           <Badge variant="outline">Chưa upload</Badge>
                         )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Checkbox
+                          checked={selectedOrders.has(orderCode)}
+                          onCheckedChange={(checked) => handleSelectOrder(orderCode, checked as boolean)}
+                          disabled={isUploading}
+                        />
                       </TableCell>
                     </TableRow>
                   );

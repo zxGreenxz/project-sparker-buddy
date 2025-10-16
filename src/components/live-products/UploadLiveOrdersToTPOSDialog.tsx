@@ -335,40 +335,27 @@ export function UploadLiveOrdersToTPOSDialog({
             </div>
           )}
 
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Checkbox
-                checked={selectedOrders.size === groupedOrders.length && groupedOrders.length > 0}
-                onCheckedChange={handleSelectAll}
-              />
-              <span className="text-sm font-medium">
-                Chọn tất cả ({selectedOrders.size}/{groupedOrders.length})
-              </span>
-            </div>
-          </div>
-
           <ScrollArea className="h-[400px] border rounded-md">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-12"></TableHead>
                   <TableHead>Mã đơn</TableHead>
                   <TableHead>Sản phẩm</TableHead>
                   <TableHead className="text-center">Tổng SL</TableHead>
                   <TableHead>Ghi chú</TableHead>
                   <TableHead>Trạng thái</TableHead>
+                  <TableHead className="w-12 text-center">
+                    <Checkbox
+                      checked={selectedOrders.size === groupedOrders.length && groupedOrders.length > 0}
+                      onCheckedChange={handleSelectAll}
+                      disabled={isUploading}
+                    />
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {groupedOrders.map((group) => (
                   <TableRow key={group.order_code}>
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedOrders.has(group.order_code)}
-                        onCheckedChange={() => handleSelectOrder(group.order_code)}
-                        disabled={isUploading}
-                      />
-                    </TableCell>
                     <TableCell className="font-medium">{group.order_code}</TableCell>
                     <TableCell>
                       <div className="space-y-1">
@@ -414,6 +401,13 @@ export function UploadLiveOrdersToTPOSDialog({
                           <Badge variant="default" className="bg-green-500">Đã upload</Badge>
                         ) : null
                       )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Checkbox
+                        checked={selectedOrders.has(group.order_code)}
+                        onCheckedChange={() => handleSelectOrder(group.order_code)}
+                        disabled={isUploading}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}
