@@ -387,55 +387,6 @@ export function PdfBillEditor() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {/* Paper Size Controls */}
-          <div className="mb-6 p-4 border rounded-lg space-y-4 bg-muted/30">
-            <div className="font-medium text-sm">📐 Kích thước giấy</div>
-            
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">
-                Chiều rộng: {template.paperWidth}mm
-              </Label>
-              <Slider
-                value={[template.paperWidth]}
-                onValueChange={([value]) => setTemplate(prev => ({ ...prev, paperWidth: value }))}
-                min={58}
-                max={100}
-                step={1}
-                className="w-full"
-              />
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant={template.paperWidth === 58 ? 'default' : 'outline'}
-                  onClick={() => setTemplate(prev => ({ ...prev, paperWidth: 58 }))}
-                >
-                  58mm
-                </Button>
-                <Button
-                  size="sm"
-                  variant={template.paperWidth === 80 ? 'default' : 'outline'}
-                  onClick={() => setTemplate(prev => ({ ...prev, paperWidth: 80 }))}
-                >
-                  80mm
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">
-                Chiều cao: {template.paperHeight}mm
-              </Label>
-              <Slider
-                value={[template.paperHeight]}
-                onValueChange={([value]) => setTemplate(prev => ({ ...prev, paperHeight: value }))}
-                min={100}
-                max={400}
-                step={10}
-                className="w-full"
-              />
-            </div>
-          </div>
-
           <ScrollArea className="h-[600px] pr-4">
             <DndContext
               sensors={sensors}
