@@ -34,9 +34,9 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
         
         const { data: { session } } = await supabase.auth.getSession();
         
-        // Fetch trực tiếp - Edge function sẽ xử lý merge và debounce
+        // Fetch trực tiếp - Edge function sẽ xử lý merge, debounce và push vào archive
         await fetch(
-          `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/facebook-comments?pageId=${pageId}&postId=${videoId}&limit=500`,
+          `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/facebook-comments?pageId=${pageId}&postId=${videoId}&sessionIndex=${videoId}&limit=500`,
           {
             headers: {
               'Authorization': `Bearer ${session?.access_token}`,
@@ -70,112 +70,54 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
     isLoading: commentsLoading,
     error: commentsError,
   } = useInfiniteQuery({
-    queryKey: ['facebook-comments', pageId, videoId, selectedVideo?.statusLive],
+    queryKey: ['facebook-comments', pageId, videoId],
     queryFn: async ({ pageParam }) => {
       if (!pageId || !videoId) return { data: [], paging: {} };
       
-      console.log(`[useFacebookComments] Fetching comments for video ${videoId}, pageParam: ${pageParam}`);
+      console.log(`[useFacebookComments] Fetching comments from archive for video ${videoId}`);
       const startTime = Date.now();
       
-      // ========== OFFLINE VIDEO: Only query DB, no Edge Function ==========
-      if (selectedVideo && selectedVideo.statusLive !== 1) {
-        console.log(`[useFacebookComments] Video OFFLINE - fetching from DB only`);
-        
-        const { data: cachedComments, error: dbError } = await supabase
-          .from('facebook_comments_archive' as any)
-          .select('*')
-          .eq('facebook_post_id', videoId)
-          .eq('is_deleted', false)
-          .order('comment_created_time', { ascending: false })
-          .limit(1000);
-        
-        if (dbError) {
-          console.error('[useFacebookComments] DB error:', dbError);
-          return { data: [], paging: {}, isOffline: true };
-        }
-        
-        const formattedComments = cachedComments?.map((c: any) => ({
-          id: c.facebook_comment_id,
-          message: c.comment_message || '',
-          from: {
-            name: c.facebook_user_name || 'Unknown',
-            id: c.facebook_user_id || '',
-          },
-          created_time: c.comment_created_time,
-          like_count: c.like_count || 0,
-        })) || [];
-        
-        const elapsed = Date.now() - startTime;
-        console.log(`[useFacebookComments] Loaded ${formattedComments.length} offline comments in ${elapsed}ms`);
-        
-        setErrorCount(0);
-        setHasError(false);
-        
-        return { 
-          data: formattedComments, 
-          paging: {},
-          fromCache: true,
-          isOffline: true 
-        };
+      // ========== ALWAYS READ FROM ARCHIVE TABLE ==========
+      const { data: archivedComments, error: dbError } = await supabase
+        .from('facebook_comments_archive' as any)
+        .select('*')
+        .eq('facebook_post_id', videoId)
+        .order('comment_created_time', { ascending: false })
+        .limit(1000);
+      
+      if (dbError) {
+        console.error('[useFacebookComments] Archive DB error:', dbError);
+        return { data: [], paging: {} };
       }
       
-      // ========== LIVE VIDEO: ALWAYS fetch from TPOS, NEVER use cache ==========
-      console.log('[useFacebookComments] Video LIVE - fetching from TPOS API (no cache)');
+      const formattedComments = archivedComments?.map((c: any) => ({
+        id: c.facebook_comment_id,
+        message: c.comment_message || '',
+        from: {
+          name: c.facebook_user_name || 'Unknown',
+          id: c.facebook_user_id || '',
+        },
+        created_time: c.comment_created_time,
+        like_count: c.like_count || 0,
+        is_deleted_by_tpos: c.is_deleted_by_tpos || false,
+        deleted_at: c.updated_at,
+      })) || [];
       
-      const order = 'reverse_chronological';
+      const elapsed = Date.now() - startTime;
+      console.log(`[useFacebookComments] Loaded ${formattedComments.length} comments from archive in ${elapsed}ms`);
       
-      let url = `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/facebook-comments?pageId=${pageId}&postId=${videoId}&limit=500&order=${order}`;
-      if (pageParam) {
-        url += `&after=${pageParam}`;
-      }
+      setErrorCount(0);
+      setHasError(false);
       
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      try {
-        const response = await fetch(url, {
-          headers: {
-            'Authorization': `Bearer ${session?.access_token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (!response.ok) {
-          const error = await response.json();
-          console.error('[useFacebookComments] Fetch error:', error);
-          setErrorCount(prev => prev + 1);
-          setHasError(true);
-          throw new Error(error.error || 'Failed to fetch comments');
-        }
-
-        const data = await response.json();
-        const elapsed = Date.now() - startTime;
-        
-        // Check source of data
-        if (data.source === 'database') {
-          console.log(`[useFacebookComments] ⚠️ Fetched ${data.data?.length || 0} comments from DATABASE (TPOS unavailable) in ${elapsed}ms`);
-        } else {
-          console.log(`[useFacebookComments] ✅ Fetched ${data.data?.length || 0} comments from TPOS in ${elapsed}ms`);
-        }
-        
-        setErrorCount(0);
-        setHasError(false);
-        
-        return data;
-      } catch (error) {
-        console.error('[useFacebookComments] Exception in queryFn:', error);
-        setErrorCount(prev => prev + 1);
-        setHasError(true);
-        throw error;
-      }
+      return { 
+        data: formattedComments, 
+        paging: {},
+        fromArchive: true 
+      };
     },
     getNextPageParam: (lastPage) => {
-      // No pagination for offline videos or cached data
-      if (lastPage.fromCache || lastPage.isOffline) return undefined;
-      
-      if (!lastPage.data || lastPage.data.length === 0) return undefined;
-      const nextPageCursor = lastPage.paging?.cursors?.after || (lastPage.paging?.next ? new URL(lastPage.paging.next).searchParams.get('after') : null);
-      if (!nextPageCursor) return undefined;
-      return nextPageCursor;
+      // No pagination for archive data
+      return undefined;
     },
     initialPageParam: undefined,
     enabled: !!videoId && !!pageId,
@@ -290,17 +232,17 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
         }
       )
       
-      // Subscribe to snapshot UPDATE (comments array changed)
+      // Subscribe to archive INSERT/UPDATE (new comments or status changes)
       .on(
         'postgres_changes',
         {
-          event: 'UPDATE',
+          event: '*',
           schema: 'public',
-          table: 'facebook_live_comments_snapshot' as any,
+          table: 'facebook_comments_archive' as any,
           filter: `facebook_post_id=eq.${videoId}`,
         },
         (payload) => {
-          console.log('[Realtime] Comments snapshot updated:', payload);
+          console.log('[Realtime] Archive updated:', payload);
           queryClient.invalidateQueries({ 
             queryKey: ['facebook-comments', pageId, videoId] 
           });

@@ -13,12 +13,13 @@ serve(async (req) => {
   }
 
   try {
-    const url = new URL(req.url);
-    const pageId = url.searchParams.get('pageId');
-    const postId = url.searchParams.get('postId');
-    const limit = url.searchParams.get('limit') || '100';
-    const after = url.searchParams.get('after');
-    const order = url.searchParams.get('order') || 'reverse_chronological';
+  const url = new URL(req.url);
+  const pageId = url.searchParams.get('pageId');
+  const postId = url.searchParams.get('postId');
+  const sessionIndex = url.searchParams.get('sessionIndex') || postId; // Session identifier for live videos
+  const limit = url.searchParams.get('limit') || '100';
+  const after = url.searchParams.get('after');
+  const order = url.searchParams.get('order') || 'reverse_chronological';
 
     if (!pageId || !postId) {
       return new Response(
@@ -211,6 +212,38 @@ serve(async (req) => {
           console.error('❌ Snapshot save error:', upsertError.message);
         } else {
           console.log(`✅ Saved snapshot: ${updatedCommentsArray.length} comments (${deletedComments.length} deleted)`);
+        }
+        
+        // Push comments to facebook_comments_archive for UI display
+        if (updatedCommentsArray.length > 0) {
+          console.log(`💾 Pushing ${updatedCommentsArray.length} comments to archive...`);
+          
+          const commentsToInsert = updatedCommentsArray.map((comment: any) => ({
+            facebook_comment_id: comment.id,
+            facebook_post_id: postId,
+            facebook_user_id: comment.from?.id || '',
+            facebook_user_name: comment.from?.name || 'Unknown',
+            comment_message: comment.message || '',
+            comment_created_time: comment.created_time,
+            like_count: comment.like_count || 0,
+            is_deleted_by_tpos: comment.is_deleted_by_tpos || false,
+            tpos_session_index: sessionIndex,
+            last_fetched_at: fetchedAt,
+            updated_at: fetchedAt,
+          }));
+          
+          const { error: archiveError } = await supabaseClient
+            .from('facebook_comments_archive')
+            .upsert(commentsToInsert, {
+              onConflict: 'facebook_comment_id',
+              ignoreDuplicates: false,
+            });
+          
+          if (archiveError) {
+            console.error('❌ Archive insert error:', archiveError.message);
+          } else {
+            console.log(`✅ Pushed ${commentsToInsert.length} comments to archive`);
+          }
         }
       }
       
