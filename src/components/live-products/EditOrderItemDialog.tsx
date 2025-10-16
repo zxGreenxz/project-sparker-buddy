@@ -38,6 +38,7 @@ import { format } from "date-fns";
 
 const formSchema = z.object({
   quantity: z.coerce.number().min(0, "Số lượng không được âm"),
+  note: z.string().optional(),
 });
 
 interface EditOrderItemDialogProps {
@@ -48,6 +49,7 @@ interface EditOrderItemDialogProps {
     product_id: string;
     product_name: string;
     quantity: number;
+    note?: string | null;
       orders?: Array<{
       id: string;
       live_product_id: string;
@@ -61,6 +63,7 @@ interface EditOrderItemDialogProps {
       live_phase_id?: string;
       sold_quantity?: number;
       facebook_comment_id?: string;
+      note?: string | null;
     }>;
   } | null;
   phaseId: string;
@@ -105,6 +108,7 @@ export function EditOrderItemDialog({
     if (orderItem) {
       form.reset({
         quantity: orderItem.quantity,
+        note: orderItem.orders?.[0]?.note || orderItem.note || '',
       });
     }
   }, [orderItem, form]);
@@ -132,6 +136,7 @@ export function EditOrderItemDialog({
           .from("live_orders")
           .update({ 
             quantity: newTotalQty,
+            note: values.note || null,
             upload_status: null,
             uploaded_at: null,
             tpos_order_id: null,
@@ -180,6 +185,7 @@ export function EditOrderItemDialog({
           .from("live_orders")
           .update({ 
             quantity: values.quantity,
+            note: values.note || null,
             upload_status: null,
             uploaded_at: null,
             tpos_order_id: null,
@@ -374,6 +380,24 @@ export function EditOrderItemDialog({
                         min="0"
                         placeholder="Nhập số lượng"
                         {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="note"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Ghi chú</FormLabel>
+                    <FormControl>
+                      <Textarea 
+                        placeholder="Nhập ghi chú cho sản phẩm này (tùy chọn)" 
+                        {...field} 
+                        rows={3}
                       />
                     </FormControl>
                     <FormMessage />

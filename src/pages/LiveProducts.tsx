@@ -129,6 +129,7 @@ interface OrderWithProduct extends LiveOrder {
   product_name: string;
   product_images?: string[];
   customer_status?: string;
+  note?: string | null;
 }
 
 // Helper function to calculate oversell status dynamically
@@ -1952,6 +1953,7 @@ export default function LiveProducts() {
                   <TableHead className="w-48 font-bold text-base">Tên sản phẩm</TableHead>
                   <TableHead className="w-32 font-bold text-base">Mã sản phẩm</TableHead>
                   <TableHead className="w-20 text-center font-bold text-base">Số lượng</TableHead>
+                  <TableHead className="w-32 font-bold text-base">Ghi chú</TableHead>
                   <TableHead className="w-24 text-center font-bold text-base">Thao tác SP</TableHead>
                   <TableHead className="w-24 text-center font-bold text-base">Trạng thái</TableHead>
                   <TableHead className="w-28 text-center font-bold text-base">Upload</TableHead>
@@ -2021,6 +2023,11 @@ export default function LiveProducts() {
                               </TableCell>
                               <TableCell className="text-center py-2 border-r">
                                 <span className="text-sm font-medium">{product.total_quantity}</span>
+                              </TableCell>
+                              <TableCell className="py-2 border-r">
+                                <span className="text-xs text-muted-foreground italic">
+                                  {product.orders[0]?.note || '-'}
+                                </span>
                               </TableCell>
                               <TableCell className="text-center py-2 border-r">
                                 <div className="flex items-center justify-center gap-1">

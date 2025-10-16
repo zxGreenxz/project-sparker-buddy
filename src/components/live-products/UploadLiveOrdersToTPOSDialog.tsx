@@ -26,6 +26,7 @@ interface OrderWithProduct {
   variant?: string | null;
   upload_status?: string | null;
   live_product_id: string;
+  note?: string | null;
 }
 
 interface UploadLiveOrdersToTPOSDialogProps {
@@ -48,11 +49,12 @@ interface GroupedOrder {
     product_name: string;
     quantity: number;
     variant?: string | null;
-    orderItemIds: string[]; // ✅ Track live_orders IDs for this product
+    orderItemIds: string[];
+    note?: string | null;
   }>;
   totalQuantity: number;
   uploadStatus?: string | null;
-  hasUploadedItems: boolean; // ✅ Has at least one uploaded item
+  hasUploadedItems: boolean;
 }
 
 export function UploadLiveOrdersToTPOSDialog({
@@ -127,17 +129,16 @@ export function UploadLiveOrdersToTPOSDialog({
       );
       
       if (existingProduct) {
-        // If exists, add to quantity and track ID
         existingProduct.quantity += order.quantity;
         existingProduct.orderItemIds.push(order.id);
       } else {
-        // If new, add to products array
         acc[order.order_code].products.push({
           product_code: order.product_code,
           product_name: order.product_name,
           quantity: order.quantity,
           variant: order.variant,
-          orderItemIds: [order.id], // ✅ Track IDs
+          orderItemIds: [order.id],
+          note: order.note || null,
         });
       }
       
@@ -220,13 +221,14 @@ export function UploadLiveOrdersToTPOSDialog({
             product_code: p.product_code,
             product_name: p.product_name,
             quantity: p.quantity,
+            note: p.note,
           })),
           sessionInfo: {
             start_date: sessionData.start_date,
             end_date: sessionData.end_date,
             session_index: sessionIndex,
           },
-          orderItemIds: allOrderItemIds, // ✅ Pass specific IDs
+          orderItemIds: allOrderItemIds,
           onProgress: (step, message) => {
             setUploadProgress(prev => ({
               ...prev,

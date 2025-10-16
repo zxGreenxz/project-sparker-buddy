@@ -7,13 +7,14 @@ interface UploadOrderToTPOSParams {
     product_code: string;
     product_name: string;
     quantity: number;
+    note?: string;
   }>;
   sessionInfo: {
     start_date: string;
     end_date: string;
     session_index: number;
   };
-  orderItemIds?: string[]; // ✅ Track specific live_orders IDs to update
+  orderItemIds?: string[];
   onProgress?: (step: number, message: string) => void;
 }
 
@@ -95,7 +96,7 @@ async function getTPOSOrderDetail(orderId: number, bearerToken: string) {
   return await response.json();
 }
 
-// Update TPOS order with new products - APPEND instead of overwrite
+// Update TPOS order - OVERWRITE Quantity + Note for existing products
 async function updateTPOSOrder(
   orderId: number,
   orderDetail: any,
@@ -104,16 +105,50 @@ async function updateTPOSOrder(
 ) {
   const url = `https://tomato.tpos.vn/odata/SaleOnline_Order(${orderId})`;
 
-  // ✅ Keep existing products and append new ones
   const existingDetails = orderDetail.Details || [];
-  const mergedProducts = [...existingDetails, ...newProducts];
+  const existingProductsMap = new Map<string, { product: any; index: number }>();
+
+  existingDetails.forEach((product: any, index: number) => {
+    const code = product.ProductCode;
+    if (code) {
+      existingProductsMap.set(code, { product, index });
+    }
+  });
+
+  const updatedDetails = [...existingDetails];
+  const addedProducts: any[] = [];
+
+  newProducts.forEach((newProduct) => {
+    const code = newProduct.ProductCode;
+
+    if (existingProductsMap.has(code)) {
+      const { index } = existingProductsMap.get(code)!;
+      const existingProduct = updatedDetails[index];
+
+      updatedDetails[index] = {
+        ...existingProduct,
+        Quantity: newProduct.Quantity,
+        Note: newProduct.Note || '',
+      };
+
+      console.log(
+        `Product ${code} exists in TPOS order ${orderId}, overwriting: Quantity ${existingProduct.Quantity} -> ${newProduct.Quantity}, Note updated`
+      );
+    } else {
+      addedProducts.push(newProduct);
+    }
+  });
+
+  const mergedProducts = [...updatedDetails, ...addedProducts];
 
   const payload = {
     ...orderDetail,
     Details: mergedProducts,
   };
 
-  console.log(`Updating TPOS order ${orderId}: adding ${newProducts.length} products (total: ${mergedProducts.length})`);
+  console.log(
+    `Updating TPOS order ${orderId}: overwritten ${newProducts.length - addedProducts.length} products, added ${addedProducts.length} new products`
+  );
 
   const response = await fetch(url, {
     method: 'PUT',
@@ -191,9 +226,11 @@ export async function uploadOrderToTPOS(
 
       tposProducts.push({
         ProductId: searchResult.Id,
+        ProductCode: searchResult.Code,
         ProductName: searchResult.Name,
         ProductNameGet: searchResult.NameGet,
         Quantity: product.quantity,
+        Note: product.note || '',
         Price: searchResult.ListPrice || searchResult.PriceVariant || 0,
         UOMId: 1,
         UOMName: "Cái",
