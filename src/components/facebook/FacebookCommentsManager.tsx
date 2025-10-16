@@ -672,15 +672,20 @@ export function FacebookCommentsManager({
             });
           }
 
-          queryClient.invalidateQueries({
-            queryKey: getCommentsQueryKey(
+          try {
+            const queryKey = getCommentsQueryKey(
               pageId,
               selectedVideo.objectId,
               selectedVideo.statusLive === 1
-            ),
-          });
-
-          console.log(`[${timestamp}] ✅ Query invalidated - UI will refresh`);
+            );
+            console.log(`[${timestamp}] 🔑 Invalidating query with key:`, queryKey);
+            
+            queryClient.invalidateQueries({ queryKey });
+            
+            console.log(`[${timestamp}] ✅ Query invalidated - UI will refresh`);
+          } catch (error) {
+            console.error(`[${timestamp}] ❌ Error invalidating query:`, error);
+          }
         }
       )
       .on(
