@@ -1950,22 +1950,47 @@ export default function LiveProducts() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {ordersWithProducts.map((order, index) => {
-                  const bgColorClass = index % 2 === 1 ? 'bg-muted/30' : '';
-                  const oversellClass = order.is_oversell 
-                    ? 'bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-900' 
-                    : '';
-                  
-                  return (
-                    <TableRow 
-                      key={order.id} 
-                      className={`h-12 ${bgColorClass} ${oversellClass}`}
-                    >
-                      <TableCell className="border-r border-l text-center">
-                        <Badge className="text-sm font-mono">
-                          {order.order_code}
-                        </Badge>
-                      </TableCell>
+                {(() => {
+                  // Group orders by order_code and calculate rowSpan
+                  const orderGroups = new Map<string, number>();
+                  ordersWithProducts.forEach(order => {
+                    const count = orderGroups.get(order.order_code) || 0;
+                    orderGroups.set(order.order_code, count + 1);
+                  });
+
+                  // Track which order_code we've already rendered the first row for
+                  const renderedFirstRow = new Set<string>();
+
+                  return ordersWithProducts.map((order, index) => {
+                    const bgColorClass = index % 2 === 1 ? 'bg-muted/30' : '';
+                    const oversellClass = order.is_oversell 
+                      ? 'bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-900' 
+                      : '';
+                    
+                    // Check if this is the first row for this order_code
+                    const isFirstRowForOrderCode = !renderedFirstRow.has(order.order_code);
+                    if (isFirstRowForOrderCode) {
+                      renderedFirstRow.add(order.order_code);
+                    }
+                    
+                    const rowSpan = orderGroups.get(order.order_code) || 1;
+                    
+                    return (
+                      <TableRow 
+                        key={order.id} 
+                        className={`h-12 ${bgColorClass} ${oversellClass}`}
+                      >
+                        {/* Chỉ render cột Mã đơn cho dòng đầu tiên của mỗi order_code */}
+                        {isFirstRowForOrderCode && (
+                          <TableCell 
+                            className="border-r border-l text-center align-top" 
+                            rowSpan={rowSpan}
+                          >
+                            <Badge className="text-sm font-mono">
+                              {order.order_code}
+                            </Badge>
+                          </TableCell>
+                        )}
                       
                       <TableCell className="py-2 border-r">
                         <div className="font-medium text-sm">{order.product_name}</div>
@@ -2061,8 +2086,9 @@ export default function LiveProducts() {
                         })()}
                       </TableCell>
                     </TableRow>
-                  );
-                })}
+                    );
+                  });
+                })()}
               </TableBody>
                   </Table>
                 </Card>
