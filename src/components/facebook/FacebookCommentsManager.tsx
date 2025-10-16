@@ -687,7 +687,7 @@ export function FacebookCommentsManager({
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
           schema: 'public',
           table: 'facebook_comments_archive',
           filter: `facebook_post_id=eq.${selectedVideo.objectId}`,
@@ -728,15 +728,6 @@ export function FacebookCommentsManager({
                 pageId,
                 videoId: selectedVideo.objectId
               });
-              
-              // Show single toast for batch
-              if (pendingCount > 0) {
-                toast({
-                  title: "💬 Comment mới",
-                  description: `${pendingCount} comment mới`,
-                  duration: 3000,
-                });
-              }
               
               // Invalidate and force refetch
               queryClient.invalidateQueries({ queryKey });
