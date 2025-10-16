@@ -383,64 +383,51 @@ export function FacebookCommentsManager({
       if (!pageId || !selectedVideo?.objectId) return { data: [], paging: {} };
 
       console.log(
-        `[FacebookCommentsManager] Fetching comments (${selectedVideo?.statusLive === 1 ? 'LIVE' : 'OFFLINE'}), pageParam: ${pageParam}`,
+        `[FacebookCommentsManager] Reading from facebook_comments_archive for video ${selectedVideo.objectId}`,
       );
       const startTime = Date.now();
 
       // ========================================================================
-      // Fetch comments from TPOS API
+      // READ FROM facebook_comments_archive (NOT from TPOS directly)
       // ========================================================================
 
-      // Fetch from TPOS
-      const order =
-        selectedVideo.statusLive === 1
-          ? "reverse_chronological"
-          : "chronological";
+      const { data: archivedComments, error: dbError } = await supabase
+        .from('facebook_comments_archive' as any)
+        .select('*')
+        .eq('facebook_post_id', selectedVideo.objectId)
+        .order('comment_created_time', { ascending: false })
+        .limit(1000);
 
-      let url = `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/facebook-comments?pageId=${pageId}&postId=${selectedVideo.objectId}&limit=${FETCH_LIMIT}&order=${order}`;
-      if (pageParam) {
-        url += `&after=${pageParam}`;
+      if (dbError) {
+        console.error('[FacebookCommentsManager] DB error:', dbError);
+        return { data: [], paging: {} };
       }
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${session?.access_token}`,
-          "Content-Type": "application/json",
+      const formattedComments = archivedComments?.map((c: any) => ({
+        id: c.facebook_comment_id,
+        message: c.comment_message || '',
+        from: {
+          name: c.facebook_user_name || 'Unknown',
+          id: c.facebook_user_id || '',
         },
-      });
+        created_time: c.comment_created_time,
+        like_count: c.like_count || 0,
+        is_deleted_by_tpos: c.is_deleted_by_tpos || false,
+        deleted_at: c.updated_at,
+      })) || [];
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to fetch comments");
-      }
-
-      const data = await response.json();
       const elapsed = Date.now() - startTime;
       console.log(
-        `[FacebookCommentsManager] Fetched ${data.data?.length || 0} comments from TPOS (${elapsed}ms)`,
+        `[FacebookCommentsManager] Loaded ${formattedComments.length} comments from archive in ${elapsed}ms`,
       );
 
-      return data;
+      return { 
+        data: formattedComments, 
+        paging: {},
+        fromArchive: true 
+      };
     },
-    getNextPageParam: (lastPage) => {
-      if (lastPage.fromCache) return undefined;
-
-      if (!lastPage.data || lastPage.data.length === 0) {
-        return undefined;
-      }
-
-      const nextPageCursor =
-        lastPage.paging?.cursors?.after ||
-        (lastPage.paging?.next
-          ? new URL(lastPage.paging.next).searchParams.get("after")
-          : null);
-
-      return nextPageCursor || undefined;
-    },
+    getNextPageParam: () => undefined, // No pagination needed for archive
     initialPageParam: undefined,
     enabled: !!selectedVideo && !!pageId,
     refetchInterval: false,
@@ -581,7 +568,7 @@ export function FacebookCommentsManager({
   }, [selectedVideo?.objectId, selectedVideo?.statusLive]);
 
   // ============================================================================
-  // REALTIME CHECK FOR NEW COMMENTS
+  // REALTIME CHECK FOR NEW COMMENTS (calls Edge Function to process)
   // ============================================================================
 
   useEffect(() => {
@@ -605,18 +592,26 @@ export function FacebookCommentsManager({
       isCheckingNewCommentsRef.current = true;
 
       try {
-        console.log(`[Realtime Check] Invalidating queries for video ${selectedVideo.objectId}`);
+        console.log(`[Realtime Check] Calling Edge Function to process comments for video ${selectedVideo.objectId}`);
         
-        // Chỉ invalidate query - để use-facebook-comments.ts xử lý fetch
-        queryClient.invalidateQueries({ 
-          queryKey: getCommentsQueryKey(
-            pageId, 
-            selectedVideo.objectId, 
-            true // Live video
-          )
-        });
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        const sessionIndex = selectedVideo.objectId;
         
-        console.log(`[Realtime Check] ✅ Invalidated`);
+        // Call Edge Function to fetch from TPOS and push to archive
+        await fetch(
+          `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/facebook-comments?pageId=${pageId}&postId=${selectedVideo.objectId}&sessionIndex=${sessionIndex}&limit=500`,
+          {
+            headers: {
+              Authorization: `Bearer ${session?.access_token}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+        
+        console.log(`[Realtime Check] ✅ Edge Function called`);
       } catch (error) {
         console.error("[Realtime Check] Error:", error);
       } finally {
@@ -638,6 +633,54 @@ export function FacebookCommentsManager({
       }
     };
   }, [selectedVideo, pageId, isAutoRefresh, queryClient, toast]);
+
+  // ============================================================================
+  // REALTIME SUBSCRIPTION TO facebook_comments_archive
+  // ============================================================================
+
+  useEffect(() => {
+    if (!selectedVideo?.objectId || !pageId) return;
+
+    const channel = supabase
+      .channel(`facebook-archive-${selectedVideo.objectId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'facebook_comments_archive',
+          filter: `facebook_post_id=eq.${selectedVideo.objectId}`,
+        },
+        (payload) => {
+          console.log('[Realtime] Archive updated:', payload);
+          queryClient.invalidateQueries({
+            queryKey: getCommentsQueryKey(
+              pageId,
+              selectedVideo.objectId,
+              selectedVideo.statusLive === 1
+            ),
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'facebook_pending_orders',
+          filter: `facebook_post_id=eq.${selectedVideo.objectId}`,
+        },
+        (payload) => {
+          console.log('[Realtime] facebook_pending_orders change:', payload);
+          queryClient.invalidateQueries({ queryKey: ['tpos-orders', selectedVideo.objectId] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedVideo?.objectId, pageId, queryClient]);
 
   // ============================================================================
   // PROCESS COMMENTS
@@ -1466,9 +1509,9 @@ export function FacebookCommentsManager({
                     Refresh
                   </Button>
 
-                  {commentsData?.pages[0]?.fromCache && (
+                  {commentsData?.pages[0]?.fromArchive && (
                     <Badge variant="secondary" className="text-xs">
-                      ⚡ From cache
+                      📦 From archive
                     </Badge>
                   )}
 
@@ -1542,12 +1585,11 @@ export function FacebookCommentsManager({
 
                 {/* Warning nhỏ khi có comment bị xóa */}
                 {selectedVideo &&
-                  commentsData?.pages[0]?.source === "database" && (
-                    <Alert className="border-orange-500/30 bg-orange-500/5 mb-4">
-                      <AlertCircle className="h-4 w-4 text-orange-600" />
-                      <AlertDescription className="text-sm text-orange-700">
-                        ℹ️ Đang hiển thị từ cache. Một số comment có thể đã bị
-                        Facebook xóa.
+                  commentsData?.pages[0]?.fromArchive && (
+                    <Alert className="border-blue-500/30 bg-blue-500/5 mb-4">
+                      <AlertCircle className="h-4 w-4 text-blue-600" />
+                      <AlertDescription className="text-sm text-blue-700">
+                        ℹ️ Đang hiển thị từ archive. Comments được đồng bộ từ Facebook.
                       </AlertDescription>
                     </Alert>
                   )}
@@ -1790,9 +1832,9 @@ export function FacebookCommentsManager({
                     : `Hiển thị ${filteredComments.length} / ${commentsWithStatus.length} comments (🔴 Live - Real-time)`}
                   {isAutoRefresh &&
                     selectedVideo.statusLive === 1 &&
-                    " • Auto-refresh mỗi 8s"}
-                  {commentsData?.pages[0]?.fromCache &&
-                    " • ⚡ Loaded from cache"}
+                    " • Auto-refresh mỗi 5s"}
+                  {commentsData?.pages[0]?.fromArchive &&
+                    " • 📦 From archive"}
                 </div>
               </CardContent>
             </Card>
