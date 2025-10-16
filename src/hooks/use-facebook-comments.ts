@@ -210,7 +210,7 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
     staleTime: 5 * 60 * 1000,
   });
 
-  // Real-time subscription for facebook_pending_orders and facebook_comments_archive
+  // Real-time subscription for facebook_pending_orders
   useEffect(() => {
     if (!videoId) return;
 
@@ -229,23 +229,6 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
         (payload) => {
           console.log('[Realtime] facebook_pending_orders change:', payload);
           queryClient.invalidateQueries({ queryKey: ['tpos-orders', videoId] });
-        }
-      )
-      
-      // Subscribe to archive INSERT/UPDATE (new comments or status changes)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'facebook_comments_archive' as any,
-          filter: `facebook_post_id=eq.${videoId}`,
-        },
-        (payload) => {
-          console.log('[Realtime] Archive updated:', payload);
-          queryClient.invalidateQueries({ 
-            queryKey: ['facebook-comments', pageId, videoId] 
-          });
         }
       )
       
