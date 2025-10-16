@@ -1976,10 +1976,10 @@ export default function LiveProducts() {
                     const rowSpan = orderGroups.get(order.order_code) || 1;
                     
                     return (
-                      <TableRow 
-                        key={order.id} 
-                        className={`h-12 ${bgColorClass} ${oversellClass}`}
-                      >
+                  <TableRow 
+                    key={order.id}
+                    className={`h-12 ${bgColorClass}`}
+                  >
                         {/* Chỉ render cột Mã đơn cho dòng đầu tiên của mỗi order_code */}
                         {isFirstRowForOrderCode && (
                           <TableCell 
