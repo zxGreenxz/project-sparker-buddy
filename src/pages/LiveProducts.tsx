@@ -685,46 +685,70 @@ export default function LiveProducts() {
     queryKey: ["orders-with-products", selectedPhase, selectedSession],
     queryFn: async () => {
       if (!selectedPhase) return [];
+      
+      // First, fetch all orders
+      let ordersQuery = supabase
+        .from("live_orders")
+        .select(`
+          *,
+          live_products (
+            product_code,
+            product_name
+          )
+        `);
+      
       if (selectedPhase === "all") {
-        // Fetch all orders for the session
-        const {
-          data,
-          error
-        } = await supabase.from("live_orders").select(`
-            *,
-            live_products (
-              product_code,
-              product_name
-            )
-          `).eq("live_session_id", selectedSession).order("created_at", {
-          ascending: false
-        });
-        if (error) throw error;
-        return data.map(order => ({
-          ...order,
-          product_code: order.live_products?.product_code || "",
-          product_name: order.live_products?.product_name || ""
-        })) as OrderWithProduct[];
+        ordersQuery = ordersQuery.eq("live_session_id", selectedSession);
       } else {
-        const {
-          data,
-          error
-        } = await supabase.from("live_orders").select(`
-            *,
-            live_products (
-              product_code,
-              product_name
-            )
-          `).eq("live_phase_id", selectedPhase).order("created_at", {
-          ascending: false
-        });
-        if (error) throw error;
-        return data.map(order => ({
+        ordersQuery = ordersQuery.eq("live_phase_id", selectedPhase);
+      }
+      
+      ordersQuery = ordersQuery.order("created_at", { ascending: false });
+      
+      const { data: ordersData, error: ordersError } = await ordersQuery;
+      
+      if (ordersError) throw ordersError;
+      if (!ordersData || ordersData.length === 0) return [];
+      
+      // Collect all facebook_comment_ids
+      const commentIds = ordersData
+        .map(order => order.facebook_comment_id)
+        .filter(Boolean) as string[];
+      
+      // Fetch comments if there are any
+      let commentsMap = new Map<string, { comment: string; created_time: string }>();
+      if (commentIds.length > 0) {
+        const { data: commentsData } = await supabase
+          .from('facebook_pending_orders')
+          .select('facebook_comment_id, comment, created_time')
+          .in('facebook_comment_id', commentIds);
+        
+        if (commentsData) {
+          commentsData.forEach(item => {
+            if (item.facebook_comment_id) {
+              commentsMap.set(item.facebook_comment_id, {
+                comment: item.comment || "",
+                created_time: item.created_time || ""
+              });
+            }
+          });
+        }
+      }
+      
+      // Merge data
+      return ordersData.map(order => {
+        const commentData = order.facebook_comment_id 
+          ? commentsMap.get(order.facebook_comment_id) 
+          : null;
+        
+        return {
           ...order,
           product_code: order.live_products?.product_code || "",
-          product_name: order.live_products?.product_name || ""
-        })) as OrderWithProduct[];
-      }
+          product_name: order.live_products?.product_name || "",
+          comment: commentData?.comment || null,
+          created_time: commentData?.created_time || null
+        };
+      }) as OrderWithProduct[];
     },
     enabled: !!selectedPhase && !!selectedSession
   });
