@@ -108,12 +108,15 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get active TPOS token from database
+    // Get active TPOS token from tpos_credentials
     const { data: tposConfig, error: tokenError } = await supabase
-      .from('tpos_config')
+      .from('tpos_credentials')
       .select('bearer_token')
-      .eq('is_active', true)
-      .single();
+      .eq('token_type', 'tpos')
+      .not('bearer_token', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     if (tokenError || !tposConfig) {
       throw new Error('TPOS token not found in database. Please configure it in Settings.');

@@ -39,20 +39,18 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Fetch TPOS token from database
+    // Fetch TPOS token from tpos_credentials
     const { data: tokenData, error: tokenError } = await supabase
-      .from('tpos_config')
-      .select('bearer_token, token_status')
+      .from('tpos_credentials')
+      .select('bearer_token')
       .eq('token_type', 'tpos')
-      .eq('is_active', true)
+      .not('bearer_token', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle();
     
     if (tokenError || !tokenData?.bearer_token) {
-      throw new Error('TPOS Bearer Token not found or expired');
-    }
-
-    if (tokenData.token_status === 'expired') {
-      console.warn('⚠️ TPOS token đã hết hạn');
+      throw new Error('TPOS Bearer Token not found');
     }
 
     const bearerToken = tokenData.bearer_token;

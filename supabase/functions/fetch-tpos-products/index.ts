@@ -36,9 +36,12 @@ Deno.serve(async (req) => {
     );
 
     const { data: tokenData, error: tokenError } = await supabaseClient
-      .from('tpos_config')
+      .from('tpos_credentials')
       .select('bearer_token')
-      .eq('is_active', true)
+      .eq('token_type', 'tpos')
+      .not('bearer_token', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle();
 
     if (tokenError || !tokenData) {
