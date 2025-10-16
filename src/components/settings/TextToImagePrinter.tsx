@@ -102,33 +102,24 @@ Cảm ơn quý khách!`);
     setIsPrinting(true);
 
     try {
-      // Convert text to ESC/POS bitmap
-      const bitmapBytes = await textToESCPOSBitmap(text, {
-        width: canvasWidth,
-        fontSize,
-        fontFamily,
-        lineHeight,
-        align: 'left',
-        padding: 20
-      });
-
-      // Convert to base64
-      const base64Bitmap = btoa(String.fromCharCode(...bitmapBytes));
-
-      // Send to bridge
-      const response = await fetch(`${activePrinter.bridgeUrl}/print/bitmap`, {
+      // Send to bridge using /print endpoint with CP1258 mode
+      const response = await fetch(`${activePrinter.bridgeUrl}/print`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ipAddress: activePrinter.ipAddress,
           port: activePrinter.port,
-          bitmapBase64: base64Bitmap,
-          feeds: 3
+          content: text,
+          options: {
+            mode: 'cp1258',
+            align: 'left',
+            feeds: 3
+          }
         }),
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
       const result = await response.json();
