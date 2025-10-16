@@ -355,6 +355,7 @@ export function UploadLiveOrdersToTPOSDialog({
                   <TableHead>Mã đơn</TableHead>
                   <TableHead>Sản phẩm</TableHead>
                   <TableHead className="text-center">Tổng SL</TableHead>
+                  <TableHead>Ghi chú</TableHead>
                   <TableHead>Trạng thái</TableHead>
                 </TableRow>
               </TableHeader>
@@ -393,6 +394,19 @@ export function UploadLiveOrdersToTPOSDialog({
                     </TableCell>
                     <TableCell className="text-center">
                       <Badge variant="outline">{group.totalQuantity}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1 max-w-[200px]">
+                        {group.products.map((product, idx) => (
+                          <div key={idx} className="text-xs text-muted-foreground truncate">
+                            {product.note ? (
+                              <span title={product.note}>{product.note}</span>
+                            ) : (
+                              <span className="italic text-gray-400">-</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </TableCell>
                     <TableCell>
                       {renderUploadStatus(group.order_code) || (
