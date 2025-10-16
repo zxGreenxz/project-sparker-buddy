@@ -403,22 +403,30 @@ export function FacebookCommentsManager({
         return { data: [], paging: {} };
       }
 
-      const formattedComments = archivedComments?.map((c: any) => ({
-        id: c.facebook_comment_id,
-        message: c.comment_message || '',
-        from: {
-          name: c.facebook_user_name || 'Unknown',
-          id: c.facebook_user_id || '',
-        },
-        created_time: c.comment_created_time,
-        like_count: c.like_count || 0,
-        is_deleted_by_tpos: c.is_deleted_by_tpos || false,
-        deleted_at: c.updated_at,
-      })) || [];
+      // 🔥 Deduplicate comments by ID to prevent duplicate display
+      const seenIds = new Set<string>();
+      const formattedComments = archivedComments?.reduce((acc: any[], c: any) => {
+        if (!seenIds.has(c.facebook_comment_id)) {
+          seenIds.add(c.facebook_comment_id);
+          acc.push({
+            id: c.facebook_comment_id,
+            message: c.comment_message || '',
+            from: {
+              name: c.facebook_user_name || 'Unknown',
+              id: c.facebook_user_id || '',
+            },
+            created_time: c.comment_created_time,
+            like_count: c.like_count || 0,
+            is_deleted_by_tpos: c.is_deleted_by_tpos || false,
+            deleted_at: c.updated_at,
+          });
+        }
+        return acc;
+      }, []) || [];
 
       const elapsed = Date.now() - startTime;
       console.log(
-        `[FacebookCommentsManager] Loaded ${formattedComments.length} comments from archive in ${elapsed}ms`,
+        `[FacebookCommentsManager] Loaded ${formattedComments.length} unique comments (${archivedComments?.length || 0} total) in ${elapsed}ms`,
       );
 
       return { 
@@ -430,7 +438,17 @@ export function FacebookCommentsManager({
     getNextPageParam: () => undefined, // No pagination needed for archive
     initialPageParam: undefined,
     enabled: !!selectedVideo && !!pageId,
-    refetchInterval: false,
+    refetchInterval: (query) => {
+      // Smart refetch: Only refetch if Realtime hasn't updated in last 10 seconds
+      const lastUpdate = query.state.dataUpdatedAt;
+      const now = Date.now();
+      
+      // If recently updated (Realtime working), don't refetch
+      if (now - lastUpdate < 10000) return false;
+      
+      // Otherwise, fallback to 10s refetch
+      return 10000;
+    },
   });
 
   // Cache orders data
@@ -601,7 +619,7 @@ export function FacebookCommentsManager({
         const sessionIndex = selectedVideo.objectId;
         
         // Call Edge Function to fetch from TPOS and push to archive
-        await fetch(
+        const response = await fetch(
           `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/facebook-comments?pageId=${pageId}&postId=${selectedVideo.objectId}&sessionIndex=${sessionIndex}&limit=500`,
           {
             headers: {
@@ -611,7 +629,26 @@ export function FacebookCommentsManager({
           }
         );
         
-        console.log(`[Realtime Check] ✅ Edge Function called`);
+        const result = await response.json();
+        
+        console.log(`[Realtime Check] ✅ Edge Function completed`, {
+          newComments: result?.comments?.length || 0,
+          status: response.status
+        });
+        
+        // 🔥 FALLBACK: Invalidate query if new comments are returned
+        // This ensures UI updates even if Postgres Realtime doesn't trigger
+        if (result?.comments?.length > 0) {
+          console.log(`[Realtime Check] 🔄 Fallback invalidating query (${result.comments.length} new comments)`);
+          
+          queryClient.invalidateQueries({
+            queryKey: getCommentsQueryKey(
+              pageId,
+              selectedVideo.objectId,
+              selectedVideo.statusLive === 1
+            ),
+          });
+        }
       } catch (error) {
         console.error("[Realtime Check] Error:", error);
       } finally {
