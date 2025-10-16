@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { Check } from "lucide-react";
+import { Plus } from "lucide-react";
 import { formatVND } from "@/lib/currency-utils";
 import { ProductImage } from "@/components/products/ProductImage";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -112,8 +112,7 @@ export function SelectProductFromInventoryDialog({
 }: SelectProductFromInventoryDialogProps) {
   const isMobile = useIsMobile();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
-  const [preparedQuantity, setPreparedQuantity] = useState<number>(1);
+  const preparedQuantity = 1; // Fixed quantity for direct add
   const queryClient = useQueryClient();
   const debouncedSearch = useDebounce(searchQuery, 300);
 
@@ -240,10 +239,7 @@ export function SelectProductFromInventoryDialog({
       description: `${result.baseProductCode} - ${result.baseProductName}\nThêm mới: ${result.insertedCount} | Đã có: ${result.updatedCount}`,
     });
       queryClient.invalidateQueries({ queryKey: ["live-products", phaseId] });
-      onOpenChange(false);
       setSearchQuery("");
-      setSelectedProductId(null);
-      setPreparedQuantity(1);
     },
     onError: (error: Error) => {
       toast.error("Lỗi", {
@@ -252,22 +248,73 @@ export function SelectProductFromInventoryDialog({
     },
   });
 
-  const handleAddProduct = () => {
-    if (!selectedProductId) {
-      toast.error("Vui lòng chọn sản phẩm");
-      return;
-    }
+  // Quick product creation mutation
+  const createQuickProductMutation = useMutation({
+    mutationFn: async (productName: string) => {
+      if (!productName.trim()) {
+        throw new Error("Tên sản phẩm không được để trống");
+      }
 
-    if (preparedQuantity <= 0) {
-      toast.error("Số lượng phải lớn hơn 0");
-      return;
-    }
+      // Generate product code: N/Ax (x = auto-increment)
+      const { data: existingProducts, error: fetchError } = await supabase
+        .from("products")
+        .select("product_code")
+        .ilike("product_code", "N/A%")
+        .order("product_code", { ascending: false })
+        .limit(1);
 
-    addProductMutation.mutate({
-      productId: selectedProductId,
-      quantity: preparedQuantity,
-    });
-  };
+      if (fetchError) throw fetchError;
+
+      let nextNumber = 1;
+      if (existingProducts && existingProducts.length > 0) {
+        const lastCode = existingProducts[0].product_code;
+        const match = lastCode.match(/N\/A(\d+)/);
+        if (match) {
+          nextNumber = parseInt(match[1]) + 1;
+        }
+      }
+
+      const productCode = `N/A${nextNumber}`;
+
+      // Insert new product
+      const { data: newProduct, error: insertError } = await supabase
+        .from("products")
+        .insert({
+          product_code: productCode,
+          product_name: productName.trim(),
+          selling_price: 0,
+          purchase_price: 0,
+          stock_quantity: 0,
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      return newProduct;
+    },
+    onSuccess: (newProduct) => {
+      toast.success("Đã tạo sản phẩm mới", {
+        description: `${newProduct.product_code} - ${newProduct.product_name}`,
+      });
+      
+      // Invalidate products query to reload list
+      queryClient.invalidateQueries({ queryKey: ["inventory-products-select"] });
+      
+      // Auto-add the newly created product to live session
+      addProductMutation.mutate({
+        productId: newProduct.id,
+        quantity: 1,
+      });
+      
+      setSearchQuery("");
+    },
+    onError: (error: Error) => {
+      toast.error("Lỗi tạo sản phẩm", {
+        description: error.message,
+      });
+    },
+  });
 
   if (isMobile) {
     return (
@@ -281,11 +328,24 @@ export function SelectProductFromInventoryDialog({
           </DialogHeader>
 
           <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
-            <Input
-              placeholder="Tìm kiếm theo mã SP, tên, variant (tối thiểu 2 ký tự)..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+            <div className="relative">
+              <Input
+                placeholder="Tìm kiếm hoặc nhập tên sản phẩm mới..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pr-10"
+              />
+              <Button
+                size="icon"
+                variant="ghost"
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
+                onClick={() => createQuickProductMutation.mutate(searchQuery)}
+                disabled={!searchQuery.trim() || createQuickProductMutation.isPending}
+                title="Tạo sản phẩm mới từ tên tìm kiếm"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
             
             <div className="text-sm text-muted-foreground">
               {debouncedSearch.length >= 2 
@@ -314,10 +374,15 @@ export function SelectProductFromInventoryDialog({
                   products.map((product) => (
                     <Card
                       key={product.id}
-                      className={`p-4 cursor-pointer transition-colors ${
-                        selectedProductId === product.id ? "ring-2 ring-primary" : "hover:bg-muted/50"
-                      }`}
-                      onClick={() => setSelectedProductId(product.id)}
+                      className="p-4 cursor-pointer transition-colors hover:bg-muted/50 active:scale-[0.98]"
+                      onClick={() => {
+                        if (!addProductMutation.isPending) {
+                          addProductMutation.mutate({
+                            productId: product.id,
+                            quantity: preparedQuantity,
+                          });
+                        }
+                      }}
                     >
                       <div className="space-y-2">
                         <div className="font-semibold">{product.product_name}</div>
@@ -342,28 +407,9 @@ export function SelectProductFromInventoryDialog({
               </div>
             )}
             
-            {selectedProductId && (
-              <div className="flex items-center gap-3 pt-2 border-t">
-                <label className="text-sm font-medium">Số lượng chuẩn bị:</label>
-                <Input
-                  type="number"
-                  min="1"
-                  value={preparedQuantity}
-                  onChange={(e) => setPreparedQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="w-24"
-                />
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
-                Hủy
-              </Button>
-              <Button
-                onClick={handleAddProduct}
-                disabled={!selectedProductId || addProductMutation.isPending}
-              >
-                Thêm vào phiên live
+            <div className="pt-2 border-t">
+              <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full">
+                Đóng
               </Button>
             </div>
           </div>
@@ -384,11 +430,24 @@ export function SelectProductFromInventoryDialog({
 
         <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
           <div className="space-y-2">
-            <Input
-              placeholder="Tìm kiếm theo mã SP, tên, variant (tối thiểu 2 ký tự)..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+            <div className="relative">
+              <Input
+                placeholder="Tìm kiếm hoặc nhập tên sản phẩm mới..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pr-10"
+              />
+              <Button
+                size="icon"
+                variant="ghost"
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
+                onClick={() => createQuickProductMutation.mutate(searchQuery)}
+                disabled={!searchQuery.trim() || createQuickProductMutation.isPending}
+                title="Tạo sản phẩm mới từ tên tìm kiếm"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
             
             <div className="text-sm text-muted-foreground">
               {debouncedSearch.length >= 2 
@@ -408,7 +467,6 @@ export function SelectProductFromInventoryDialog({
                   <TableHead>Variant</TableHead>
                   <TableHead>Giá bán</TableHead>
                   <TableHead>Tồn kho</TableHead>
-                  <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -421,12 +479,11 @@ export function SelectProductFromInventoryDialog({
                       <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                      <TableCell><Skeleton className="h-8 w-16" /></TableCell>
                     </TableRow>
                   ))
                 ) : products.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       {debouncedSearch.length >= 2 ? "Không tìm thấy sản phẩm phù hợp" : "Chưa có sản phẩm nào"}
                     </TableCell>
                   </TableRow>
@@ -434,10 +491,15 @@ export function SelectProductFromInventoryDialog({
                   products.map((product) => (
                     <TableRow 
                       key={product.id} 
-                      className={`cursor-pointer ${
-                        selectedProductId === product.id ? "bg-muted" : "hover:bg-muted/50"
-                      }`}
-                      onClick={() => setSelectedProductId(product.id)}
+                      className="cursor-pointer hover:bg-muted/50 active:bg-muted"
+                      onClick={() => {
+                        if (!addProductMutation.isPending) {
+                          addProductMutation.mutate({
+                            productId: product.id,
+                            quantity: preparedQuantity,
+                          });
+                        }
+                      }}
                     >
                       <TableCell>
                         <ProductImage
@@ -455,11 +517,6 @@ export function SelectProductFromInventoryDialog({
                       </TableCell>
                       <TableCell>{formatVND(product.selling_price)}</TableCell>
                       <TableCell>{product.stock_quantity}</TableCell>
-                      <TableCell>
-                        {selectedProductId === product.id && (
-                          <Check className="h-5 w-5 text-primary" />
-                        )}
-                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -467,28 +524,9 @@ export function SelectProductFromInventoryDialog({
             </Table>
           </div>
 
-          {selectedProductId && (
-            <div className="flex items-center gap-3 pt-2 border-t">
-              <label className="text-sm font-medium">Số lượng chuẩn bị:</label>
-              <Input
-                type="number"
-                min="1"
-                value={preparedQuantity}
-                onChange={(e) => setPreparedQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                className="w-24"
-              />
-            </div>
-          )}
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Hủy
-            </Button>
-            <Button
-              onClick={handleAddProduct}
-              disabled={!selectedProductId || addProductMutation.isPending}
-            >
-              Thêm vào phiên live
+          <div className="pt-2 border-t">
+            <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full">
+              Đóng
             </Button>
           </div>
         </div>
