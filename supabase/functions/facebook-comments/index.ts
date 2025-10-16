@@ -106,22 +106,7 @@ serve(async (req) => {
         console.warn(`⚠️ TPOS API error: ${response.status} - ${errorText}`);
         
         if (response.status === 400 && errorText.includes('Object with ID')) {
-          console.log(`🗑️ Post ${postId} deleted - marking all comments as deleted`);
-          
-          const { error: updateError } = await supabaseClient
-            .from('facebook_comments_archive')
-            .update({ 
-              is_deleted: true,
-              updated_at: new Date().toISOString()
-            })
-            .eq('facebook_post_id', postId)
-            .eq('is_deleted', false);
-          
-          if (updateError) {
-            console.error('❌ Error marking comments as deleted:', updateError);
-          } else {
-            console.log(`✅ Marked all comments for post ${postId} as deleted`);
-          }
+          console.log(`🗑️ Post ${postId} deleted - returning empty comments`);
           
           return new Response(
             JSON.stringify({ 
