@@ -300,23 +300,25 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
     }]);
   };
 
-  const copyItem = (index: number) => {
+  const copyItem = async (index: number) => {
     const itemToCopy = { ...items[index] };
     itemToCopy.product_id = null; // Clear product_id for new item
     // Deep copy the image arrays
     itemToCopy._tempProductImages = [...itemToCopy._tempProductImages];
     itemToCopy._tempPriceImages = [...itemToCopy._tempPriceImages];
     
-    // Auto-increment product code if it exists
-    if (itemToCopy._tempProductCode.trim()) {
-      const existingCodes = items.map(item => item._tempProductCode);
-      const newCode = incrementProductCode(itemToCopy._tempProductCode, existingCodes);
-      if (newCode) {
+    // Generate product code using generateProductCodeFromMax logic
+    if (itemToCopy._tempProductName.trim()) {
+      try {
+        const tempItems = items.map(i => ({ product_name: i._tempProductName, product_code: i._tempProductCode }));
+        const newCode = await generateProductCodeFromMax(itemToCopy._tempProductName, tempItems);
         itemToCopy._tempProductCode = newCode;
         toast({
-          title: "Đã sao chép và tăng mã SP",
+          title: "Đã sao chép và tạo mã SP mới",
           description: `Mã mới: ${newCode}`,
         });
+      } catch (error) {
+        console.error("Error generating product code:", error);
       }
     }
     
@@ -368,6 +370,57 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
         setFormData({ ...formData, supplier_name: product.supplier_name });
       }
     }
+    setCurrentItemIndex(null);
+  };
+
+  const handleSelectMultipleProducts = (products: any[]) => {
+    if (currentItemIndex === null || products.length === 0) return;
+
+    const newItems = [...items];
+    
+    // Fill first product into current line
+    const firstProduct = products[0];
+    newItems[currentItemIndex] = {
+      ...newItems[currentItemIndex],
+      product_id: firstProduct.id,
+      _tempProductName: firstProduct.product_name,
+      _tempProductCode: firstProduct.product_code,
+      _tempVariant: firstProduct.variant || "",
+      _tempUnitPrice: firstProduct.purchase_price / 1000,
+      _tempSellingPrice: firstProduct.selling_price / 1000,
+      _tempProductImages: firstProduct.product_images || [],
+      _tempPriceImages: firstProduct.price_images || [],
+      _tempTotalPrice: newItems[currentItemIndex].quantity * (firstProduct.purchase_price / 1000)
+    };
+
+    // Add remaining products as new lines after current line
+    const additionalItems = products.slice(1).map(product => ({
+      product_id: product.id,
+      quantity: 1,
+      notes: "",
+      _tempProductName: product.product_name,
+      _tempProductCode: product.product_code,
+      _tempVariant: product.variant || "",
+      _tempUnitPrice: product.purchase_price / 1000,
+      _tempSellingPrice: product.selling_price / 1000,
+      _tempTotalPrice: product.purchase_price / 1000,
+      _tempProductImages: product.product_images || [],
+      _tempPriceImages: product.price_images || []
+    }));
+
+    newItems.splice(currentItemIndex + 1, 0, ...additionalItems);
+    setItems(newItems);
+
+    // Auto-fill supplier name if empty
+    if (!formData.supplier_name && firstProduct.supplier_name) {
+      setFormData({ ...formData, supplier_name: firstProduct.supplier_name });
+    }
+
+    toast({
+      title: "Đã thêm sản phẩm",
+      description: `Đã thêm ${products.length} sản phẩm vào đơn hàng`,
+    });
+
     setCurrentItemIndex(null);
   };
 
@@ -930,6 +983,7 @@ export function CreatePurchaseOrderDialog({ open, onOpenChange }: CreatePurchase
         open={isSelectProductOpen}
         onOpenChange={setIsSelectProductOpen}
         onSelect={handleSelectProduct}
+        onSelectMultiple={handleSelectMultipleProducts}
       />
 
       {variantGeneratorIndex !== null && items[variantGeneratorIndex] && (

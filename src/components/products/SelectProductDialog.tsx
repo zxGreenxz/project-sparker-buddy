@@ -8,7 +8,8 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { formatVND } from "@/lib/currency-utils";
-import { Check } from "lucide-react";
+import { Check, CheckSquare, Square } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDebounce } from "@/hooks/use-debounce";
 import { ProductImage } from "@/components/products/ProductImage";
@@ -33,13 +34,15 @@ interface SelectProductDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelect: (product: Product) => void;
+  onSelectMultiple?: (products: Product[]) => void;
   hidePurchasePrice?: boolean;
 }
 
-export function SelectProductDialog({ open, onOpenChange, onSelect, hidePurchasePrice = false }: SelectProductDialogProps) {
+export function SelectProductDialog({ open, onOpenChange, onSelect, onSelectMultiple, hidePurchasePrice = false }: SelectProductDialogProps) {
   const isMobile = useIsMobile();
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearch = useDebounce(searchQuery, 300);
+  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
 
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["products-select", debouncedSearch],
@@ -73,6 +76,32 @@ export function SelectProductDialog({ open, onOpenChange, onSelect, hidePurchase
   const handleSelect = (product: Product) => {
     onSelect(product);
     onOpenChange(false);
+    setSelectedProducts(new Set());
+  };
+
+  const toggleProductSelection = (productId: string) => {
+    setSelectedProducts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(productId)) {
+        newSet.delete(productId);
+      } else {
+        newSet.add(productId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleAddSelectedProducts = () => {
+    if (onSelectMultiple && selectedProducts.size > 0) {
+      const selectedProductsList = products.filter(p => selectedProducts.has(p.id));
+      onSelectMultiple(selectedProductsList);
+      onOpenChange(false);
+      setSelectedProducts(new Set());
+    }
+  };
+
+  const handleClearSelection = () => {
+    setSelectedProducts(new Set());
   };
 
   if (isMobile) {
@@ -117,31 +146,55 @@ export function SelectProductDialog({ open, onOpenChange, onSelect, hidePurchase
                   products.map((product) => (
                     <Card
                       key={product.id}
-                      className="p-4 cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() => handleSelect(product)}
+                      className="p-4 hover:bg-muted/50 transition-colors"
                     >
-                      <div className="space-y-2">
-                        <div className="font-semibold">{product.product_name}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {product.product_code}
-                          {product.variant && ` - ${product.variant}`}
-                        </div>
-                        <div className={hidePurchasePrice ? "text-sm" : "grid grid-cols-2 gap-2 text-sm"}>
-                          {!hidePurchasePrice && (
+                      <div className="flex items-start gap-3">
+                        {onSelectMultiple && (
+                          <Checkbox
+                            checked={selectedProducts.has(product.id)}
+                            onCheckedChange={() => toggleProductSelection(product.id)}
+                            className="mt-1"
+                          />
+                        )}
+                        <div className="flex-1 space-y-2 cursor-pointer" onClick={() => handleSelect(product)}>
+                          <div className="font-semibold">{product.product_name}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {product.product_code}
+                            {product.variant && ` - ${product.variant}`}
+                          </div>
+                          <div className={hidePurchasePrice ? "text-sm" : "grid grid-cols-2 gap-2 text-sm"}>
+                            {!hidePurchasePrice && (
+                              <div>
+                                <span className="text-muted-foreground">Giá mua: </span>
+                                <span className="font-medium">{formatVND(product.purchase_price)}</span>
+                              </div>
+                            )}
                             <div>
-                              <span className="text-muted-foreground">Giá mua: </span>
-                              <span className="font-medium">{formatVND(product.purchase_price)}</span>
+                              <span className="text-muted-foreground">Giá bán: </span>
+                              <span className="font-medium">{formatVND(product.selling_price)}</span>
                             </div>
-                          )}
-                          <div>
-                            <span className="text-muted-foreground">Giá bán: </span>
-                            <span className="font-medium">{formatVND(product.selling_price)}</span>
                           </div>
                         </div>
                       </div>
                     </Card>
                   ))
                 )}
+              </div>
+            )}
+
+            {onSelectMultiple && selectedProducts.size > 0 && (
+              <div className="border-t pt-4 flex items-center justify-between gap-2">
+                <div className="text-sm text-muted-foreground">
+                  Đã chọn {selectedProducts.size} sản phẩm
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={handleClearSelection}>
+                    Bỏ chọn tất cả
+                  </Button>
+                  <Button size="sm" onClick={handleAddSelectedProducts}>
+                    Thêm vào đơn hàng
+                  </Button>
+                </div>
               </div>
             )}
           </div>
@@ -177,6 +230,7 @@ export function SelectProductDialog({ open, onOpenChange, onSelect, hidePurchase
             <Table>
               <TableHeader>
                 <TableRow>
+                  {onSelectMultiple && <TableHead className="w-12"></TableHead>}
                   <TableHead>Hình ảnh</TableHead>
                   <TableHead>Mã SP</TableHead>
                   <TableHead>Tên sản phẩm</TableHead>
@@ -190,6 +244,7 @@ export function SelectProductDialog({ open, onOpenChange, onSelect, hidePurchase
                 {isLoading ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <TableRow key={i}>
+                      {onSelectMultiple && <TableCell><Skeleton className="h-4 w-4" /></TableCell>}
                       <TableCell><Skeleton className="h-12 w-12" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-32" /></TableCell>
@@ -201,14 +256,22 @@ export function SelectProductDialog({ open, onOpenChange, onSelect, hidePurchase
                   ))
                 ) : products.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={hidePurchasePrice ? 6 : 7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={onSelectMultiple ? (hidePurchasePrice ? 7 : 8) : (hidePurchasePrice ? 6 : 7)} className="text-center py-8 text-muted-foreground">
                       {debouncedSearch.length >= 2 ? "Không tìm thấy sản phẩm phù hợp" : "Chưa có sản phẩm nào"}
                     </TableCell>
                   </TableRow>
                 ) : (
                   products.map((product) => (
-                    <TableRow key={product.id} className="cursor-pointer hover:bg-muted/50">
-                      <TableCell>
+                    <TableRow key={product.id} className="hover:bg-muted/50">
+                      {onSelectMultiple && (
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={selectedProducts.has(product.id)}
+                            onCheckedChange={() => toggleProductSelection(product.id)}
+                          />
+                        </TableCell>
+                      )}
+                      <TableCell className="cursor-pointer" onClick={() => handleSelect(product)}>
                         <ProductImage
                           productId={product.id}
                           productCode={product.product_code}
@@ -217,13 +280,13 @@ export function SelectProductDialog({ open, onOpenChange, onSelect, hidePurchase
                           tposProductId={product.tpos_product_id}
                         />
                       </TableCell>
-                      <TableCell className="font-medium">{product.product_code}</TableCell>
-                      <TableCell>{product.product_name}</TableCell>
-                      <TableCell className="text-muted-foreground">
+                      <TableCell className="font-medium cursor-pointer" onClick={() => handleSelect(product)}>{product.product_code}</TableCell>
+                      <TableCell className="cursor-pointer" onClick={() => handleSelect(product)}>{product.product_name}</TableCell>
+                      <TableCell className="text-muted-foreground cursor-pointer" onClick={() => handleSelect(product)}>
                         {product.variant || "-"}
                       </TableCell>
-                      {!hidePurchasePrice && <TableCell>{formatVND(product.purchase_price)}</TableCell>}
-                      <TableCell>{formatVND(product.selling_price)}</TableCell>
+                      {!hidePurchasePrice && <TableCell className="cursor-pointer" onClick={() => handleSelect(product)}>{formatVND(product.purchase_price)}</TableCell>}
+                      <TableCell className="cursor-pointer" onClick={() => handleSelect(product)}>{formatVND(product.selling_price)}</TableCell>
                       <TableCell>
                         <Button
                           size="sm"
@@ -240,6 +303,22 @@ export function SelectProductDialog({ open, onOpenChange, onSelect, hidePurchase
             </Table>
           </div>
         </div>
+
+        {onSelectMultiple && selectedProducts.size > 0 && (
+          <div className="border-t pt-4 flex items-center justify-between gap-2">
+            <div className="text-sm text-muted-foreground">
+              Đã chọn {selectedProducts.size} sản phẩm
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={handleClearSelection}>
+                Bỏ chọn tất cả
+              </Button>
+              <Button size="sm" onClick={handleAddSelectedProducts}>
+                Thêm vào đơn hàng
+              </Button>
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
