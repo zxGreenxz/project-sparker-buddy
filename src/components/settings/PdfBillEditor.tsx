@@ -206,7 +206,11 @@ export function PdfBillEditor() {
 
   // Generate preview whenever template changes
   useEffect(() => {
-    generatePreview();
+    // Debounce preview generation
+    const timer = setTimeout(() => {
+      generatePreview();
+    }, 300);
+    return () => clearTimeout(timer);
   }, [template]);
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -236,23 +240,27 @@ export function PdfBillEditor() {
 
   const generatePreview = () => {
     try {
+      const now = new Date();
       const sampleData = {
         sessionIndex: '123',
         phone: '0901234567',
         customerName: 'Nguyễn Văn A',
         productCode: 'SP001',
-        productName: 'Áo thun nam basic',
+        productName: '001 Áo thun nam basic cotton',
         comment: 'Size: L, Màu: Đen',
-        createdTime: new Date().toISOString(),
+        createdTime: now.toISOString(),
         price: 250000,
-        quantity: 1
+        quantity: 2
       };
 
+      console.log('🖼️ Generating PDF preview with template:', template);
       const pdf = generateBillPDF(template, sampleData);
       const pdfDataUri = pdf.output('datauristring');
+      console.log('✅ PDF preview generated successfully');
       setPreviewUrl(pdfDataUri);
     } catch (error) {
-      console.error('Preview generation error:', error);
+      console.error('❌ Preview generation error:', error);
+      setPreviewUrl(null);
       toast({
         variant: 'destructive',
         title: 'Lỗi tạo preview',
@@ -432,21 +440,52 @@ export function PdfBillEditor() {
         <CardHeader>
           <CardTitle>Preview</CardTitle>
           <CardDescription>
-            Xem trước bill với dữ liệu mẫu
+            Xem trước bill với dữ liệu mẫu (#{template.fields.filter(f => f.visible).length} trường hiển thị)
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {previewUrl ? (
-            <iframe
-              src={previewUrl}
-              className="w-full h-[600px] border rounded-lg"
-              title="PDF Preview"
-            />
-          ) : (
-            <div className="h-[600px] flex items-center justify-center border rounded-lg bg-muted">
-              <p className="text-muted-foreground">Đang tạo preview...</p>
+          <div className="space-y-4">
+            {/* Sample Data Display */}
+            <div className="p-3 bg-muted/50 rounded-lg text-xs space-y-1">
+              <div className="font-semibold text-muted-foreground mb-2">📋 Dữ liệu mẫu:</div>
+              <div className="grid grid-cols-2 gap-2">
+                <span className="text-muted-foreground">Số thứ tự:</span>
+                <span className="font-mono">#123</span>
+                <span className="text-muted-foreground">SĐT:</span>
+                <span className="font-mono">0901234567</span>
+                <span className="text-muted-foreground">Khách hàng:</span>
+                <span>Nguyễn Văn A</span>
+                <span className="text-muted-foreground">Mã SP:</span>
+                <span className="font-mono">SP001</span>
+                <span className="text-muted-foreground">Tên SP:</span>
+                <span>Áo thun nam basic</span>
+                <span className="text-muted-foreground">Ghi chú:</span>
+                <span>Size: L, Màu: Đen</span>
+                <span className="text-muted-foreground">Giá:</span>
+                <span>250,000 đ</span>
+                <span className="text-muted-foreground">Số lượng:</span>
+                <span>SL: 2</span>
+              </div>
             </div>
-          )}
+
+            {/* PDF Preview */}
+            {previewUrl ? (
+              <div className="border rounded-lg overflow-hidden bg-white">
+                <iframe
+                  src={previewUrl}
+                  className="w-full h-[500px]"
+                  title="PDF Preview"
+                />
+              </div>
+            ) : (
+              <div className="h-[500px] flex items-center justify-center border rounded-lg bg-muted">
+                <div className="text-center">
+                  <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground mx-auto mb-2" />
+                  <p className="text-muted-foreground">Đang tạo preview...</p>
+                </div>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>
