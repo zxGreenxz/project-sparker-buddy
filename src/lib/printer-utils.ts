@@ -40,8 +40,8 @@ export const printPDFToXC80 = async (
   try {
     console.log('📄 Printing PDF via /print/pdf endpoint...');
     
-    // Extract base64 from data URI
-    const base64Match = pdfDataUri.match(/^data:application\/pdf;base64,(.+)$/);
+    // Extract base64 from data URI (supports both with and without filename parameter)
+    const base64Match = pdfDataUri.match(/^data:application\/pdf;[^,]*base64,(.+)$/);
     if (!base64Match) {
       throw new Error('Invalid PDF data URI format');
     }
