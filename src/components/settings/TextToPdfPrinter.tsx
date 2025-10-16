@@ -441,35 +441,70 @@ Cảm ơn quý khách!`);
       const mmToPx = 3.78;
       const printerWidth = Math.round(paperSize.width * mmToPx);
       
-      // Convert text to ESC/POS bitmap
-      const escposData = await textToESCPOSBitmap(text, {
-        width: printerWidth,
-        fontSize: parseInt(fontSize),
-        fontFamily: `${fontFamily}, sans-serif`,
-        lineHeight: parseFloat(lineHeight),
-        align: "left",
-        padding: parseInt(marginLeft),
-      });
+      console.log('📄 Creating canvas with text...');
+      
+      // Create canvas and render text
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      if (!ctx) {
+        throw new Error('Could not get canvas context');
+      }
 
-      // Convert Uint8Array to base64
-      const base64 = btoa(String.fromCharCode(...escposData));
+      canvas.width = printerWidth;
+      
+      // Calculate text height
+      const lines = text.split('\n');
+      const lineHeightPx = parseInt(fontSize) * parseFloat(lineHeight);
+      const paddingPx = parseInt(marginLeft);
+      canvas.height = Math.ceil((lines.length * lineHeightPx) + (paddingPx * 2));
+      
+      // Fill white background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw text
+      ctx.fillStyle = '#000000';
+      ctx.font = `${fontSize}px ${fontFamily}, sans-serif`;
+      ctx.textBaseline = 'top';
+      ctx.textAlign = 'left';
+      
+      let yPos = paddingPx;
+      lines.forEach(line => {
+        ctx.fillText(line, paddingPx, yPos);
+        yPos += lineHeightPx;
+      });
+      
+      console.log(`✅ Canvas created: ${canvas.width}x${canvas.height}px`);
+      
+      // Convert canvas to PNG data URL
+      const dataUrl = canvas.toDataURL('image/png');
+      const base64Png = dataUrl.split(',')[1];
+      
+      console.log(`📦 Sending to bridge: ${activePrinter.bridgeUrl}/print/bitmap`);
 
       const response = await fetch(`${activePrinter.bridgeUrl}/print/bitmap`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ipAddress: activePrinter.ipAddress,
-          port: activePrinter.port,
-          bitmapBase64: base64,
-          feeds: 3,
+          printerIp: activePrinter.ipAddress,
+          printerPort: activePrinter.port,
+          bitmap: base64Png,
+          width: printerWidth,
+          height: canvas.height,
+          threshold: 128
         }),
       });
 
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Bridge error:', errorText);
         throw new Error(`HTTP ${response.status}`);
       }
 
       const result = await response.json();
+      console.log('✅ Print result:', result);
+      
       if (result.success) {
         toast.success("✅ In thành công!");
       } else {
