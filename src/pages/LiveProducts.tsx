@@ -2164,7 +2164,7 @@ export default function LiveProducts() {
                     e.preventDefault();
                     setIsSelectFromInventoryOpen(true);
                   }} 
-                  className="h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-110 bg-gradient-to-br from-primary to-primary/80"
+                  className="h-16 w-16 rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-110 bg-gradient-to-br from-primary to-primary/80"
                 >
                   <Package className="h-10 w-10" />
                 </Button>
