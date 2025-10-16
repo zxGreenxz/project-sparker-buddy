@@ -307,10 +307,10 @@ export type Database = {
           live_phase_id: string | null;
           live_product_id: string;
           live_session_id: string;
-          note: string | null;
           order_code: string;
           order_date: string;
           quantity: number;
+          note: string | null;
           tpos_order_id: string | null;
           upload_status: string | null;
           uploaded_at: string | null;
@@ -324,11 +324,11 @@ export type Database = {
           is_oversell?: boolean | null;
           live_phase_id?: string | null;
           live_product_id: string;
-          live_session_id: string;
-          note?: string | null;
           order_code: string;
           order_date?: string;
           quantity?: number;
+          live_session_id: string;
+          note?: string | null;
           tpos_order_id?: string | null;
           upload_status?: string | null;
           uploaded_at?: string | null;
@@ -343,10 +343,10 @@ export type Database = {
           live_phase_id?: string | null;
           live_product_id?: string;
           live_session_id?: string;
-          note?: string | null;
           order_code?: string;
           order_date?: string;
           quantity?: number;
+          note?: string | null;
           tpos_order_id?: string | null;
           upload_status?: string | null;
           uploaded_at?: string | null;
