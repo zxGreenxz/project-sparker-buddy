@@ -380,11 +380,14 @@ export function FacebookCommentsManager({
       selectedVideo?.statusLive === 1
     ),
     queryFn: async ({ pageParam }) => {
+      const fetchId = Math.random().toString(36).substring(7);
       if (!pageId || !selectedVideo?.objectId) return { data: [], paging: {} };
 
-      console.log(
-        `[FacebookCommentsManager] Reading from facebook_comments_archive for video ${selectedVideo.objectId}`,
-      );
+      console.log(`[QueryFn ${fetchId}] 🔍 Fetching comments`, {
+        videoId: selectedVideo.objectId,
+        pageId,
+        timestamp: new Date().toISOString()
+      });
       const startTime = Date.now();
 
       // ========================================================================
@@ -399,11 +402,12 @@ export function FacebookCommentsManager({
         .limit(1000);
 
       if (dbError) {
-        console.error('[FacebookCommentsManager] DB error:', dbError);
+        console.error(`[QueryFn ${fetchId}] ❌ DB error:`, dbError);
         return { data: [], paging: {} };
       }
 
       // 🔥 Deduplicate comments by ID to prevent duplicate display
+      console.log(`[QueryFn ${fetchId}] 🔄 Deduplicating ${archivedComments?.length || 0} comments`);
       const seenIds = new Set<string>();
       const formattedComments = archivedComments?.reduce((acc: any[], c: any) => {
         if (!seenIds.has(c.facebook_comment_id)) {
@@ -420,14 +424,20 @@ export function FacebookCommentsManager({
             is_deleted_by_tpos: c.is_deleted_by_tpos || false,
             deleted_at: c.updated_at,
           });
+        } else {
+          console.log(`[QueryFn ${fetchId}] ⚠️ Skipped duplicate: ${c.facebook_comment_id}`);
         }
         return acc;
       }, []) || [];
 
       const elapsed = Date.now() - startTime;
-      console.log(
-        `[FacebookCommentsManager] Loaded ${formattedComments.length} unique comments (${archivedComments?.length || 0} total) in ${elapsed}ms`,
-      );
+      console.log(`[QueryFn ${fetchId}] ✅ Fetched`, {
+        uniqueCount: formattedComments.length,
+        totalCount: archivedComments?.length,
+        firstCommentId: formattedComments[0]?.id,
+        lastCommentId: formattedComments[formattedComments.length - 1]?.id,
+        elapsed: `${elapsed}ms`
+      });
 
       return { 
         data: formattedComments, 
@@ -438,17 +448,9 @@ export function FacebookCommentsManager({
     getNextPageParam: () => undefined, // No pagination needed for archive
     initialPageParam: undefined,
     enabled: !!selectedVideo && !!pageId,
-    refetchInterval: (query) => {
-      // Smart refetch: Only refetch if Realtime hasn't updated in last 10 seconds
-      const lastUpdate = query.state.dataUpdatedAt;
-      const now = Date.now();
-      
-      // If recently updated (Realtime working), don't refetch
-      if (now - lastUpdate < 10000) return false;
-      
-      // Otherwise, fallback to 10s refetch
-      return 10000;
-    },
+    refetchInterval: false, // Disable auto-refetch, rely on invalidation only
+    refetchOnWindowFocus: true, // Refetch when user returns to tab
+    staleTime: 0, // Always consider data stale to allow immediate refetch
   });
 
   // Cache orders data
@@ -688,7 +690,7 @@ export function FacebookCommentsManager({
           table: 'facebook_comments_archive',
           filter: `facebook_post_id=eq.${selectedVideo.objectId}`,
         },
-        (payload) => {
+        async (payload) => {
           const timestamp = new Date().toISOString();
           const newComment = payload.new as any;
           
@@ -710,18 +712,35 @@ export function FacebookCommentsManager({
           }
 
           try {
-            const queryKey = getCommentsQueryKey(
+            const isLive = selectedVideo.statusLive === 1;
+            const queryKey = getCommentsQueryKey(pageId, selectedVideo.objectId, isLive);
+            
+            console.log(`[${timestamp}] 🔑 Invalidating query:`, {
+              queryKey,
+              isLive,
+              statusLive: selectedVideo.statusLive,
               pageId,
-              selectedVideo.objectId,
-              selectedVideo.statusLive === 1
-            );
-            console.log(`[${timestamp}] 🔑 Invalidating query with key:`, queryKey);
+              videoId: selectedVideo.objectId
+            });
             
+            // Check current cache state BEFORE invalidate
+            const currentData = queryClient.getQueryData(queryKey);
+            console.log(`[${timestamp}] 📦 Current cache:`, {
+              hasData: !!currentData,
+              commentCount: (currentData as any)?.pages?.[0]?.data?.length
+            });
+            
+            // Invalidate and force refetch immediately
             queryClient.invalidateQueries({ queryKey });
+            await queryClient.refetchQueries({ 
+              queryKey,
+              exact: true,
+              type: 'active' // Only refetch if query is currently active
+            });
             
-            console.log(`[${timestamp}] ✅ Query invalidated - UI will refresh`);
+            console.log(`[${timestamp}] ✅ Query invalidated + refetched`);
           } catch (error) {
-            console.error(`[${timestamp}] ❌ Error invalidating query:`, error);
+            console.error(`[${timestamp}] ❌ Error:`, error);
           }
         }
       )
