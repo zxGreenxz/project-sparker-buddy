@@ -308,6 +308,8 @@ export function FacebookCommentsManager({
   const fetchInProgress = useRef(false);
   const customerStatusMapRef = useRef<Map<string, StatusMapEntry>>(new Map());
   const isCheckingNewCommentsRef = useRef(false);
+  const pendingInvalidationRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingCommentsRef = useRef<Set<string>>(new Set());
   const realtimeIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // ============================================================================
@@ -701,47 +703,57 @@ export function FacebookCommentsManager({
             table: 'facebook_comments_archive'
           });
 
-          // Show toast notification for new comments
+          // Track new comments for batching
           if (payload.eventType === 'INSERT' && newComment?.facebook_comment_id) {
-            const message = newComment.comment_message || '';
-            toast({
-              title: "💬 Comment mới",
-              description: `${newComment.facebook_user_name}: ${message.substring(0, 50)}${message.length > 50 ? '...' : ''}`,
-              duration: 3000,
-            });
+            pendingCommentsRef.current.add(newComment.facebook_comment_id);
           }
 
-          try {
-            const isLive = selectedVideo.statusLive === 1;
-            const queryKey = getCommentsQueryKey(pageId, selectedVideo.objectId, isLive);
-            
-            console.log(`[${timestamp}] 🔑 Invalidating query:`, {
-              queryKey,
-              isLive,
-              statusLive: selectedVideo.statusLive,
-              pageId,
-              videoId: selectedVideo.objectId
-            });
-            
-            // Check current cache state BEFORE invalidate
-            const currentData = queryClient.getQueryData(queryKey);
-            console.log(`[${timestamp}] 📦 Current cache:`, {
-              hasData: !!currentData,
-              commentCount: (currentData as any)?.pages?.[0]?.data?.length
-            });
-            
-            // Invalidate and force refetch immediately
-            queryClient.invalidateQueries({ queryKey });
-            await queryClient.refetchQueries({ 
-              queryKey,
-              exact: true,
-              type: 'active' // Only refetch if query is currently active
-            });
-            
-            console.log(`[${timestamp}] ✅ Query invalidated + refetched`);
-          } catch (error) {
-            console.error(`[${timestamp}] ❌ Error:`, error);
+          // Clear existing timer
+          if (pendingInvalidationRef.current) {
+            clearTimeout(pendingInvalidationRef.current);
           }
+
+          // Debounce: Wait 500ms after last event before invalidating
+          pendingInvalidationRef.current = setTimeout(async () => {
+            try {
+              const isLive = selectedVideo.statusLive === 1;
+              const queryKey = getCommentsQueryKey(pageId, selectedVideo.objectId, isLive);
+              
+              const pendingCount = pendingCommentsRef.current.size;
+              
+              console.log(`[${new Date().toISOString()}] 🔑 Batch invalidating query:`, {
+                queryKey,
+                pendingNewComments: pendingCount,
+                isLive,
+                pageId,
+                videoId: selectedVideo.objectId
+              });
+              
+              // Show single toast for batch
+              if (pendingCount > 0) {
+                toast({
+                  title: "💬 Comment mới",
+                  description: `${pendingCount} comment mới`,
+                  duration: 3000,
+                });
+              }
+              
+              // Invalidate and force refetch
+              queryClient.invalidateQueries({ queryKey });
+              await queryClient.refetchQueries({ 
+                queryKey,
+                exact: true,
+                type: 'active'
+              });
+              
+              console.log(`[${new Date().toISOString()}] ✅ Query invalidated + refetched (${pendingCount} new comments)`);
+              
+              // Clear pending set
+              pendingCommentsRef.current.clear();
+            } catch (error) {
+              console.error(`[${new Date().toISOString()}] ❌ Error:`, error);
+            }
+          }, 500); // Wait 500ms after last event
         }
       )
       .on(
@@ -760,6 +772,9 @@ export function FacebookCommentsManager({
       .subscribe();
 
     return () => {
+      if (pendingInvalidationRef.current) {
+        clearTimeout(pendingInvalidationRef.current);
+      }
       supabase.removeChannel(channel);
     };
   }, [selectedVideo?.objectId, pageId, queryClient]);
