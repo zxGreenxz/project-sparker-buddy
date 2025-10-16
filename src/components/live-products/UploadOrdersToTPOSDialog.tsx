@@ -54,7 +54,7 @@ export function UploadOrdersToTPOSDialog({
   orders,
   sessionId,
 }: UploadOrdersToTPOSDialogProps) {
-  const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
+  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
   const [uploadProgress, setUploadProgress] = useState<Map<string, UploadProgress>>(new Map());
   const [isUploading, setIsUploading] = useState(false);
 
@@ -83,10 +83,22 @@ export function UploadOrdersToTPOSDialog({
     enabled: !!sessionId && open,
   });
 
+  // Flatten products into individual rows
+  const flattenedProducts = orders.map((order, idx) => ({
+    ...order,
+    uniqueKey: `${order.order_code}-${order.product_code}-${idx}`,
+  }));
+
+  // Calculate rowSpan for order_code column
+  const orderCodeRowSpans = new Map<string, number>();
+  flattenedProducts.forEach(product => {
+    orderCodeRowSpans.set(product.order_code, (orderCodeRowSpans.get(product.order_code) || 0) + 1);
+  });
+
   // Reset when dialog closes
   useEffect(() => {
     if (!open) {
-      setSelectedOrders(new Set());
+      setSelectedProducts(new Set());
       setUploadProgress(new Map());
       setIsUploading(false);
     }
@@ -94,22 +106,20 @@ export function UploadOrdersToTPOSDialog({
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      // Get unique order codes
-      const uniqueOrderCodes = [...new Set(orders.map(o => o.order_code))];
-      setSelectedOrders(new Set(uniqueOrderCodes));
+      setSelectedProducts(new Set(flattenedProducts.map(p => p.uniqueKey)));
     } else {
-      setSelectedOrders(new Set());
+      setSelectedProducts(new Set());
     }
   };
 
-  const handleSelectOrder = (orderCode: string, checked: boolean) => {
-    const newSelected = new Set(selectedOrders);
+  const handleSelectProduct = (uniqueKey: string, checked: boolean) => {
+    const newSelected = new Set(selectedProducts);
     if (checked) {
-      newSelected.add(orderCode);
+      newSelected.add(uniqueKey);
     } else {
-      newSelected.delete(orderCode);
+      newSelected.delete(uniqueKey);
     }
-    setSelectedOrders(newSelected);
+    setSelectedProducts(newSelected);
   };
 
   const handleUpload = async () => {
@@ -118,20 +128,28 @@ export function UploadOrdersToTPOSDialog({
       return;
     }
 
+    if (selectedProducts.size === 0) {
+      toast.error("Vui lòng chọn ít nhất một sản phẩm");
+      return;
+    }
+
     setIsUploading(true);
     const newProgress = new Map<string, UploadProgress>();
     
-    // Group orders by order_code
-    const orderGroups = orders.reduce((groups, order) => {
-      if (!groups[order.order_code]) {
-        groups[order.order_code] = [];
+    // Group selected products by order_code
+    const selectedItems = flattenedProducts.filter(p => selectedProducts.has(p.uniqueKey));
+    const orderGroups = selectedItems.reduce((acc, product) => {
+      if (!acc[product.order_code]) {
+        acc[product.order_code] = [];
       }
-      groups[order.order_code].push(order);
-      return groups;
-    }, {} as Record<string, OrderWithProduct[]>);
+      acc[product.order_code].push(product);
+      return acc;
+    }, {} as Record<string, typeof selectedItems>);
+
+    const orderCodes = Object.keys(orderGroups);
     
-    // Initialize progress for all selected orders
-    selectedOrders.forEach(orderCode => {
+    // Initialize progress for all selected order groups
+    orderCodes.forEach(orderCode => {
       newProgress.set(orderCode, {
         status: 'pending',
         message: 'Đang chờ...',
@@ -143,7 +161,7 @@ export function UploadOrdersToTPOSDialog({
     let failedCount = 0;
 
     // Upload orders sequentially
-    for (const orderCode of Array.from(selectedOrders)) {
+    for (const orderCode of orderCodes) {
       const orderItems = orderGroups[orderCode];
       if (!orderItems || orderItems.length === 0) continue;
 
@@ -182,7 +200,7 @@ export function UploadOrdersToTPOSDialog({
         if (result.success) {
           newProgress.set(orderCode, {
             status: 'success',
-            message: 'Upload thành công',
+            message: `Đã upload ${products.length} sản phẩm`,
             codeTPOSOrderId: result.codeTPOSOrderId,
           });
           successCount++;
@@ -219,10 +237,7 @@ export function UploadOrdersToTPOSDialog({
     }
   };
 
-  // Calculate unique order codes count
-  const uniqueOrderCodes = [...new Set(orders.map(o => o.order_code))];
-  const allSelected = uniqueOrderCodes.length > 0 && selectedOrders.size === uniqueOrderCodes.length;
-  const someSelected = selectedOrders.size > 0 && selectedOrders.size < uniqueOrderCodes.length;
+  const allSelected = flattenedProducts.length > 0 && selectedProducts.size === flattenedProducts.length;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -255,107 +270,116 @@ export function UploadOrdersToTPOSDialog({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(() => {
-                // Group orders by order_code
-                const orderGroups = orders.reduce((groups, order) => {
-                  if (!groups[order.order_code]) {
-                    groups[order.order_code] = [];
-                  }
-                  groups[order.order_code].push(order);
-                  return groups;
-                }, {} as Record<string, OrderWithProduct[]>);
+              {flattenedProducts.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground">
+                    Không có đơn hàng nào
+                  </TableCell>
+                </TableRow>
+              ) : (
+                flattenedProducts.map((product, index) => {
+                  const isFirstInOrderGroup = index === 0 || 
+                    flattenedProducts[index - 1].order_code !== product.order_code;
+                  const rowSpan = orderCodeRowSpans.get(product.order_code) || 1;
+                  const progress = uploadProgress.get(product.order_code);
 
-                const orderCodes = Object.keys(orderGroups);
-
-                if (orderCodes.length === 0) {
                   return (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground">
-                        Không có đơn hàng nào
-                      </TableCell>
-                    </TableRow>
-                  );
-                }
-
-                return orderCodes.map((orderCode) => {
-                  const orderItems = orderGroups[orderCode];
-                  const firstOrder = orderItems[0];
-                  const totalQuantity = orderItems.reduce((sum, item) => sum + item.quantity, 0);
-                  const progress = uploadProgress.get(orderCode);
-                  
-                  return (
-                    <TableRow key={orderCode}>
-                      <TableCell className="font-medium">{orderCode}</TableCell>
+                    <TableRow key={product.uniqueKey}>
+                      {/* Merge Mã đơn cell */}
+                      {isFirstInOrderGroup && (
+                        <TableCell 
+                          className="font-medium align-top border-r" 
+                          rowSpan={rowSpan}
+                        >
+                          {product.order_code}
+                        </TableCell>
+                      )}
+                      
+                      {/* Sản phẩm - mỗi dòng 1 sản phẩm */}
                       <TableCell>
                         <div className="text-sm">
-                          {orderItems.slice(0, 2).map((item, i) => (
-                            <div key={i}>
-                              {item.product_code} ({item.quantity})
-                            </div>
-                          ))}
-                          {orderItems.length > 2 && (
-                            <div className="text-muted-foreground">
-                              +{orderItems.length - 2} sản phẩm khác
-                            </div>
-                          )}
+                          <span className="font-medium">{product.product_code}</span>
+                          {' - '}
+                          <span className="text-muted-foreground">
+                            {product.product_name}
+                          </span>
+                          {' x '}
+                          <span className="font-semibold">{product.quantity}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {totalQuantity}
-                      </TableCell>
-                      <TableCell>
-                        {progress ? (
-                          <div className="flex items-center gap-2">
-                            {progress.status === 'uploading' && (
-                              <>
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                <span className="text-sm">{progress.message}</span>
-                              </>
-                            )}
-                            {progress.status === 'success' && (
-                              <>
-                                <CheckCircle2 className="h-4 w-4 text-green-600" />
-                                <div className="text-sm">
-                                  <div className="text-green-600">Thành công</div>
-                                  {progress.codeTPOSOrderId && (
-                                    <div className="text-muted-foreground">{progress.codeTPOSOrderId}</div>
-                                  )}
-                                </div>
-                              </>
-                            )}
-                            {progress.status === 'failed' && (
-                              <>
-                                <XCircle className="h-4 w-4 text-red-600" />
-                                <span className="text-sm text-red-600">{progress.message}</span>
-                              </>
-                            )}
-                            {progress.status === 'pending' && (
-                              <Badge variant="outline">Đang chờ</Badge>
-                            )}
-                          </div>
-                        ) : firstOrder.upload_status === 'success' && firstOrder.code_tpos_order_id ? (
-                          <div className="flex items-center gap-2">
-                            <CheckCircle2 className="h-4 w-4 text-green-600" />
-                            <div className="text-sm">
-                              <div className="text-green-600">Đã upload</div>
-                              <div className="text-muted-foreground">{firstOrder.code_tpos_order_id}</div>
+                      
+                      {/* Tổng SL - merge cho order_code */}
+                      {isFirstInOrderGroup && (
+                        <TableCell 
+                          className="text-right align-top border-r" 
+                          rowSpan={rowSpan}
+                        >
+                          <span className="font-medium">
+                            {flattenedProducts
+                              .filter(p => p.order_code === product.order_code)
+                              .reduce((sum, p) => sum + p.quantity, 0)}
+                          </span>
+                        </TableCell>
+                      )}
+                      
+                      {/* Trạng thái - merge cho order_code */}
+                      {isFirstInOrderGroup && (
+                        <TableCell className="align-top border-r" rowSpan={rowSpan}>
+                          {progress ? (
+                            <div className="flex items-center gap-2">
+                              {progress.status === 'uploading' && (
+                                <>
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  <span className="text-sm">{progress.message}</span>
+                                </>
+                              )}
+                              {progress.status === 'success' && (
+                                <>
+                                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                  <div className="text-sm">
+                                    <div className="text-green-600">Thành công</div>
+                                    {progress.codeTPOSOrderId && (
+                                      <div className="text-muted-foreground">{progress.codeTPOSOrderId}</div>
+                                    )}
+                                  </div>
+                                </>
+                              )}
+                              {progress.status === 'failed' && (
+                                <>
+                                  <XCircle className="h-4 w-4 text-red-600" />
+                                  <span className="text-sm text-red-600">{progress.message}</span>
+                                </>
+                              )}
+                              {progress.status === 'pending' && (
+                                <Badge variant="outline">Đang chờ</Badge>
+                              )}
                             </div>
-                          </div>
-                        ) : (
-                          <Badge variant="outline">Chưa upload</Badge>
-                        )}
-                      </TableCell>
+                          ) : product.upload_status === 'success' && product.code_tpos_order_id ? (
+                            <div className="flex items-center gap-2">
+                              <CheckCircle2 className="h-4 w-4 text-green-600" />
+                              <div className="text-sm">
+                                <div className="text-green-600">Đã upload</div>
+                                <div className="text-muted-foreground">{product.code_tpos_order_id}</div>
+                              </div>
+                            </div>
+                          ) : (
+                            <Badge variant="outline">Chưa upload</Badge>
+                          )}
+                        </TableCell>
+                      )}
+                      
+                      {/* Checkbox - mỗi dòng 1 checkbox */}
                       <TableCell className="text-center">
                         <Checkbox
-                          checked={selectedOrders.has(orderCode)}
-                          onCheckedChange={(checked) => handleSelectOrder(orderCode, checked as boolean)}
+                          checked={selectedProducts.has(product.uniqueKey)}
+                          onCheckedChange={(checked) => handleSelectProduct(product.uniqueKey, checked as boolean)}
                           disabled={isUploading}
                         />
                       </TableCell>
                     </TableRow>
                   );
-                });
-              })()}
+                })
+              )}
             </TableBody>
           </Table>
         </ScrollArea>
@@ -363,7 +387,7 @@ export function UploadOrdersToTPOSDialog({
         <DialogFooter>
           <div className="flex items-center justify-between w-full">
             <div className="text-sm text-muted-foreground">
-              Đã chọn: {selectedOrders.size}/{uniqueOrderCodes.length} đơn
+              Đã chọn: {selectedProducts.size}/{flattenedProducts.length} sản phẩm
             </div>
             <div className="flex gap-2">
               <Button
@@ -375,7 +399,7 @@ export function UploadOrdersToTPOSDialog({
               </Button>
               <Button
                 onClick={handleUpload}
-                disabled={selectedOrders.size === 0 || isUploading || !sessionData}
+                disabled={selectedProducts.size === 0 || isUploading || !sessionData}
               >
                 {isUploading ? (
                   <>
@@ -385,7 +409,7 @@ export function UploadOrdersToTPOSDialog({
                 ) : (
                   <>
                     <Upload className="h-4 w-4 mr-2" />
-                    Upload đã chọn
+                    Upload {selectedProducts.size > 0 ? `${selectedProducts.size} sản phẩm` : ''}
                   </>
                 )}
               </Button>

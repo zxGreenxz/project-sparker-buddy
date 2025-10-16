@@ -63,7 +63,7 @@ export function UploadLiveOrdersToTPOSDialog({
   ordersWithProducts,
   sessionId,
 }: UploadLiveOrdersToTPOSDialogProps) {
-  const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
+  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
   const [uploadProgress, setUploadProgress] = useState<Record<string, UploadProgress>>({});
   const [isUploading, setIsUploading] = useState(false);
 
@@ -87,89 +87,50 @@ export function UploadLiveOrdersToTPOSDialog({
   // Reset state when dialog closes
   useEffect(() => {
     if (!open) {
-      setSelectedOrders(new Set());
+      setSelectedProducts(new Set());
       setUploadProgress({});
       setIsUploading(false);
     }
   }, [open]);
 
-  // Group orders by order_code, skip uploaded items
-  const groupedOrders = useMemo<GroupedOrder[]>(() => {
-    const groups = ordersWithProducts.reduce((acc, order) => {
-      // ✅ Skip items that have already been uploaded successfully
-      if (order.upload_status === 'success') {
-        // Still track that this order_code has uploaded items
-        if (!acc[order.order_code]) {
-          acc[order.order_code] = {
-            order_code: order.order_code,
-            products: [],
-            totalQuantity: 0,
-            uploadStatus: null,
-            hasUploadedItems: true,
-          };
-        } else {
-          acc[order.order_code].hasUploadedItems = true;
-        }
-        return acc;
-      }
-
-      if (!acc[order.order_code]) {
-        acc[order.order_code] = {
-          order_code: order.order_code,
-          products: [],
-          totalQuantity: 0,
-          uploadStatus: order.upload_status,
-          hasUploadedItems: false,
-        };
-      }
-      
-      // Find existing product in the products array
-      const existingProduct = acc[order.order_code].products.find(
-        p => p.product_code === order.product_code
-      );
-      
-      if (existingProduct) {
-        existingProduct.quantity += order.quantity;
-        existingProduct.orderItemIds.push(order.id);
-      } else {
-        acc[order.order_code].products.push({
-          product_code: order.product_code,
-          product_name: order.product_name,
-          quantity: order.quantity,
-          variant: order.variant,
-          orderItemIds: [order.id],
-          note: order.note || null,
-        });
-      }
-      
-      acc[order.order_code].totalQuantity += order.quantity;
-      return acc;
-    }, {} as Record<string, GroupedOrder>);
-
-    // ✅ Only keep order_codes with at least one non-uploaded product
-    return Object.values(groups)
-      .filter(g => g.products.length > 0)
+  // Flatten products into individual rows with unique keys
+  const flattenedProducts = useMemo(() => {
+    return ordersWithProducts
+      .filter(order => order.upload_status !== 'success')
+      .map((order, idx) => ({
+        ...order,
+        uniqueKey: `${order.order_code}-${order.product_code}-${order.id}`,
+      }))
       .sort((a, b) => parseInt(a.order_code) - parseInt(b.order_code));
   }, [ordersWithProducts]);
 
+  // Calculate rowSpan for order_code column
+  const orderCodeRowSpans = useMemo(() => {
+    const spans = new Map<string, number>();
+    flattenedProducts.forEach(product => {
+      spans.set(product.order_code, (spans.get(product.order_code) || 0) + 1);
+    });
+    return spans;
+  }, [flattenedProducts]);
+
   // Handle select all / deselect all
   const handleSelectAll = () => {
-    if (selectedOrders.size === groupedOrders.length) {
-      setSelectedOrders(new Set());
+    if (selectedProducts.size === flattenedProducts.length) {
+      setSelectedProducts(new Set());
     } else {
-      setSelectedOrders(new Set(groupedOrders.map(g => g.order_code)));
+      setSelectedProducts(new Set(flattenedProducts.map(p => p.uniqueKey)));
     }
   };
 
   // Handle individual selection
-  const handleSelectOrder = (orderCode: string) => {
-    const newSelected = new Set(selectedOrders);
-    if (newSelected.has(orderCode)) {
-      newSelected.delete(orderCode);
+  const handleSelectProduct = (uniqueKey: string) => {
+    const newSelected = new Set(selectedProducts);
+    if (newSelected.has(uniqueKey)) {
+      newSelected.delete(uniqueKey);
     } else {
-      newSelected.add(orderCode);
+      newSelected.add(uniqueKey);
     }
-    setSelectedOrders(newSelected);
+    setSelectedProducts(newSelected);
   };
 
   // Handle upload
@@ -179,17 +140,28 @@ export function UploadLiveOrdersToTPOSDialog({
       return;
     }
 
-    if (selectedOrders.size === 0) {
-      toast.error("Vui lòng chọn ít nhất một đơn hàng");
+    if (selectedProducts.size === 0) {
+      toast.error("Vui lòng chọn ít nhất một sản phẩm");
       return;
     }
 
     setIsUploading(true);
-    const selectedOrdersList = Array.from(selectedOrders);
     
-    // Initialize progress for all selected orders
+    // Group selected products by order_code
+    const selectedItems = flattenedProducts.filter(p => selectedProducts.has(p.uniqueKey));
+    const orderGroups = selectedItems.reduce((acc, product) => {
+      if (!acc[product.order_code]) {
+        acc[product.order_code] = [];
+      }
+      acc[product.order_code].push(product);
+      return acc;
+    }, {} as Record<string, typeof selectedItems>);
+
+    const orderCodes = Object.keys(orderGroups);
+    
+    // Initialize progress
     const initialProgress: Record<string, UploadProgress> = {};
-    selectedOrdersList.forEach(orderCode => {
+    orderCodes.forEach(orderCode => {
       initialProgress[orderCode] = { status: 'idle' };
     });
     setUploadProgress(initialProgress);
@@ -197,27 +169,22 @@ export function UploadLiveOrdersToTPOSDialog({
     let successCount = 0;
     let failedCount = 0;
 
-    // Process each order
-    for (const orderCode of selectedOrdersList) {
-      const groupedOrder = groupedOrders.find(g => g.order_code === orderCode);
-      if (!groupedOrder || groupedOrder.products.length === 0) continue;
+    // Process each order_code group
+    for (const orderCode of orderCodes) {
+      const products = orderGroups[orderCode];
+      const allOrderItemIds = products.map(p => p.id);
 
-      // ✅ Collect all orderItemIds that need to be uploaded
-      const allOrderItemIds = groupedOrder.products.flatMap(p => p.orderItemIds);
-
-      // Update status to uploading
       setUploadProgress(prev => ({
         ...prev,
         [orderCode]: { status: 'uploading', message: 'Đang xử lý...' }
       }));
 
       try {
-        // Use order_code as session_index
         const sessionIndex = parseInt(orderCode);
         
         const result = await uploadOrderToTPOS({
           orderCode,
-          products: groupedOrder.products.map(p => ({
+          products: products.map(p => ({
             product_code: p.product_code,
             product_name: p.product_name,
             quantity: p.quantity,
@@ -242,7 +209,7 @@ export function UploadLiveOrdersToTPOSDialog({
             ...prev,
             [orderCode]: { 
               status: 'success', 
-              message: `Đã thêm ${groupedOrder.products.length} sản phẩm vào đơn TPOS: ${result.codeTPOSOrderId}` 
+              message: `Đã upload ${products.length} sản phẩm` 
             }
           }));
           successCount++;
@@ -271,7 +238,6 @@ export function UploadLiveOrdersToTPOSDialog({
 
     setIsUploading(false);
 
-    // Show summary toast
     if (successCount > 0 && failedCount === 0) {
       toast.success(`Đã upload thành công ${successCount} đơn hàng`);
     } else if (successCount > 0 && failedCount > 0) {
@@ -346,7 +312,7 @@ export function UploadLiveOrdersToTPOSDialog({
                   <TableHead>Trạng thái</TableHead>
                   <TableHead className="w-12 text-center">
                     <Checkbox
-                      checked={selectedOrders.size === groupedOrders.length && groupedOrders.length > 0}
+                      checked={selectedProducts.size === flattenedProducts.length && flattenedProducts.length > 0}
                       onCheckedChange={handleSelectAll}
                       disabled={isUploading}
                     />
@@ -354,13 +320,33 @@ export function UploadLiveOrdersToTPOSDialog({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {groupedOrders.map((group) => (
-                  <TableRow key={group.order_code}>
-                    <TableCell className="font-medium">{group.order_code}</TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        {group.products.map((product, idx) => (
-                          <div key={idx} className="text-sm">
+                {flattenedProducts.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground">
+                      Không có sản phẩm nào
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  flattenedProducts.map((product, index) => {
+                    const isFirstInOrderGroup = index === 0 || 
+                      flattenedProducts[index - 1].order_code !== product.order_code;
+                    const rowSpan = orderCodeRowSpans.get(product.order_code) || 1;
+
+                    return (
+                      <TableRow key={product.uniqueKey}>
+                        {/* Merge Mã đơn cell */}
+                        {isFirstInOrderGroup && (
+                          <TableCell 
+                            className="font-medium align-top border-r" 
+                            rowSpan={rowSpan}
+                          >
+                            {product.order_code}
+                          </TableCell>
+                        )}
+                        
+                        {/* Sản phẩm - mỗi dòng 1 sản phẩm */}
+                        <TableCell>
+                          <div className="text-sm">
                             <span className="font-medium">{product.product_code}</span>
                             {' - '}
                             <span className="text-muted-foreground">
@@ -370,47 +356,52 @@ export function UploadLiveOrdersToTPOSDialog({
                             {' x '}
                             <span className="font-semibold">{product.quantity}</span>
                           </div>
-                        ))}
-                        {/* ✅ Show badge if some items are already uploaded */}
-                        {group.hasUploadedItems && (
-                          <Badge variant="secondary" className="text-xs mt-1">
-                            ✓ Một số sản phẩm đã upload
-                          </Badge>
+                        </TableCell>
+                        
+                        {/* Tổng SL - merge cho order_code */}
+                        {isFirstInOrderGroup && (
+                          <TableCell 
+                            className="text-center align-top border-r" 
+                            rowSpan={rowSpan}
+                          >
+                            <Badge variant="outline">
+                              {flattenedProducts
+                                .filter(p => p.order_code === product.order_code)
+                                .reduce((sum, p) => sum + p.quantity, 0)}
+                            </Badge>
+                          </TableCell>
                         )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant="outline">{group.totalQuantity}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1 max-w-[200px]">
-                        {group.products.map((product, idx) => (
-                          <div key={idx} className="text-xs text-muted-foreground truncate">
+                        
+                        {/* Ghi chú */}
+                        <TableCell>
+                          <div className="text-xs text-muted-foreground truncate max-w-[200px]">
                             {product.note ? (
                               <span title={product.note}>{product.note}</span>
                             ) : (
                               <span className="italic text-gray-400">-</span>
                             )}
                           </div>
-                        ))}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {renderUploadStatus(group.order_code) || (
-                        group.uploadStatus === 'success' ? (
-                          <Badge variant="default" className="bg-green-500">Đã upload</Badge>
-                        ) : null
-                      )}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Checkbox
-                        checked={selectedOrders.has(group.order_code)}
-                        onCheckedChange={() => handleSelectOrder(group.order_code)}
-                        disabled={isUploading}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
+                        </TableCell>
+                        
+                        {/* Trạng thái - merge cho order_code */}
+                        {isFirstInOrderGroup && (
+                          <TableCell className="align-top border-r" rowSpan={rowSpan}>
+                            {renderUploadStatus(product.order_code)}
+                          </TableCell>
+                        )}
+                        
+                        {/* Checkbox - mỗi dòng 1 checkbox */}
+                        <TableCell className="text-center">
+                          <Checkbox
+                            checked={selectedProducts.has(product.uniqueKey)}
+                            onCheckedChange={() => handleSelectProduct(product.uniqueKey)}
+                            disabled={isUploading}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
               </TableBody>
             </Table>
           </ScrollArea>
@@ -426,7 +417,7 @@ export function UploadLiveOrdersToTPOSDialog({
           </Button>
           <Button
             onClick={handleUpload}
-            disabled={selectedOrders.size === 0 || isUploading}
+            disabled={selectedProducts.size === 0 || isUploading}
           >
             {isUploading ? (
               <>
@@ -436,7 +427,7 @@ export function UploadLiveOrdersToTPOSDialog({
             ) : (
               <>
                 <Upload className="h-4 w-4 mr-2" />
-                Upload {selectedOrders.size > 0 ? `${selectedOrders.size} đơn` : ''}
+                Upload {selectedProducts.size > 0 ? `${selectedProducts.size} sản phẩm` : ''}
               </>
             )}
           </Button>
