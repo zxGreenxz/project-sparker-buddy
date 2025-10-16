@@ -32,6 +32,7 @@ import { FacebookCommentsManager } from "@/components/facebook/FacebookCommentsM
 import { CommentsSidebar } from "@/components/live-products/CommentsSidebar";
 import { useCommentsSidebar } from "@/contexts/CommentsSidebarContext";
 import { TPOSCredentialsManager } from "@/components/settings/TPOSCredentialsManager";
+import { PdfBillEditor } from "@/components/settings/PdfBillEditor";
 
 const Settings = () => {
   const [isChecking, setIsChecking] = useState(false);
@@ -605,6 +606,10 @@ const Settings = () => {
     <TabsTrigger value="barcode" className="gap-2 flex-1 min-w-fit">
       <TestTube2 className="h-4 w-4" />
       Barcode & Test
+    </TabsTrigger>
+    <TabsTrigger value="bill-template" className="gap-2 flex-1 min-w-fit">
+      <Printer className="h-4 w-4" />
+      Bill Template
     </TabsTrigger>
     <TabsTrigger value="printer" className="gap-2 flex-1 min-w-fit">
       <Printer className="h-4 w-4" />
@@ -1622,6 +1627,10 @@ const Settings = () => {
             <VariantTestTool />
             <BarcodeProductTest />
           </div>
+        </TabsContent>
+
+        <TabsContent value="bill-template" className="space-y-6 mt-4">
+          <PdfBillEditor />
         </TabsContent>
 
         <TabsContent value="printer" className="space-y-6 mt-4">

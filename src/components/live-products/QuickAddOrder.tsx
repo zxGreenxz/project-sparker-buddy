@@ -285,66 +285,49 @@ export function QuickAddOrder({
         queryKey: ['facebook-pending-orders', phaseData?.phase_date]
       });
 
-      // Auto-print bill
+      // Auto-print bill using PDF template
       if (billData) {
         const activePrinter = getActivePrinter();
         if (activePrinter) {
-          // Print to XC80 thermal printer using bitmap mode
           try {
-            console.log(`🖨️ Converting text to bitmap for ${activePrinter.name} (${activePrinter.ipAddress}:${activePrinter.port})`);
+            console.log(`🖨️ Generating PDF bill for printing...`);
             
-            // Prepare lines with individual font sizes optimized for 576px width
-            const printLines = [
-              { text: `#${billData.sessionIndex} - ${billData.phone || 'Chưa có SĐT'}`, fontSize: 64, bold: true },  // Line 1: 2x
-              { text: billData.customerName, fontSize: 64, bold: true },  // Line 2: 2x
-              { text: `${billData.productCode} - ${billData.productName.replace(/^\d+\s+/, '')}`, fontSize: 24, bold: true },  // Line 3: 0.7x
-              ...(billData.comment ? [{ text: billData.comment, fontSize: 64, bold: true }] : []),  // Line 4: 2x (if exists)
-              { text: new Date(billData.createdTime).toLocaleString('vi-VN', {
-                timeZone: 'Asia/Bangkok',
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              }), fontSize: 32, bold: true }  // Line 5: keep original
-            ];
+            // Load saved template from localStorage
+            const savedTemplate = localStorage.getItem('billTemplate');
+            const { DEFAULT_BILL_TEMPLATE } = await import('@/types/bill-template');
+            const { generateBillPDF } = await import('@/lib/bill-pdf-generator');
+            const template = savedTemplate 
+              ? JSON.parse(savedTemplate) 
+              : DEFAULT_BILL_TEMPLATE;
             
-            // Convert text to ESC/POS bitmap (includes paper cut)
-            const bitmapData = await textToESCPOSBitmap('', {
-              width: 576,  // Standard width for 80mm thermal printer
-              fontFamily: 'Arial, sans-serif',
-              lineHeight: 1.1,  // Tighter line height
-              align: 'center',
-              padding: 2,  // Minimal padding
-              lines: printLines,
-              lineSpacing: 10  // Reduced spacing between lines
+            // Generate PDF
+            const pdf = generateBillPDF(template, {
+              sessionIndex: billData.sessionIndex,
+              phone: billData.phone,
+              customerName: billData.customerName,
+              productCode: billData.productCode,
+              productName: billData.productName,
+              comment: billData.comment,
+              createdTime: billData.createdTime,
             });
             
-            // Convert to base64 for transmission
-            const base64Bitmap = btoa(String.fromCharCode(...bitmapData));
+            console.log("✅ PDF generated, opening browser print dialog...");
             
-            // Send to printer via bridge (use correct parameter names)
-            const bridgeUrl = activePrinter.bridgeUrl || `http://${activePrinter.ipAddress}:${activePrinter.port}`;
-            console.log(`🖨️ Sending bitmap to printer bridge: ${bridgeUrl}/print/bitmap`);
+            // Convert PDF to blob and open in new window for printing
+            const pdfBlob = pdf.output('blob');
+            const pdfUrl = URL.createObjectURL(pdfBlob);
             
-            const response = await fetch(`${bridgeUrl}/print/bitmap`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                ipAddress: activePrinter.ipAddress,
-                port: activePrinter.port,
-                bitmapBase64: base64Bitmap,
-                feeds: 3
-              })
-            });
-            
-            if (!response.ok) {
-              throw new Error(`Bridge returned status ${response.status}`);
+            const printWindow = window.open(pdfUrl, '_blank');
+            if (printWindow) {
+              printWindow.onload = () => {
+                printWindow.print();
+                // Clean up after a delay
+                setTimeout(() => URL.revokeObjectURL(pdfUrl), 1000);
+              };
             }
             
-            console.log("✅ Bill printed successfully (bitmap mode)");
           } catch (error) {
-            console.error("Print failed:", error);
+            console.error('❌ Print error:', error);
             toast({
               title: "⚠️ Lỗi in bill",
               description: `Không thể in lên ${activePrinter.name}. Lỗi: ${error instanceof Error ? error.message : 'Unknown error'}`,

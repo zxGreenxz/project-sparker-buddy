@@ -268,6 +268,42 @@ app.post('/print-bitmap', async (req, res) => {
 });
 
 /**
+ * Print PDF (convert to image then bitmap)
+ * Note: Thermal printers don't support PDF directly
+ */
+app.post('/print-pdf', async (req, res) => {
+  try {
+    const { ip, port = 9100, pdfBase64 } = req.body;
+    
+    if (!ip || !pdfBase64) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: ip, pdfBase64'
+      });
+    }
+    
+    console.log(`📄 PDF Print request: ${ip}:${port}`);
+    console.log(`📦 PDF data length: ${pdfBase64.length} chars (base64)`);
+    
+    // Note: XC80 thermal printer doesn't support PDF directly
+    // This would require converting PDF → Image → ESC/POS bitmap
+    // For now, return error suggesting browser print dialog instead
+    
+    return res.status(501).json({
+      success: false,
+      error: 'PDF printing not yet implemented for thermal printers. Please use browser print dialog instead.'
+    });
+    
+  } catch (error) {
+    console.error('❌ PDF print error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
  * Test connection
  */
 app.post('/test', async (req, res) => {
