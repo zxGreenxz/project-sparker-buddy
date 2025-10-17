@@ -19,7 +19,6 @@ import Settings from "./pages/Settings";
 import ActivityLog from "./pages/ActivityLog";
 import Customers from "./pages/Customers";
 import FacebookComments from "./pages/FacebookComments";
-import UserManagement from "./pages/UserManagement";
 
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
@@ -118,13 +117,6 @@ const App = () => (
                 <ProtectedRoute>
                   <Layout>
                     <Customers />
-                  </Layout>
-                </ProtectedRoute>
-              } />
-              <Route path="/user-management" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <UserManagement />
                   </Layout>
                 </ProtectedRoute>
               } />
