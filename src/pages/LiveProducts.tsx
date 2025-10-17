@@ -758,6 +758,75 @@ export default function LiveProducts() {
     enabled: !!selectedPhase && !!selectedSession
   });
 
+  // Fetch "Hàng Lẻ" comments from facebook_pending_orders
+  const {
+    data: hangLeComments = [],
+    isLoading: isLoadingHangLeComments,
+  } = useQuery({
+    queryKey: ["hang-le-comments", commentsVideoId],
+    queryFn: async () => {
+      if (!commentsVideoId) return [];
+      
+      const { data, error } = await supabase
+        .from("facebook_pending_orders" as any)
+        .select("*")
+        .eq("facebook_post_id", commentsVideoId)
+        .eq("comment_type", "hang_le")
+        .order("created_time", { ascending: false });
+      
+      if (error) {
+        console.error("Error fetching hang le comments:", error);
+        throw error;
+      }
+      
+      return data || [];
+    },
+    enabled: !!commentsVideoId,
+  });
+
+  // State for managing product codes for hang le comments
+  const [hangLeProductCodes, setHangLeProductCodes] = useState<Record<string, string>>({});
+
+  // Mutation to update product code for a hang le comment
+  const updateHangLeProductCodeMutation = useMutation({
+    mutationFn: async ({ commentId, productCode }: { commentId: string; productCode: string }) => {
+      // Verify product exists
+      const { data: product, error: productError } = await supabase
+        .from("products")
+        .select("id, product_code, product_name")
+        .eq("product_code", productCode.trim())
+        .maybeSingle();
+
+      if (productError) throw productError;
+      if (!product) throw new Error(`Không tìm thấy sản phẩm: ${productCode}`);
+
+      // Update the pending order with product code
+      const { error } = await supabase
+        .from("facebook_pending_orders" as any)
+        .update({ 
+          product_code: productCode.trim(),
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", commentId);
+
+      if (error) throw error;
+
+      return { product, commentId };
+    },
+    onSuccess: (data) => {
+      toast.success(`Đã gắn mã sản phẩm: ${data.product.product_code}`);
+      queryClient.invalidateQueries({ queryKey: ["hang-le-comments", commentsVideoId] });
+      // Clear the input field
+      setHangLeProductCodes(prev => ({
+        ...prev,
+        [data.commentId]: ""
+      }));
+    },
+    onError: (error: Error) => {
+      toast.error(`Lỗi: ${error.message}`);
+    }
+  });
+
   // Real-time subscriptions for live data updates
   useEffect(() => {
     if (!selectedSession || !selectedPhase) return;
@@ -1392,6 +1461,10 @@ export default function LiveProducts() {
                   <ShoppingBag className="h-4 w-4" />
                   Hàng Lẻ ({productsHangLe.length})
                 </TabsTrigger>
+                <TabsTrigger value="comment-hang-le" className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  Comment hàng lẻ
+                </TabsTrigger>
                 <TabsTrigger value="orders" className="flex items-center gap-2">
                   <ShoppingCart className="h-4 w-4" />
                   Đơn hàng (theo mã đơn)
@@ -1916,6 +1989,142 @@ export default function LiveProducts() {
                     </Table>
                   </Card>
                 </>}
+            </TabsContent>
+
+            {/* Comment Hàng Lẻ Tab */}
+            <TabsContent value="comment-hang-le" className="space-y-4">
+              {!commentsVideoId ? (
+                <Card>
+                  <CardContent className="flex flex-col items-center justify-center py-12">
+                    <MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">Chưa chọn video</h3>
+                    <p className="text-muted-foreground text-center">
+                      Vui lòng chọn video Facebook để xem comment hàng lẻ
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : isLoadingHangLeComments ? (
+                <Card>
+                  <CardContent className="flex items-center justify-center py-12">
+                    <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </CardContent>
+                </Card>
+              ) : hangLeComments.length === 0 ? (
+                <Card>
+                  <CardContent className="flex flex-col items-center justify-center py-12">
+                    <MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">Chưa có comment hàng lẻ</h3>
+                    <p className="text-muted-foreground text-center">
+                      Các comment được đánh dấu là "hàng lẻ" sẽ xuất hiện ở đây
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-semibold">Danh sách comment hàng lẻ</h3>
+                      <Badge variant="outline">{hangLeComments.length} comments</Badge>
+                    </div>
+                  </div>
+                  <Card>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-32">Người comment</TableHead>
+                          <TableHead className="w-80">Nội dung comment</TableHead>
+                          <TableHead className="w-32">Thời gian</TableHead>
+                          <TableHead className="w-40">Mã sản phẩm hiện tại</TableHead>
+                          <TableHead className="w-48">Gắn mã SP mới</TableHead>
+                          <TableHead className="w-24 text-center">Thao tác</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {hangLeComments.map((comment: any) => (
+                          <TableRow key={comment.id}>
+                            <TableCell className="font-medium">
+                              {comment.name || 'Unknown'}
+                            </TableCell>
+                            <TableCell>
+                              <div className="max-w-md">
+                                <p className="text-sm line-clamp-3">{comment.comment || '-'}</p>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {comment.created_time 
+                                ? format(new Date(comment.created_time), 'dd/MM/yyyy HH:mm', { locale: vi })
+                                : '-'}
+                            </TableCell>
+                            <TableCell>
+                              {comment.product_code ? (
+                                <Badge variant="secondary" className="font-mono">
+                                  {comment.product_code}
+                                </Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground italic">
+                                  Chưa có
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  type="text"
+                                  placeholder="Nhập mã SP..."
+                                  value={hangLeProductCodes[comment.id] || ""}
+                                  onChange={(e) => {
+                                    setHangLeProductCodes(prev => ({
+                                      ...prev,
+                                      [comment.id]: e.target.value.toUpperCase()
+                                    }));
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      const code = hangLeProductCodes[comment.id]?.trim();
+                                      if (code) {
+                                        updateHangLeProductCodeMutation.mutate({
+                                          commentId: comment.id,
+                                          productCode: code
+                                        });
+                                      }
+                                    }
+                                  }}
+                                  className="h-8 font-mono uppercase"
+                                />
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Button
+                                size="sm"
+                                variant="default"
+                                onClick={() => {
+                                  const code = hangLeProductCodes[comment.id]?.trim();
+                                  if (code) {
+                                    updateHangLeProductCodeMutation.mutate({
+                                      commentId: comment.id,
+                                      productCode: code
+                                    });
+                                  } else {
+                                    toast.error("Vui lòng nhập mã sản phẩm");
+                                  }
+                                }}
+                                disabled={!hangLeProductCodes[comment.id]?.trim() || updateHangLeProductCodeMutation.isPending}
+                                className="h-7"
+                              >
+                                {updateHangLeProductCodeMutation.isPending ? (
+                                  <RefreshCw className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  "Gắn"
+                                )}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </Card>
+                </>
+              )}
             </TabsContent>
 
             <TabsContent value="orders" className="space-y-4">
