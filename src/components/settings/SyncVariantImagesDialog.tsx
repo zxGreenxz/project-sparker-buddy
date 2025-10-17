@@ -48,21 +48,23 @@ export function SyncVariantImagesDialog(props: SyncVariantImagesDialogProps) {
       if (queryError) throw queryError;
 
       // Filter to get variants without images
+      console.log('📦 Tổng số products:', allProducts?.length);
+      
       const variantsToSync = (allProducts || []).filter(product => {
         const code = product.product_code;
+        const isVariant = isVariantCode(code);
+        const baseCode = extractBaseCode(code);
         
-        // Debug: Log all products starting with LQU114 to check detection
-        if (code.startsWith('LQU114')) {
-          console.log(`🔍 Kiểm tra ${code}:`, {
-            isVariant: isVariantCode(code),
-            baseCode: extractBaseCode(code),
-            tpos_image_url: product.tpos_image_url,
-            product_images: product.product_images
+        // Debug: Log detection results for all potential variants
+        if (isVariant) {
+          console.log(`🔍 Phát hiện variant: ${code} → base: ${baseCode}`, {
+            tpos_image_url: product.tpos_image_url?.substring(0, 30),
+            product_images: product.product_images?.length || 0
           });
         }
         
         // Check if it's a variant code
-        if (!isVariantCode(code)) {
+        if (!isVariant) {
           return false;
         }
 
@@ -73,7 +75,7 @@ export function SyncVariantImagesDialog(props: SyncVariantImagesDialogProps) {
         const hasNoImage = tposImageEmpty && productImagesEmpty;
         
         if (hasNoImage) {
-          console.log(`✨ Variant cần đồng bộ: ${code}`);
+          console.log(`✅ Variant cần đồng bộ: ${code} → tìm ảnh từ ${baseCode}`);
         }
         
         return hasNoImage;
@@ -108,7 +110,9 @@ export function SyncVariantImagesDialog(props: SyncVariantImagesDialogProps) {
           if (baseError) throw baseError;
 
           if (!baseProduct) {
-            console.log(`❌ Không tìm thấy base product: ${baseCode} cho variant: ${variant.product_code}`);
+            const errorMsg = `${variant.product_code}: Không tìm thấy base product "${baseCode}"`;
+            console.log(`❌ ${errorMsg}`);
+            syncResult.errors.push(errorMsg);
             syncResult.skipped++;
             continue;
           }
@@ -126,7 +130,9 @@ export function SyncVariantImagesDialog(props: SyncVariantImagesDialogProps) {
           });
 
           if (!imageUrl) {
-            console.log(`❌ Base product ${baseCode} không có ảnh`);
+            const errorMsg = `${variant.product_code}: Base product "${baseCode}" không có ảnh (cần thêm ảnh cho sản phẩm gốc trước)`;
+            console.log(`❌ ${errorMsg}`);
+            syncResult.errors.push(errorMsg);
             syncResult.skipped++;
             continue;
           }
