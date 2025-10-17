@@ -64,48 +64,24 @@ export const getVariantCode = (variant: string | null | undefined): string => {
 };
 
 /**
- * Extract base product code from a variant code
+ * Extract base product code from variant code
  * Examples:
- * - "LQU114L" → "LQU114"
- * - "N152M" → "N152"
- * - "L800XS" → "L800"
- * Pattern: L/N + alphanumeric + numbers + letters at end
+ * - LQU114L → LQU114
+ * - N152MS → N152
+ * - L800XD30 → L800
  */
-export const extractBaseCode = (variantCode: string): string | null => {
-  if (!variantCode || variantCode.trim() === '') {
-    return null;
-  }
+export function extractBaseCode(variantCode: string): string | null {
+  if (!variantCode) return null;
   
-  const trimmed = variantCode.trim();
-  
-  // Pattern: ^([LN][A-Z]*\d+)[A-Z]{1,2}$
-  // Matches: L/N + letters (product name) + digits + 1-2 letters (size: S, M, L, XL)
-  // Example: LQU114L → LQU114, N152XL → N152
-  const match = trimmed.match(/^([LN][A-Z]*\d+)[A-Z]{1,2}$/);
-  
-  if (match && match[1]) {
-    return match[1];
-  }
-  
-  return null;
-};
+  // Pattern: L/N + numbers + letters at end
+  const match = variantCode.match(/^([LN]\w*?\d+)[A-Z]+\d*$/);
+  return match ? match[1] : null;
+}
 
 /**
- * Check if a product code is a variant code
- * Returns true if code ends with capital letters after numbers
- * Examples:
- * - "LQU114L" → true
- * - "N152M" → true
- * - "LQU114" → false
- * - "N152" → false
+ * Check if product code is a variant (has letters after numbers)
  */
-export const isVariantCode = (productCode: string): boolean => {
-  if (!productCode || productCode.trim() === '') {
-    return false;
-  }
-  
-  // Pattern: ^[LN][A-Z]*\d+[A-Z]{1,2}$
-  // Matches: L/N + letters (product name) + digits + 1-2 letters at end (size: S, M, L, XL, XXL)
-  // Example: LQU114L, N152M, LBR66D
-  return /^[LN][A-Z]*\d+[A-Z]{1,2}$/.test(productCode.trim());
-};
+export function isVariantCode(productCode: string): boolean {
+  if (!productCode) return false;
+  return /^[LN]\w*?\d+[A-Z]+\d*$/.test(productCode);
+}
