@@ -49,8 +49,22 @@ export function SyncVariantImagesDialog(props: SyncVariantImagesDialogProps) {
 
       // Filter to get variants without images
       const variantsToSync = (allProducts || []).filter(product => {
-        const hasNoImage = !product.tpos_image_url && (!product.product_images || product.product_images.length === 0);
-        return isVariantCode(product.product_code) && hasNoImage;
+        // Check if it's a variant code
+        if (!isVariantCode(product.product_code)) {
+          return false;
+        }
+
+        // Check image fields - treat empty strings as no image
+        const tposImageEmpty = !product.tpos_image_url || product.tpos_image_url.trim() === '';
+        const productImagesEmpty = !product.product_images || product.product_images.length === 0;
+        
+        const hasNoImage = tposImageEmpty && productImagesEmpty;
+        
+        if (hasNoImage) {
+          console.log(`Variant cần đồng bộ: ${product.product_code}`);
+        }
+        
+        return hasNoImage;
       });
 
       syncResult.total = variantsToSync.length;
@@ -75,24 +89,31 @@ export function SyncVariantImagesDialog(props: SyncVariantImagesDialogProps) {
           // Find base product
           const { data: baseProduct, error: baseError } = await supabase
             .from('products')
-            .select('tpos_image_url, product_images')
+            .select('tpos_image_url, product_images, product_code')
             .eq('product_code', baseCode)
             .maybeSingle();
 
           if (baseError) throw baseError;
 
           if (!baseProduct) {
+            console.log(`❌ Không tìm thấy base product: ${baseCode} cho variant: ${variant.product_code}`);
             syncResult.skipped++;
             continue;
           }
 
           // Get image URL (priority: product_images[0], fallback: tpos_image_url)
-          const imageUrl = baseProduct.product_images?.[0] || baseProduct.tpos_image_url;
+          // Check both empty string and null
+          const productImage = baseProduct.product_images?.[0];
+          const tposImage = baseProduct.tpos_image_url?.trim();
+          const imageUrl = productImage || tposImage;
 
           if (!imageUrl) {
+            console.log(`❌ Base product ${baseCode} không có ảnh`);
             syncResult.skipped++;
             continue;
           }
+
+          console.log(`✅ Đồng bộ ${variant.product_code} ← ${baseCode}: ${imageUrl.substring(0, 50)}...`);
 
           // Update variant with image URL
           const { error: updateError } = await supabase
