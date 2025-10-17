@@ -1396,6 +1396,10 @@ export default function LiveProducts() {
                   <ShoppingCart className="h-4 w-4" />
                   Đơn hàng (theo mã đơn)
                 </TabsTrigger>
+                <TabsTrigger value="products-orders" className="flex items-center gap-2">
+                  <Package className="h-4 w-4" />
+                  MÃ SP
+                </TabsTrigger>
                  <TabsTrigger value="supplier-stats" className="flex items-center gap-2">
                   <Store className="h-4 w-4" />
                   Thống kê NCC
@@ -2097,6 +2101,213 @@ export default function LiveProducts() {
                   </Table>
                 </Card>
                 </>}
+            </TabsContent>
+
+            {/* Products Orders Tab - Statistics by Product Code */}
+            <TabsContent value="products-orders" className="space-y-4">
+              {ordersWithProducts.length === 0 ? (
+                <Card>
+                  <CardContent className="flex flex-col items-center justify-center py-12">
+                    <Package className="h-12 w-12 text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">Chưa có đơn hàng nào</h3>
+                    <p className="text-muted-foreground text-center">
+                      Đơn hàng sẽ xuất hiện ở đây khi có người mua sản phẩm
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-semibold">Thống kê theo mã sản phẩm</h3>
+                      <Badge variant="outline">
+                        {(() => {
+                          const uniqueProducts = new Set();
+                          ordersWithProducts.forEach(order => {
+                            uniqueProducts.add(`${order.product_code}-${order.product_name}`);
+                          });
+                          return uniqueProducts.size;
+                        })()} sản phẩm
+                      </Badge>
+                    </div>
+                  </div>
+                  <Card>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="font-bold text-base">Mã SP</TableHead>
+                          <TableHead className="font-bold text-base">Tên sản phẩm</TableHead>
+                          <TableHead className="font-bold text-base">Biến thể</TableHead>
+                          <TableHead className="font-bold text-base">Hình ảnh</TableHead>
+                          <TableHead className="font-bold text-base">Mã đơn hàng</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {(() => {
+                          // Group orders by product_code and product_name
+                          const productOrdersMap = new Map<string, {
+                            product_code: string;
+                            product_name: string;
+                            variants: Map<string, {
+                              variant: string;
+                              orders: OrderWithProduct[];
+                              image_url?: string;
+                            }>;
+                          }>();
+
+                          ordersWithProducts.forEach(order => {
+                            const key = `${order.product_code}`;
+                            
+                            if (!productOrdersMap.has(key)) {
+                              productOrdersMap.set(key, {
+                                product_code: order.product_code,
+                                product_name: order.product_name,
+                                variants: new Map()
+                              });
+                            }
+
+                            const product = productOrdersMap.get(key)!;
+                            
+                            // Find the live product to get variant info
+                            const liveProduct = liveProducts.find(p => p.product_code === order.product_code);
+                            const variantKey = liveProduct?.variant || '';
+                            
+                            if (!product.variants.has(variantKey)) {
+                              product.variants.set(variantKey, {
+                                variant: variantKey,
+                                orders: [],
+                                image_url: liveProduct?.image_url
+                              });
+                            }
+
+                            product.variants.get(variantKey)!.orders.push(order);
+                          });
+
+                          // Convert to array and render
+                          return Array.from(productOrdersMap.values()).flatMap(product => {
+                            const variantsArray = Array.from(product.variants.values());
+                            const totalVariants = variantsArray.length;
+                            
+                            return variantsArray.flatMap((variantData, variantIndex) => {
+                              const isFirstVariant = variantIndex === 0;
+                              
+                              return (
+                                <TableRow key={`${product.product_code}-${variantData.variant}`}>
+                                  {isFirstVariant && (
+                                    <>
+                                      <TableCell 
+                                        rowSpan={totalVariants} 
+                                        className="font-medium align-top border-r"
+                                      >
+                                        {product.product_code}
+                                      </TableCell>
+                                      <TableCell 
+                                        rowSpan={totalVariants} 
+                                        className="align-top border-r"
+                                      >
+                                        {product.product_name}
+                                      </TableCell>
+                                    </>
+                                  )}
+                                  <TableCell className="text-muted-foreground border-r">
+                                    {getVariantName(variantData.variant)}
+                                  </TableCell>
+                                  <TableCell className="border-r">
+                                    <ZoomableImage 
+                                      src={variantData.image_url} 
+                                      alt={product.product_name} 
+                                    />
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {variantData.orders.map(order => {
+                                        const isOversell = calculateIsOversell(
+                                          order.live_product_id, 
+                                          order.id, 
+                                          liveProducts, 
+                                          ordersWithProducts
+                                        );
+                                        const badgeVariant = isOversell 
+                                          ? "destructive" 
+                                          : order.uploaded_at 
+                                            ? "secondary" 
+                                            : "default";
+                                        
+                                        const getCustomerStatusColor = (status?: string) => {
+                                          switch (status) {
+                                            case 'bom_hang':
+                                              return 'bg-red-500 text-white border-red-600';
+                                            case 'thieu_thong_tin':
+                                              return 'bg-yellow-500 text-white border-yellow-600';
+                                            default:
+                                              return '';
+                                          }
+                                        };
+                                        
+                                        const customerStatusColor = getCustomerStatusColor(order.customer_status);
+                                        
+                                        return (
+                                          <TooltipProvider key={order.id}>
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <Badge 
+                                                  variant={badgeVariant} 
+                                                  className={`cursor-pointer text-xs ${customerStatusColor}`}
+                                                  onClick={() => handleEditOrderItem(order)}
+                                                >
+                                                  {order.order_code}
+                                                  {order.quantity > 1 && ` x${order.quantity}`}
+                                                  {isOversell && " ⚠️"}
+                                                  {order.uploaded_at && " ✓"}
+                                                </Badge>
+                                              </TooltipTrigger>
+                                              <TooltipContent>
+                                                <div className="text-xs">
+                                                  <div>Mã: {order.order_code}</div>
+                                                  <div>SL: {order.quantity}</div>
+                                                  {order.note && <div>Ghi chú: {order.note}</div>}
+                                                  {isOversell && (
+                                                    <div className="text-red-500 font-semibold">
+                                                      ⚠️ Vượt số lượng chuẩn bị
+                                                    </div>
+                                                  )}
+                                                  {order.uploaded_at && (
+                                                    <div className="text-green-600 font-semibold">
+                                                      ✓ Đã đẩy lên TPOS {format(
+                                                        new Date(order.uploaded_at), 
+                                                        'dd/MM HH:mm', 
+                                                        { locale: vi }
+                                                      )}
+                                                    </div>
+                                                  )}
+                                                  {order.customer_status === 'bom_hang' && (
+                                                    <div className="text-red-600 font-semibold">
+                                                      🚫 BOM HÀNG
+                                                    </div>
+                                                  )}
+                                                  {order.customer_status === 'thieu_thong_tin' && (
+                                                    <div className="text-yellow-600 font-semibold">
+                                                      ⚠️ THIẾU THÔNG TIN
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              </TooltipContent>
+                                            </Tooltip>
+                                          </TooltipProvider>
+                                        );
+                                      })}
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            });
+                          });
+                        })()}
+                      </TableBody>
+                    </Table>
+                  </Card>
+                </>
+              )}
             </TabsContent>
 
             {/* Supplier Stats Tab */}
