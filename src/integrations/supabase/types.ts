@@ -159,6 +159,8 @@ export type Database = {
         Row: {
           access_token: string | null
           created_at: string | null
+          crm_team_id: string | null
+          crm_team_name: string | null
           id: string
           is_active: boolean | null
           page_access_token: string | null
@@ -169,6 +171,8 @@ export type Database = {
         Insert: {
           access_token?: string | null
           created_at?: string | null
+          crm_team_id?: string | null
+          crm_team_name?: string | null
           id?: string
           is_active?: boolean | null
           page_access_token?: string | null
@@ -179,6 +183,8 @@ export type Database = {
         Update: {
           access_token?: string | null
           created_at?: string | null
+          crm_team_id?: string | null
+          crm_team_name?: string | null
           id?: string
           is_active?: boolean | null
           page_access_token?: string | null
@@ -190,6 +196,8 @@ export type Database = {
       }
       facebook_pending_orders: {
         Row: {
+          code: string | null
+          comment: string | null
           comment_text: string | null
           comment_type: string | null
           created_at: string | null
@@ -198,11 +206,16 @@ export type Database = {
           facebook_comment_id: string
           facebook_post_id: string | null
           id: string
+          name: string | null
           order_count: number | null
+          phone: string | null
           processed: boolean | null
           session_index: string | null
+          tpos_order_id: string | null
         }
         Insert: {
+          code?: string | null
+          comment?: string | null
           comment_text?: string | null
           comment_type?: string | null
           created_at?: string | null
@@ -211,11 +224,16 @@ export type Database = {
           facebook_comment_id: string
           facebook_post_id?: string | null
           id?: string
+          name?: string | null
           order_count?: number | null
+          phone?: string | null
           processed?: boolean | null
           session_index?: string | null
+          tpos_order_id?: string | null
         }
         Update: {
+          code?: string | null
+          comment?: string | null
           comment_text?: string | null
           comment_type?: string | null
           created_at?: string | null
@@ -224,9 +242,12 @@ export type Database = {
           facebook_comment_id?: string
           facebook_post_id?: string | null
           id?: string
+          name?: string | null
           order_count?: number | null
+          phone?: string | null
           processed?: boolean | null
           session_index?: string | null
+          tpos_order_id?: string | null
         }
         Relationships: []
       }
@@ -274,37 +295,100 @@ export type Database = {
           },
         ]
       }
+      goods_receiving_items: {
+        Row: {
+          created_at: string | null
+          goods_receiving_id: string | null
+          id: string
+          notes: string | null
+          product_code: string | null
+          product_id: string | null
+          product_name: string | null
+          quantity: number
+          unit_price: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          goods_receiving_id?: string | null
+          id?: string
+          notes?: string | null
+          product_code?: string | null
+          product_id?: string | null
+          product_name?: string | null
+          quantity: number
+          unit_price?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          goods_receiving_id?: string | null
+          id?: string
+          notes?: string | null
+          product_code?: string | null
+          product_id?: string | null
+          product_name?: string | null
+          quantity?: number
+          unit_price?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "goods_receiving_items_goods_receiving_id_fkey"
+            columns: ["goods_receiving_id"]
+            isOneToOne: false
+            referencedRelation: "goods_receiving"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "goods_receiving_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       live_orders: {
         Row: {
+          code_tpos_order_id: string | null
           created_at: string | null
           customer_name: string | null
           facebook_comment_id: string | null
           id: string
+          is_oversell: boolean | null
           live_phase_id: string | null
           live_product_id: string | null
+          live_session_id: string | null
           note: string | null
+          order_code: string | null
           quantity: number | null
           updated_at: string | null
         }
         Insert: {
+          code_tpos_order_id?: string | null
           created_at?: string | null
           customer_name?: string | null
           facebook_comment_id?: string | null
           id?: string
+          is_oversell?: boolean | null
           live_phase_id?: string | null
           live_product_id?: string | null
+          live_session_id?: string | null
           note?: string | null
+          order_code?: string | null
           quantity?: number | null
           updated_at?: string | null
         }
         Update: {
+          code_tpos_order_id?: string | null
           created_at?: string | null
           customer_name?: string | null
           facebook_comment_id?: string | null
           id?: string
+          is_oversell?: boolean | null
           live_phase_id?: string | null
           live_product_id?: string | null
+          live_session_id?: string | null
           note?: string | null
+          order_code?: string | null
           quantity?: number | null
           updated_at?: string | null
         }
@@ -321,6 +405,13 @@ export type Database = {
             columns: ["live_product_id"]
             isOneToOne: false
             referencedRelation: "live_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "live_orders_live_session_id_fkey"
+            columns: ["live_session_id"]
+            isOneToOne: false
+            referencedRelation: "live_sessions"
             referencedColumns: ["id"]
           },
         ]
@@ -498,6 +589,7 @@ export type Database = {
       }
       products: {
         Row: {
+          barcode: string | null
           created_at: string | null
           id: string
           product_code: string
@@ -511,8 +603,10 @@ export type Database = {
           tpos_product_id: string | null
           unit: string | null
           updated_at: string | null
+          variant: string | null
         }
         Insert: {
+          barcode?: string | null
           created_at?: string | null
           id?: string
           product_code: string
@@ -526,8 +620,10 @@ export type Database = {
           tpos_product_id?: string | null
           unit?: string | null
           updated_at?: string | null
+          variant?: string | null
         }
         Update: {
+          barcode?: string | null
           created_at?: string | null
           id?: string
           product_code?: string
@@ -541,6 +637,7 @@ export type Database = {
           tpos_product_id?: string | null
           unit?: string | null
           updated_at?: string | null
+          variant?: string | null
         }
         Relationships: []
       }
