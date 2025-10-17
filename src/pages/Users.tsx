@@ -30,7 +30,7 @@ import {
 interface User {
   id: string;
   username: string | null;
-  full_name: string | null;
+  display_name: string | null;
   avatar_url: string | null;
   is_active: boolean;
   created_at: string;
@@ -54,7 +54,7 @@ const Users = () => {
         .select(`
           id,
           username,
-          full_name,
+          display_name,
           avatar_url,
           is_active,
           created_at
@@ -109,7 +109,7 @@ const Users = () => {
     const matchesSearch =
       !searchQuery ||
       user.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.full_name?.toLowerCase().includes(searchQuery.toLowerCase());
+      user.display_name?.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesRole = roleFilter === "all" || user.role === roleFilter;
     const matchesStatus =
@@ -217,7 +217,7 @@ const Users = () => {
                         <TableCell className="font-medium">
                           {user.username || "N/A"}
                         </TableCell>
-                        <TableCell>{user.full_name || "N/A"}</TableCell>
+                        <TableCell>{user.display_name || "N/A"}</TableCell>
                         <TableCell>
                           <Badge variant={getRoleBadgeVariant(user.role)}>
                             {user.role || "user"}

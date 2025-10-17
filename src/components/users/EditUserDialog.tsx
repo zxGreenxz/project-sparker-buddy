@@ -34,7 +34,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 
 const editUserSchema = z.object({
-  fullName: z.string().optional(),
+  displayName: z.string().optional(),
   avatarUrl: z.string().url("URL không hợp lệ").optional().or(z.literal("")),
   isActive: z.boolean(),
   role: z.enum(["admin", "moderator", "user"]),
@@ -45,7 +45,7 @@ type EditUserFormData = z.infer<typeof editUserSchema>;
 interface User {
   id: string;
   username: string | null;
-  full_name: string | null;
+  display_name: string | null;
   avatar_url: string | null;
   is_active: boolean;
   role: string | null;
@@ -71,7 +71,7 @@ export function EditUserDialog({
   const form = useForm<EditUserFormData>({
     resolver: zodResolver(editUserSchema),
     defaultValues: {
-      fullName: user.full_name || "",
+      displayName: user.display_name || "",
       avatarUrl: user.avatar_url || "",
       isActive: user.is_active,
       role: (user.role as any) || "user",
@@ -80,7 +80,7 @@ export function EditUserDialog({
 
   useEffect(() => {
     form.reset({
-      fullName: user.full_name || "",
+      displayName: user.display_name || "",
       avatarUrl: user.avatar_url || "",
       isActive: user.is_active,
       role: (user.role as any) || "user",
@@ -108,10 +108,10 @@ export function EditUserDialog({
       const { error: profileError } = await supabase
         .from("profiles")
         .update({
-          full_name: data.fullName || null,
+          display_name: data.displayName || null,
           avatar_url: data.avatarUrl || null,
           is_active: data.isActive,
-        })
+        } as any)
         .eq("id", user.id);
 
       if (profileError) throw profileError;
@@ -129,7 +129,7 @@ export function EditUserDialog({
           // Update existing role
           const { error: roleError } = await supabase
             .from("user_roles")
-            .update({ role: data.role })
+            .update({ role: data.role } as any)
             .eq("user_id", user.id);
 
           if (roleError) throw roleError;
@@ -140,7 +140,7 @@ export function EditUserDialog({
             .insert({
               user_id: user.id,
               role: data.role,
-            });
+            } as any);
 
           if (roleError) throw roleError;
         }
@@ -186,10 +186,10 @@ export function EditUserDialog({
 
             <FormField
               control={form.control}
-              name="fullName"
+              name="displayName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Tên đầy đủ</FormLabel>
+                  <FormLabel>Tên hiển thị</FormLabel>
                   <FormControl>
                     <Input placeholder="Nguyễn Văn A" {...field} />
                   </FormControl>

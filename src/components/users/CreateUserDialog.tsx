@@ -32,7 +32,7 @@ import {
 const createUserSchema = z.object({
   username: z.string().min(3, "Username phải có ít nhất 3 ký tự"),
   password: z.string().min(6, "Password phải có ít nhất 6 ký tự"),
-  fullName: z.string().optional(),
+  displayName: z.string().optional(),
   role: z.enum(["admin", "moderator", "user"]),
   avatarUrl: z.string().url("URL không hợp lệ").optional().or(z.literal("")),
 });
@@ -57,7 +57,7 @@ export function CreateUserDialog({
     defaultValues: {
       username: "",
       password: "",
-      fullName: "",
+      displayName: "",
       role: "user",
       avatarUrl: "",
     },
@@ -86,7 +86,7 @@ export function CreateUserDialog({
         options: {
           data: {
             username: data.username,
-            full_name: data.fullName || null,
+            display_name: data.displayName || null,
           },
         },
       });
@@ -94,19 +94,27 @@ export function CreateUserDialog({
       if (authError) throw authError;
       if (!authData.user) throw new Error("Không thể tạo user");
 
-      // Update profile with avatar if provided
+      // Wait a bit for the trigger to create profile
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Update profile with avatar and is_active if needed
       if (data.avatarUrl) {
-        await supabase
+        const { error: updateError } = await supabase
           .from("profiles")
-          .update({ avatar_url: data.avatarUrl })
-          .eq("id", authData.user.id);
+          .update({ 
+            avatar_url: data.avatarUrl,
+            is_active: true 
+          } as any)
+          .eq("user_id", authData.user.id);
+        
+        if (updateError) console.error("Error updating avatar:", updateError);
       }
 
       // Insert role
       const { error: roleError } = await supabase.from("user_roles").insert({
         user_id: authData.user.id,
         role: data.role,
-      });
+      } as any);
 
       if (roleError) throw roleError;
 
@@ -164,10 +172,10 @@ export function CreateUserDialog({
 
             <FormField
               control={form.control}
-              name="fullName"
+              name="displayName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Tên đầy đủ</FormLabel>
+                  <FormLabel>Tên hiển thị</FormLabel>
                   <FormControl>
                     <Input placeholder="Nguyễn Văn A" {...field} />
                   </FormControl>

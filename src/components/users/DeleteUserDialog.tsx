@@ -19,7 +19,7 @@ import { Label } from "@/components/ui/label";
 interface User {
   id: string;
   username: string | null;
-  full_name: string | null;
+  display_name: string | null;
   role: string | null;
 }
 
@@ -53,7 +53,7 @@ export function DeleteUserDialog({
         // Soft delete - deactivate user
         const { error } = await supabase
           .from("profiles")
-          .update({ is_active: false })
+          .update({ is_active: false } as any)
           .eq("id", user.id);
 
         if (error) throw error;
