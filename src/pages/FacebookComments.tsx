@@ -28,17 +28,17 @@ const FacebookComments = () => {
   useEffect(() => {
     const handleBarcodeScanned = async (event: CustomEvent) => {
       const code = event.detail.code;
-      
+
       try {
         // Find the scanned product
         const { data: product, error } = await supabase
-          .from('products')
-          .select('*')
+          .from("products")
+          .select("*")
           .or(`product_code.eq.${code},barcode.eq.${code}`)
           .maybeSingle();
-        
+
         if (error) throw error;
-        
+
         if (!product) {
           toast({
             title: "❌ Không tìm thấy sản phẩm",
@@ -57,9 +57,9 @@ const FacebookComments = () => {
             name: product.product_name,
             image_url: product.product_images?.[0] || product.tpos_image_url,
             product_code: product.product_code,
-          }
+          },
         });
-        
+
         // Show success toast
         const variantCodes = await fetchProductVariants(product.product_code);
         if (variantCodes.length > 1) {
@@ -74,7 +74,7 @@ const FacebookComments = () => {
           });
         }
       } catch (error) {
-        console.error('Error handling barcode:', error);
+        console.error("Error handling barcode:", error);
         toast({
           title: "❌ Lỗi",
           description: "Không thể xử lý barcode",
@@ -83,43 +83,23 @@ const FacebookComments = () => {
       }
     };
 
-    window.addEventListener('barcode-scanned' as any, handleBarcodeScanned as any);
+    window.addEventListener("barcode-scanned" as any, handleBarcodeScanned as any);
     return () => {
-      window.removeEventListener('barcode-scanned' as any, handleBarcodeScanned as any);
+      window.removeEventListener("barcode-scanned" as any, handleBarcodeScanned as any);
     };
   }, [addScannedBarcode, toast]);
 
   return (
-    <div className={cn(
-      "transition-all duration-300 ease-in-out",
-      isCommentsOpen && !isMobile ? "mr-[450px]" : "mr-0"
-    )}>
-      <div className={cn(
-        "mx-auto space-y-6",
-        isMobile ? "p-4" : "container p-6"
-      )}>
+    <div className={cn("transition-all duration-300 ease-in-out", isCommentsOpen && !isMobile ? "mr-[450px]" : "mr-0")}>
+      <div className={cn("mx-auto space-y-6", isMobile ? "p-4" : "container p-6")}>
         {/* Header */}
         <div className="flex items-center gap-3">
           <div className="bg-primary/10 p-3 rounded-lg">
-            <MessageSquare 
-              className={cn(
-                "text-primary",
-                isMobile ? "h-5 w-5" : "h-6 w-6"
-              )}
-              aria-hidden="true"
-            />
+            <MessageSquare className={cn("text-primary", isMobile ? "h-5 w-5" : "h-6 w-6")} aria-hidden="true" />
           </div>
           <div>
-            <h1 className={cn(
-              "font-bold text-foreground",
-              isMobile ? "text-xl" : "text-2xl"
-            )}>
-              Livestream Comment
-            </h1>
-            <p className={cn(
-              "text-muted-foreground",
-              isMobile ? "text-xs" : "text-sm"
-            )}>
+            <h1 className={cn("font-bold text-foreground", isMobile ? "text-xl" : "text-2xl")}>Livestream Comment</h1>
+            <p className={cn("text-muted-foreground", isMobile ? "text-xs" : "text-sm")}>
               Quản lý comment và đơn hàng từ Facebook Live
             </p>
           </div>
@@ -130,10 +110,7 @@ const FacebookComments = () => {
       </div>
 
       {/* Comments Sidebar */}
-      <CommentsSidebar 
-        isOpen={isCommentsOpen} 
-        onClose={() => setIsCommentsOpen(false)}
-      >
+      <CommentsSidebar isOpen={isCommentsOpen} onClose={() => setIsCommentsOpen(false)}>
         <div className="p-4 text-center text-muted-foreground">
           Chọn video từ Facebook Comments Manager để xem comments ở đây
         </div>
@@ -145,26 +122,24 @@ const FacebookComments = () => {
         className={cn(
           "fixed z-40 shadow-lg",
           isMobile ? "bottom-20 right-4" : "bottom-6 right-6",
-          "bg-purple-600 hover:bg-purple-700 text-white"
+          "bg-purple-600 hover:bg-purple-700 text-white",
         )}
         size={isMobile ? "default" : "lg"}
       >
         <Barcode className="h-5 w-5 mr-2" />
         Barcode
-        {scannedBarcodes.length > 0 && (
-          <Badge className="ml-2 bg-amber-500 text-white">
-            {scannedBarcodes.length}
-          </Badge>
-        )}
+        {scannedBarcodes.length > 0 && <Badge className="ml-2 bg-amber-500 text-white">{scannedBarcodes.length}</Badge>}
       </Button>
 
       {/* Scanned Barcodes Panel - Bottom Fixed */}
       {isBarcodePanelOpen && (
-        <div className={cn(
-          "fixed z-30 left-0 right-0 bg-background border-t shadow-2xl animate-in slide-in-from-bottom duration-300",
-          isMobile ? "bottom-0 max-h-[60vh]" : "bottom-0 max-h-[50vh]",
-          isCommentsOpen && !isMobile ? "right-[450px]" : "right-0"
-        )}>
+        <div
+          className={cn(
+            "fixed z-30 left-0 right-0 bg-background border-t shadow-2xl animate-in slide-in-from-bottom duration-300",
+            isMobile ? "bottom-0 max-h-[60vh]" : "bottom-0 max-h-[50vh]",
+            isCommentsOpen && !isMobile ? "right-[450px]" : "right-0",
+          )}
+        >
           <ScannedBarcodesPanel />
         </div>
       )}
