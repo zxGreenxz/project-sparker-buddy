@@ -152,30 +152,6 @@ export function FetchTPOSProductsDialog({ open, onOpenChange, onSuccess }: Fetch
           skipped++;
         } else {
           imported++;
-          
-          // Auto-sync image from base product if this is a variant without image
-          if (!tposProduct.Image && tposProduct.DefaultCode) {
-            const productCode = tposProduct.DefaultCode;
-            const baseCode = productCode.replace(/[A-Z]+\d*$/, '');
-            if (baseCode !== productCode) {
-              const { data: baseProduct } = await supabase
-                .from('products')
-                .select('tpos_image_url, product_images')
-                .eq('product_code', baseCode)
-                .maybeSingle();
-              
-              if (baseProduct) {
-                const imageUrl = baseProduct.product_images?.[0] || baseProduct.tpos_image_url;
-                if (imageUrl) {
-                  await supabase
-                    .from('products')
-                    .update({ tpos_image_url: imageUrl })
-                    .eq('product_code', productCode);
-                  console.log(`Synced image from ${baseCode} to ${productCode}`);
-                }
-              }
-            }
-          }
         }
 
         setImportProgress(Math.round(((i + 1) / productsToImport.length) * 100));

@@ -62,26 +62,3 @@ export const getVariantName = (variant: string | null | undefined): string => {
 export const getVariantCode = (variant: string | null | undefined): string => {
   return parseVariant(variant).code;
 };
-
-/**
- * Extract base product code from variant code
- * Examples:
- * - LQU114L → LQU114
- * - N152MS → N152
- * - L800XD30 → L800
- */
-export function extractBaseCode(variantCode: string): string | null {
-  if (!variantCode) return null;
-  
-  // Pattern: L/N + numbers + letters at end
-  const match = variantCode.match(/^([LN]\w*?\d+)[A-Z]+\d*$/);
-  return match ? match[1] : null;
-}
-
-/**
- * Check if product code is a variant (has letters after numbers)
- */
-export function isVariantCode(productCode: string): boolean {
-  if (!productCode) return false;
-  return /^[LN]\w*?\d+[A-Z]+\d*$/.test(productCode);
-}
