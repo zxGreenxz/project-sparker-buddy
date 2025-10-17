@@ -101,8 +101,61 @@ export function EditOrderItemDialog({
 
   const updateOrderItemMutation = useMutation({
     mutationFn: async (values: z.infer<typeof formSchema>) => {
-      if (!orderItem) return;
+      if (!orderItem) return { deleted: false };
 
+      // CHECK IF QUANTITY IS 0 - DELETE ORDER
+      if (values.quantity === 0) {
+        const oldQuantity = orderItem.quantity;
+        const facebookCommentId = orderItem.facebook_comment_id;
+
+        // Delete the order
+        const { error: deleteError } = await supabase
+          .from('live_orders')
+          .delete()
+          .eq('id', orderItem.id);
+
+        if (deleteError) throw deleteError;
+
+        // Update sold_quantity in live_products (decrease by old quantity)
+        const { data: product } = await supabase
+          .from('live_products')
+          .select('sold_quantity')
+          .eq('id', orderItem.product_id)
+          .single();
+        
+        if (product) {
+          const newSoldQty = Math.max(0, product.sold_quantity - oldQuantity);
+          await supabase
+            .from('live_products')
+            .update({ sold_quantity: newSoldQty })
+            .eq('id', orderItem.product_id);
+        }
+
+        // If order has facebook_comment_id, check if we need to reset comment status
+        if (facebookCommentId) {
+          // Check if there are other orders using this facebook_comment_id
+          const { data: otherOrders } = await supabase
+            .from('live_orders')
+            .select('id')
+            .eq('facebook_comment_id', facebookCommentId);
+
+          // If no other orders use this comment, reset it to unprocessed in pending_live_orders
+          if (!otherOrders || otherOrders.length === 0) {
+            await supabase
+              .from('pending_live_orders' as any)
+              .update({ 
+                processed: false,
+                processed_at: null,
+                error_message: null
+              })
+              .eq('facebook_comment_id', facebookCommentId);
+          }
+        }
+
+        return { deleted: true };
+      }
+
+      // EXISTING LOGIC FOR QUANTITY > 0
       // Check if anything changed
       const quantityDiff = values.quantity - orderItem.quantity;
       const currentNote = orderItem.note || '';
@@ -112,7 +165,7 @@ export function EditOrderItemDialog({
       // Return early if nothing changed
       if (quantityDiff === 0 && !noteChanged) {
         onOpenChange(false);
-        return;
+        return { deleted: false };
       }
 
       // Update order quantity, note and reset upload status
@@ -146,12 +199,22 @@ export function EditOrderItemDialog({
             .eq('id', orderItem.product_id);
         }
       }
+
+      return { deleted: false };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["live-orders", phaseId] });
       queryClient.invalidateQueries({ queryKey: ["live-products", phaseId] });
       queryClient.invalidateQueries({ queryKey: ["orders-with-products", phaseId] });
-      toast.success("Đã cập nhật sản phẩm thành công");
+      queryClient.invalidateQueries({ queryKey: ["pending-live-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["hang-le-comments"] });
+      
+      if (data?.deleted) {
+        toast.success("Đã xóa đơn hàng thành công");
+      } else {
+        toast.success("Đã cập nhật sản phẩm thành công");
+      }
+      
       onOpenChange(false);
       form.reset();
     },
