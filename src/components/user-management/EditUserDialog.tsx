@@ -215,7 +215,7 @@ export function EditUserDialog({ user, open, onOpenChange }: EditUserDialogProps
                 <div className="rounded-lg border p-4 bg-muted/50">
                   <h4 className="font-medium mb-2">Mô tả vai trò</h4>
                   <p className="text-sm text-muted-foreground">
-                    {PERMISSION_TEMPLATES[field.value as AppRole]?.description}
+                    {PERMISSION_TEMPLATES[form.watch("role") as AppRole]?.description}
                   </p>
                 </div>
               </TabsContent>
