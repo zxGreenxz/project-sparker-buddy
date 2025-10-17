@@ -14,10 +14,24 @@ serve(async (req) => {
   }
 
   try {
-    const url = new URL(req.url);
-    const pageId = url.searchParams.get('pageId');
-    const limit = url.searchParams.get('limit') || '10';
-    const facebook_Type = url.searchParams.get('facebook_Type') || 'page';
+    // Parse request body for POST, or query params for GET
+    let pageId: string | null = null;
+    let limit = '10';
+    let facebook_Type = 'page';
+
+    if (req.method === 'POST') {
+      const body = await req.json();
+      pageId = body.pageId;
+      limit = body.limit || '10';
+      facebook_Type = body.facebook_Type || 'page';
+    } else {
+      const url = new URL(req.url);
+      pageId = url.searchParams.get('pageId');
+      limit = url.searchParams.get('limit') || '10';
+      facebook_Type = url.searchParams.get('facebook_Type') || 'page';
+    }
+
+    console.log(`📥 Request method: ${req.method}, pageId: ${pageId}, limit: ${limit}`);
 
     if (!pageId) {
       return new Response(
