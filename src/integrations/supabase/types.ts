@@ -14,6 +14,226 @@ export type Database = {
   }
   public: {
     Tables: {
+      facebook_pending_orders: {
+        Row: {
+          comment_text: string | null
+          comment_type: string | null
+          created_at: string | null
+          created_time: string
+          customer_name: string | null
+          facebook_comment_id: string
+          facebook_post_id: string | null
+          id: string
+          order_count: number | null
+          processed: boolean | null
+          session_index: string | null
+        }
+        Insert: {
+          comment_text?: string | null
+          comment_type?: string | null
+          created_at?: string | null
+          created_time: string
+          customer_name?: string | null
+          facebook_comment_id: string
+          facebook_post_id?: string | null
+          id?: string
+          order_count?: number | null
+          processed?: boolean | null
+          session_index?: string | null
+        }
+        Update: {
+          comment_text?: string | null
+          comment_type?: string | null
+          created_at?: string | null
+          created_time?: string
+          customer_name?: string | null
+          facebook_comment_id?: string
+          facebook_post_id?: string | null
+          id?: string
+          order_count?: number | null
+          processed?: boolean | null
+          session_index?: string | null
+        }
+        Relationships: []
+      }
+      live_orders: {
+        Row: {
+          created_at: string | null
+          customer_name: string | null
+          facebook_comment_id: string | null
+          id: string
+          live_phase_id: string | null
+          live_product_id: string | null
+          note: string | null
+          quantity: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          customer_name?: string | null
+          facebook_comment_id?: string | null
+          id?: string
+          live_phase_id?: string | null
+          live_product_id?: string | null
+          note?: string | null
+          quantity?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          customer_name?: string | null
+          facebook_comment_id?: string | null
+          id?: string
+          live_phase_id?: string | null
+          live_product_id?: string | null
+          note?: string | null
+          quantity?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_orders_live_phase_id_fkey"
+            columns: ["live_phase_id"]
+            isOneToOne: false
+            referencedRelation: "live_phases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "live_orders_live_product_id_fkey"
+            columns: ["live_product_id"]
+            isOneToOne: false
+            referencedRelation: "live_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      live_phases: {
+        Row: {
+          created_at: string | null
+          end_time: string
+          id: string
+          live_session_id: string | null
+          phase_date: string
+          phase_type: string
+          start_time: string
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          end_time?: string
+          id?: string
+          live_session_id?: string | null
+          phase_date: string
+          phase_type: string
+          start_time?: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          end_time?: string
+          id?: string
+          live_session_id?: string | null
+          phase_date?: string
+          phase_type?: string
+          start_time?: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_phases_live_session_id_fkey"
+            columns: ["live_session_id"]
+            isOneToOne: false
+            referencedRelation: "live_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      live_products: {
+        Row: {
+          created_at: string | null
+          id: string
+          live_phase_id: string | null
+          price: number | null
+          product_code: string | null
+          product_id: string | null
+          product_images: string[] | null
+          product_name: string
+          quantity: number
+          sold_quantity: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          live_phase_id?: string | null
+          price?: number | null
+          product_code?: string | null
+          product_id?: string | null
+          product_images?: string[] | null
+          product_name: string
+          quantity?: number
+          sold_quantity?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          live_phase_id?: string | null
+          price?: number | null
+          product_code?: string | null
+          product_id?: string | null
+          product_images?: string[] | null
+          product_name?: string
+          quantity?: number
+          sold_quantity?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_products_live_phase_id_fkey"
+            columns: ["live_phase_id"]
+            isOneToOne: false
+            referencedRelation: "live_phases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      live_sessions: {
+        Row: {
+          created_at: string | null
+          facebook_post_id: string | null
+          id: string
+          notes: string | null
+          session_date: string
+          status: string | null
+          supplier_name: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          facebook_post_id?: string | null
+          id?: string
+          notes?: string | null
+          session_date: string
+          status?: string | null
+          supplier_name?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          facebook_post_id?: string | null
+          id?: string
+          notes?: string | null
+          session_date?: string
+          status?: string | null
+          supplier_name?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -100,6 +320,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_live_phases: {
+        Args: { session_id: string; start_date: string }
+        Returns: undefined
+      }
       get_user_permissions: {
         Args: { _user_id: string }
         Returns: {

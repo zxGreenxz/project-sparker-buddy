@@ -84,6 +84,8 @@ interface LivePhase {
   live_session_id: string;
   phase_date: string;
   phase_type: string;
+  start_time?: string;
+  end_time?: string;
   status: string;
   created_at: string;
 }
@@ -1370,7 +1372,13 @@ export default function LiveProducts() {
     const date = new Date(phase.phase_date);
     const dayNumber = Math.floor((date.getTime() - new Date(livePhases[0]?.phase_date || phase.phase_date).getTime()) / (1000 * 60 * 60 * 24)) + 1;
     const phaseType = phase.phase_type === 'morning' ? 'Sáng' : 'Chiều';
-    return `Ngày ${dayNumber} - ${phaseType} (${format(date, "dd/MM/yyyy")})`;
+    
+    // Add time range to display
+    const timeRange = phase.start_time && phase.end_time 
+      ? ` ${phase.start_time.substring(0, 5)}-${phase.end_time.substring(0, 5)}`
+      : (phase.phase_type === 'morning' ? ' 00:00-12:30' : ' 12:31-23:59');
+    
+    return `Ngày ${dayNumber} - ${phaseType} (${format(date, "dd/MM/yyyy")})${timeRange}`;
   };
   const getSessionDisplayName = (session: LiveSession) => {
     const sessionName = session.session_name || session.supplier_name;
