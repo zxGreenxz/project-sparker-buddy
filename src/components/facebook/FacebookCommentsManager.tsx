@@ -1,28 +1,11 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import {
-  useInfiniteQuery,
-  useMutation,
-  useQueryClient,
-  useQuery,
-} from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -53,13 +36,7 @@ import {
   Minimize,
   Trash2,
 } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -69,17 +46,8 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
-import type {
-  FacebookVideo,
-  FacebookComment,
-  CommentWithStatus,
-  TPOSOrder,
-} from "@/types/facebook";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+import type { FacebookVideo, FacebookComment, CommentWithStatus, TPOSOrder } from "@/types/facebook";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -117,13 +85,8 @@ interface StatusMapEntry {
 }
 
 interface FacebookCommentsManagerProps {
-  onVideoSelected?: (
-    pageId: string,
-    videoId: string,
-    video: FacebookVideo | null,
-  ) => void;
+  onVideoSelected?: (pageId: string, videoId: string, video: FacebookVideo | null) => void;
 }
-
 
 // ============================================================================
 // CONSTANTS
@@ -145,11 +108,7 @@ const ORDERS_TOP = 200;
 // CACHE HELPER
 // ============================================================================
 
-const getCommentsQueryKey = (
-  pageId: string | null, 
-  videoId: string | null, 
-  isLive: boolean
-) => {
+const getCommentsQueryKey = (pageId: string | null, videoId: string | null, isLive: boolean) => {
   const cacheType = isLive ? "live" : "offline";
   return ["facebook-comments", cacheType, pageId, videoId];
 };
@@ -178,10 +137,7 @@ const STATUS_MAP: Record<string, string> = {
 // UTILITY FUNCTIONS
 // ============================================================================
 
-function debounce<T extends (...args: any[]) => any>(
-  func: T,
-  wait: number,
-): (...args: Parameters<T>) => void {
+function debounce<T extends (...args: any[]) => any>(func: T, wait: number): (...args: Parameters<T>) => void {
   let timeout: NodeJS.Timeout;
   return (...args: Parameters<T>) => {
     clearTimeout(timeout);
@@ -236,10 +192,7 @@ function parseJSONSafely<T>(jsonString: string | null, fallback: T): T {
 // CUSTOM HOOKS
 // ============================================================================
 
-function usePersistedState<T>(
-  key: string,
-  initialValue: T,
-): [T, (value: T) => void] {
+function usePersistedState<T>(key: string, initialValue: T): [T, (value: T) => void] {
   const storage = safeLocalStorage();
 
   const [state, setState] = useState<T>(() => {
@@ -268,9 +221,7 @@ function usePersistedState<T>(
 // MAIN COMPONENT
 // ============================================================================
 
-export function FacebookCommentsManager({
-  onVideoSelected,
-}: FacebookCommentsManagerProps = {}) {
+export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsManagerProps = {}) {
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -281,29 +232,20 @@ export function FacebookCommentsManager({
 
   const [pageId, setPageId] = usePersistedState(STORAGE_KEYS.PAGE_ID, "");
   const [limit, setLimit] = useState("1");
-  const [selectedVideo, setSelectedVideo] =
-    usePersistedState<FacebookVideo | null>(STORAGE_KEYS.SELECTED_VIDEO, null);
+  const [selectedVideo, setSelectedVideo] = usePersistedState<FacebookVideo | null>(STORAGE_KEYS.SELECTED_VIDEO, null);
 
   const [isAutoRefresh, setIsAutoRefresh] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [newCommentIds, setNewCommentIds] = useState<Set<string>>(new Set());
-  const [selectedOrderInfo, setSelectedOrderInfo] = useState<TPOSOrder | null>(
-    null,
-  );
+  const [selectedOrderInfo, setSelectedOrderInfo] = useState<TPOSOrder | null>(null);
   const [isInfoDialogOpen, setIsInfoDialogOpen] = useState(false);
-  const [customerStatusMap, setCustomerStatusMap] = useState<
-    Map<string, StatusMapEntry>
-  >(new Map());
+  const [customerStatusMap, setCustomerStatusMap] = useState<Map<string, StatusMapEntry>>(new Map());
   const [isLoadingCustomerStatus, setIsLoadingCustomerStatus] = useState(false);
   const [showOnlyWithOrders, setShowOnlyWithOrders] = useState(false);
   const [hideNames, setHideNames] = useState<string[]>(DEFAULT_HIDE_NAMES);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [pendingCommentIds, setPendingCommentIds] = useState<Set<string>>(
-    new Set(),
-  );
-  const [expandedCommentIds, setExpandedCommentIds] = useState<Set<string>>(
-    new Set(),
-  );
+  const [pendingCommentIds, setPendingCommentIds] = useState<Set<string>>(new Set());
+  const [expandedCommentIds, setExpandedCommentIds] = useState<Set<string>>(new Set());
 
   // Get scanned barcodes
   const { scannedBarcodes, removeScannedBarcode, addScannedBarcode } = useBarcodeScanner();
@@ -370,9 +312,7 @@ export function FacebookCommentsManager({
       }
 
       const result = await response.json();
-      return (
-        Array.isArray(result) ? result : result.data || []
-      ) as FacebookVideo[];
+      return (Array.isArray(result) ? result : result.data || []) as FacebookVideo[];
     },
     enabled: !!pageId,
   });
@@ -386,11 +326,7 @@ export function FacebookCommentsManager({
     refetch: refetchComments,
     isLoading: commentsLoading,
   } = useInfiniteQuery({
-    queryKey: getCommentsQueryKey(
-      pageId, 
-      selectedVideo?.objectId, 
-      selectedVideo?.statusLive === 1
-    ),
+    queryKey: getCommentsQueryKey(pageId, selectedVideo?.objectId, selectedVideo?.statusLive === 1),
     queryFn: async ({ pageParam }) => {
       const fetchId = Math.random().toString(36).substring(7);
       if (!pageId || !selectedVideo?.objectId) return { data: [], paging: {} };
@@ -398,7 +334,7 @@ export function FacebookCommentsManager({
       console.log(`[QueryFn ${fetchId}] 🔍 Fetching comments`, {
         videoId: selectedVideo.objectId,
         pageId,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
       const startTime = Date.now();
 
@@ -407,10 +343,10 @@ export function FacebookCommentsManager({
       // ========================================================================
 
       const { data: archivedComments, error: dbError } = await supabase
-        .from('facebook_comments_archive' as any)
-        .select('*')
-        .eq('facebook_post_id', selectedVideo.objectId)
-        .order('comment_created_time', { ascending: false })
+        .from("facebook_comments_archive" as any)
+        .select("*")
+        .eq("facebook_post_id", selectedVideo.objectId)
+        .order("comment_created_time", { ascending: false })
         .limit(1000);
 
       if (dbError) {
@@ -421,26 +357,27 @@ export function FacebookCommentsManager({
       // 🔥 Deduplicate comments by ID to prevent duplicate display
       console.log(`[QueryFn ${fetchId}] 🔄 Deduplicating ${archivedComments?.length || 0} comments`);
       const seenIds = new Set<string>();
-      const formattedComments = archivedComments?.reduce((acc: any[], c: any) => {
-        if (!seenIds.has(c.facebook_comment_id)) {
-          seenIds.add(c.facebook_comment_id);
-          acc.push({
-            id: c.facebook_comment_id,
-            message: c.comment_message || '',
-            from: {
-              name: c.facebook_user_name || 'Unknown',
-              id: c.facebook_user_id || '',
-            },
-            created_time: c.comment_created_time,
-            like_count: c.like_count || 0,
-            is_deleted_by_tpos: c.is_deleted_by_tpos || false,
-            deleted_at: c.updated_at,
-          });
-        } else {
-          console.log(`[QueryFn ${fetchId}] ⚠️ Skipped duplicate: ${c.facebook_comment_id}`);
-        }
-        return acc;
-      }, []) || [];
+      const formattedComments =
+        archivedComments?.reduce((acc: any[], c: any) => {
+          if (!seenIds.has(c.facebook_comment_id)) {
+            seenIds.add(c.facebook_comment_id);
+            acc.push({
+              id: c.facebook_comment_id,
+              message: c.comment_message || "",
+              from: {
+                name: c.facebook_user_name || "Unknown",
+                id: c.facebook_user_id || "",
+              },
+              created_time: c.comment_created_time,
+              like_count: c.like_count || 0,
+              is_deleted_by_tpos: c.is_deleted_by_tpos || false,
+              deleted_at: c.updated_at,
+            });
+          } else {
+            console.log(`[QueryFn ${fetchId}] ⚠️ Skipped duplicate: ${c.facebook_comment_id}`);
+          }
+          return acc;
+        }, []) || [];
 
       const elapsed = Date.now() - startTime;
       console.log(`[QueryFn ${fetchId}] ✅ Fetched`, {
@@ -448,13 +385,13 @@ export function FacebookCommentsManager({
         totalCount: archivedComments?.length,
         firstCommentId: formattedComments[0]?.id,
         lastCommentId: formattedComments[formattedComments.length - 1]?.id,
-        elapsed: `${elapsed}ms`
+        elapsed: `${elapsed}ms`,
       });
 
-      return { 
-        data: formattedComments, 
+      return {
+        data: formattedComments,
         paging: {},
-        fromArchive: true 
+        fromArchive: true,
       };
     },
     getNextPageParam: () => undefined, // No pagination needed for archive
@@ -548,31 +485,28 @@ export function FacebookCommentsManager({
 
       // Auto-print bill
       try {
-        const [
-          { getActivePrinter, printPDFToXC80 },
-          { DEFAULT_BILL_TEMPLATE },
-          { generateBillPDF }
-        ] = await Promise.all([
-          import('@/lib/printer-utils'),
-          import('@/types/bill-template'),
-          import('@/lib/bill-pdf-generator')
-        ]);
+        const [{ getActivePrinter, printPDFToXC80 }, { DEFAULT_BILL_TEMPLATE }, { generateBillPDF }] =
+          await Promise.all([
+            import("@/lib/printer-utils"),
+            import("@/types/bill-template"),
+            import("@/lib/bill-pdf-generator"),
+          ]);
 
         const printer = getActivePrinter();
         if (!printer) {
-          console.log('⚠️ No active printer configured');
+          console.log("⚠️ No active printer configured");
           return;
         }
 
-        const commentText = variables.comment.message || '';
+        const commentText = variables.comment.message || "";
         const productCodeMatch = commentText.match(/\[([A-Z0-9]+)\]/);
-        const productCode = productCodeMatch ? productCodeMatch[1] : '';
+        const productCode = productCodeMatch ? productCodeMatch[1] : "";
 
-        const templateJson = localStorage.getItem('billTemplate');
+        const templateJson = localStorage.getItem("billTemplate");
         const template = templateJson ? JSON.parse(templateJson) : DEFAULT_BILL_TEMPLATE;
 
         const billData = {
-          sessionIndex: data.response.SessionIndex?.toString() || data.response.Code || '',
+          sessionIndex: data.response.SessionIndex?.toString() || data.response.Code || "",
           phone: data.response.Telephone || null,
           customerName: data.response.Name || variables.comment.from.name,
           productCode: productCode,
@@ -582,7 +516,7 @@ export function FacebookCommentsManager({
         };
 
         const pdfDoc = generateBillPDF(template, billData);
-        const pdfDataUri = pdfDoc.output('datauristring');
+        const pdfDataUri = pdfDoc.output("datauristring");
 
         const printResult = await printPDFToXC80(printer, pdfDataUri);
         if (printResult.success) {
@@ -598,7 +532,7 @@ export function FacebookCommentsManager({
           });
         }
       } catch (error: any) {
-        console.error('❌ Auto-print error:', error);
+        console.error("❌ Auto-print error:", error);
         toast({
           title: "❌ Lỗi in bill",
           description: error.message || "Không thể in bill",
@@ -630,15 +564,10 @@ export function FacebookCommentsManager({
         queryKey: ["tpos-orders", selectedVideo?.objectId],
       });
       queryClient.invalidateQueries({
-        queryKey: getCommentsQueryKey(
-          pageId, 
-          selectedVideo?.objectId, 
-          selectedVideo?.statusLive === 1
-        ),
+        queryKey: getCommentsQueryKey(pageId, selectedVideo?.objectId, selectedVideo?.statusLive === 1),
       });
     },
   });
-
 
   // ============================================================================
   // CLEAR OPPOSITE CACHE WHEN VIDEO CHANGES
@@ -651,11 +580,11 @@ export function FacebookCommentsManager({
       const oppositeCacheKey = getCommentsQueryKey(
         pageId,
         selectedVideo.objectId,
-        !isLive // Clear cache của trạng thái ngược lại
+        !isLive, // Clear cache của trạng thái ngược lại
       );
       queryClient.removeQueries({ queryKey: oppositeCacheKey });
-      
-      console.log(`[Cache] Cleared ${isLive ? 'offline' : 'live'} cache for video ${selectedVideo.objectId}`);
+
+      console.log(`[Cache] Cleared ${isLive ? "offline" : "live"} cache for video ${selectedVideo.objectId}`);
     }
   }, [selectedVideo?.objectId, selectedVideo?.statusLive]);
 
@@ -670,12 +599,7 @@ export function FacebookCommentsManager({
       realtimeIntervalRef.current = null;
     }
 
-    if (
-      !selectedVideo ||
-      !pageId ||
-      !isAutoRefresh ||
-      selectedVideo.statusLive !== 1
-    ) {
+    if (!selectedVideo || !pageId || !isAutoRefresh || selectedVideo.statusLive !== 1) {
       return;
     }
 
@@ -685,13 +609,13 @@ export function FacebookCommentsManager({
 
       try {
         console.log(`[Realtime Check] Calling Edge Function to process comments for video ${selectedVideo.objectId}`);
-        
+
         const {
           data: { session },
         } = await supabase.auth.getSession();
 
         const sessionIndex = selectedVideo.objectId;
-        
+
         // Call Edge Function to fetch from TPOS and push to archive
         const response = await fetch(
           `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/facebook-comments?pageId=${pageId}&postId=${selectedVideo.objectId}&sessionIndex=${sessionIndex}&limit=500`,
@@ -700,27 +624,23 @@ export function FacebookCommentsManager({
               Authorization: `Bearer ${session?.access_token}`,
               "Content-Type": "application/json",
             },
-          }
+          },
         );
-        
+
         const result = await response.json();
-        
+
         console.log(`[Realtime Check] ✅ Edge Function completed`, {
           newComments: result?.comments?.length || 0,
-          status: response.status
+          status: response.status,
         });
-        
+
         // 🔥 FALLBACK: Invalidate query if new comments are returned
         // This ensures UI updates even if Postgres Realtime doesn't trigger
         if (result?.comments?.length > 0) {
           console.log(`[Realtime Check] 🔄 Fallback invalidating query (${result.comments.length} new comments)`);
-          
+
           queryClient.invalidateQueries({
-            queryKey: getCommentsQueryKey(
-              pageId,
-              selectedVideo.objectId,
-              selectedVideo.statusLive === 1
-            ),
+            queryKey: getCommentsQueryKey(pageId, selectedVideo.objectId, selectedVideo.statusLive === 1),
           });
         }
       } catch (error) {
@@ -731,10 +651,7 @@ export function FacebookCommentsManager({
     };
 
     // Set up interval
-    realtimeIntervalRef.current = setInterval(
-      checkForNewComments,
-      REALTIME_CHECK_INTERVAL,
-    );
+    realtimeIntervalRef.current = setInterval(checkForNewComments, REALTIME_CHECK_INTERVAL);
 
     // Cleanup
     return () => {
@@ -755,26 +672,26 @@ export function FacebookCommentsManager({
     const channel = supabase
       .channel(`facebook-archive-${selectedVideo.objectId}`)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'facebook_comments_archive',
+          event: "INSERT",
+          schema: "public",
+          table: "facebook_comments_archive",
           filter: `facebook_post_id=eq.${selectedVideo.objectId}`,
         },
         async (payload) => {
           const timestamp = new Date().toISOString();
           const newComment = payload.new as any;
-          
+
           console.log(`[${timestamp}] 🔥 Realtime trigger received:`, {
             event: payload.eventType,
             comment_id: newComment?.facebook_comment_id,
             message: newComment?.comment_message?.substring(0, 50),
-            table: 'facebook_comments_archive'
+            table: "facebook_comments_archive",
           });
 
           // Track new comments for batching
-          if (payload.eventType === 'INSERT' && newComment?.facebook_comment_id) {
+          if (payload.eventType === "INSERT" && newComment?.facebook_comment_id) {
             pendingCommentsRef.current.add(newComment.facebook_comment_id);
           }
 
@@ -788,47 +705,49 @@ export function FacebookCommentsManager({
             try {
               const isLive = selectedVideo.statusLive === 1;
               const queryKey = getCommentsQueryKey(pageId, selectedVideo.objectId, isLive);
-              
+
               const pendingCount = pendingCommentsRef.current.size;
-              
+
               console.log(`[${new Date().toISOString()}] 🔑 Batch invalidating query:`, {
                 queryKey,
                 pendingNewComments: pendingCount,
                 isLive,
                 pageId,
-                videoId: selectedVideo.objectId
+                videoId: selectedVideo.objectId,
               });
-              
+
               // Invalidate and force refetch
               queryClient.invalidateQueries({ queryKey });
-              await queryClient.refetchQueries({ 
+              await queryClient.refetchQueries({
                 queryKey,
                 exact: true,
-                type: 'active'
+                type: "active",
               });
-              
-              console.log(`[${new Date().toISOString()}] ✅ Query invalidated + refetched (${pendingCount} new comments)`);
-              
+
+              console.log(
+                `[${new Date().toISOString()}] ✅ Query invalidated + refetched (${pendingCount} new comments)`,
+              );
+
               // Clear pending set
               pendingCommentsRef.current.clear();
             } catch (error) {
               console.error(`[${new Date().toISOString()}] ❌ Error:`, error);
             }
           }, 500); // Wait 500ms after last event
-        }
+        },
       )
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: '*',
-          schema: 'public',
-          table: 'facebook_pending_orders',
+          event: "*",
+          schema: "public",
+          table: "facebook_pending_orders",
           filter: `facebook_post_id=eq.${selectedVideo.objectId}`,
         },
         (payload) => {
-          console.log('[Realtime] facebook_pending_orders change:', payload);
-          queryClient.invalidateQueries({ queryKey: ['tpos-orders', selectedVideo.objectId] });
-        }
+          console.log("[Realtime] facebook_pending_orders change:", payload);
+          queryClient.invalidateQueries({ queryKey: ["tpos-orders", selectedVideo.objectId] });
+        },
       )
       .subscribe();
 
@@ -867,9 +786,7 @@ export function FacebookCommentsManager({
       try {
         const facebookIdsToFetch = [
           ...new Set(
-            commentsToProcess
-              .map((c) => c.from.id)
-              .filter((id) => id && !customerStatusMapRef.current.has(id)),
+            commentsToProcess.map((c) => c.from.id).filter((id) => id && !customerStatusMapRef.current.has(id)),
           ),
         ];
 
@@ -880,29 +797,23 @@ export function FacebookCommentsManager({
         // Create user-order map
         const userOrderMap = new Map<string, TPOSOrder>();
         for (const order of orders) {
-          if (
-            order.Facebook_ASUserId &&
-            !userOrderMap.has(order.Facebook_ASUserId)
-          ) {
+          if (order.Facebook_ASUserId && !userOrderMap.has(order.Facebook_ASUserId)) {
             userOrderMap.set(order.Facebook_ASUserId, order);
           }
         }
 
         // Fetch existing customers
-        const { data: existingCustomers = [], error: customerError } =
-          await supabase
-            .from("customers")
-            .select("*")
-            .in("facebook_id", facebookIdsToFetch)
-            .returns<CustomerRecord[]>();
+        const { data: existingCustomers = [], error: customerError } = await supabase
+          .from("customers")
+          .select("*")
+          .in("facebook_id", facebookIdsToFetch)
+          .returns<CustomerRecord[]>();
 
         if (customerError) {
           throw customerError;
         }
 
-        const existingCustomersMap = new Map(
-          existingCustomers.map((c) => [c.facebook_id, c]),
-        );
+        const existingCustomersMap = new Map(existingCustomers.map((c) => [c.facebook_id, c]));
 
         // Prepare batch upsert
         const customersToUpsert: Partial<CustomerRecord>[] = [];
@@ -911,18 +822,14 @@ export function FacebookCommentsManager({
         for (const facebookId of facebookIdsToFetch) {
           const order = userOrderMap.get(facebookId);
           const existingCustomer = existingCustomersMap.get(facebookId);
-          const commentAuthorName =
-            commentsToProcess.find((c) => c.from.id === facebookId)?.from
-              .name || "Unknown";
+          const commentAuthorName = commentsToProcess.find((c) => c.from.id === facebookId)?.from.name || "Unknown";
 
           let partnerStatus: string;
           let customerDataForUpsert: Partial<CustomerRecord> | null = null;
 
           if (order && order.Telephone) {
             // Has order with phone
-            partnerStatus = mapStatusText(
-              existingCustomer?.customer_status || order.PartnerStatusText,
-            );
+            partnerStatus = mapStatusText(existingCustomer?.customer_status || order.PartnerStatusText);
             customerDataForUpsert = {
               facebook_id: facebookId,
               customer_name: order.Name || commentAuthorName,
@@ -933,10 +840,7 @@ export function FacebookCommentsManager({
           } else if (existingCustomer) {
             // Exists in DB but no order
             partnerStatus = mapStatusText(existingCustomer.customer_status);
-            if (
-              !existingCustomer.phone ||
-              existingCustomer.info_status === "incomplete"
-            ) {
+            if (!existingCustomer.phone || existingCustomer.info_status === "incomplete") {
               partnerStatus = "Cần thêm TT";
             }
           } else {
@@ -972,12 +876,10 @@ export function FacebookCommentsManager({
             }));
 
           if (validCustomers.length > 0) {
-            const { error: upsertError } = await supabase
-              .from("customers")
-              .upsert(validCustomers, {
-                onConflict: "facebook_id",
-                ignoreDuplicates: false,
-              });
+            const { error: upsertError } = await supabase.from("customers").upsert(validCustomers, {
+              onConflict: "facebook_id",
+              ignoreDuplicates: false,
+            });
 
             if (upsertError) {
               throw upsertError;
@@ -1018,9 +920,7 @@ export function FacebookCommentsManager({
   useEffect(() => {
     if (!comments.length || !ordersData.length) return;
 
-    const commentsNeedingStatus = comments.filter(
-      (c) => !customerStatusMapRef.current.has(c.from.id),
-    );
+    const commentsNeedingStatus = comments.filter((c) => !customerStatusMapRef.current.has(c.from.id));
 
     if (commentsNeedingStatus.length > 0) {
       debouncedFetchStatus(commentsNeedingStatus, ordersData);
@@ -1088,10 +988,7 @@ export function FacebookCommentsManager({
   // FILTERED COMMENTS WITH OPTIMIZED SEARCH
   // ============================================================================
 
-  const searchQueryLower = useMemo(
-    () => searchQuery.toLowerCase(),
-    [searchQuery],
-  );
+  const searchQueryLower = useMemo(() => searchQuery.toLowerCase(), [searchQuery]);
 
   const filteredComments = useMemo(() => {
     return commentsWithStatus.filter((comment) => {
@@ -1100,19 +997,13 @@ export function FacebookCommentsManager({
         const messageLower = comment.message?.toLowerCase() || "";
         const nameLower = comment.from?.name?.toLowerCase() || "";
 
-        if (
-          !messageLower.includes(searchQueryLower) &&
-          !nameLower.includes(searchQueryLower)
-        ) {
+        if (!messageLower.includes(searchQueryLower) && !nameLower.includes(searchQueryLower)) {
           return false;
         }
       }
 
       // Order filter
-      if (
-        showOnlyWithOrders &&
-        (!comment.orderInfo || !comment.orderInfo.Code)
-      ) {
+      if (showOnlyWithOrders && (!comment.orderInfo || !comment.orderInfo.Code)) {
         return false;
       }
 
@@ -1123,13 +1014,7 @@ export function FacebookCommentsManager({
 
       return true;
     });
-  }, [
-    commentsWithStatus,
-    searchQuery,
-    searchQueryLower,
-    showOnlyWithOrders,
-    hideNames,
-  ]);
+  }, [commentsWithStatus, searchQuery, searchQueryLower, showOnlyWithOrders, hideNames]);
 
   // ============================================================================
   // HANDLERS
@@ -1179,45 +1064,47 @@ export function FacebookCommentsManager({
   // First-time fetch for non-live videos
   useEffect(() => {
     if (!selectedVideo || !pageId) return;
-    
+
     // Only handle non-live videos
     if (selectedVideo.statusLive === 1) return;
-    
+
     // Skip if already fetched this video in this session
     if (fetchedNonLiveVideosRef.current.has(selectedVideo.objectId)) {
       console.log(`[Non-Live Video] Already fetched comments for ${selectedVideo.objectId}, skipping`);
       return;
     }
-    
+
     // For non-live videos, fetch comments once from TPOS on first selection
     const fetchCommentsOnce = async () => {
       try {
         console.log(`[Non-Live Video] Fetching comments for ${selectedVideo.objectId}...`);
-        
-        const { data: { session } } = await supabase.auth.getSession();
-        
+
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
         const response = await fetch(
           `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/facebook-comments?pageId=${pageId}&postId=${selectedVideo.objectId}&sessionIndex=${selectedVideo.objectId}&limit=500`,
           {
             headers: {
-              'Authorization': `Bearer ${session?.access_token}`,
+              Authorization: `Bearer ${session?.access_token}`,
             },
-          }
+          },
         );
-        
+
         if (!response.ok) {
           const errorText = await response.text();
           throw new Error(`Edge function returned ${response.status}: ${errorText}`);
         }
-        
+
         // Mark as fetched
         fetchedNonLiveVideosRef.current.add(selectedVideo.objectId);
         console.log(`[Non-Live Video] ✅ Comments saved to archive`);
       } catch (error) {
-        console.error('[Non-Live Video] Error fetching comments:', error);
+        console.error("[Non-Live Video] Error fetching comments:", error);
       }
     };
-    
+
     fetchCommentsOnce();
   }, [selectedVideo?.objectId, selectedVideo?.statusLive, pageId]);
 
@@ -1240,7 +1127,7 @@ export function FacebookCommentsManager({
   };
 
   const toggleProductSelection = (commentId: string) => {
-    setExpandedCommentIds(prev => {
+    setExpandedCommentIds((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(commentId)) {
         newSet.delete(commentId);
@@ -1253,38 +1140,38 @@ export function FacebookCommentsManager({
 
   const handleProductSelect = async (comment: CommentWithStatus, product: any) => {
     try {
-      const productCode = product.code || product.productInfo?.product_code || 'N/A';
-      
+      const productCode = product.code || product.productInfo?.product_code || "N/A";
+
       // Get current message from database to ensure we have the latest version
       const { data: currentComment } = await (supabase as any)
-        .from('facebook_comments_archive')
-        .select('comment_message')
-        .eq('facebook_comment_id', comment.id)
-        .eq('facebook_post_id', selectedVideo?.objectId || '')
+        .from("facebook_comments_archive")
+        .select("comment_message")
+        .eq("facebook_comment_id", comment.id)
+        .eq("facebook_post_id", selectedVideo?.objectId || "")
         .maybeSingle();
-      
-      const currentMessage = currentComment?.comment_message || comment.message || '';
-      
+
+      const currentMessage = currentComment?.comment_message || comment.message || "";
+
       // Check if this product code is already in the message
       if (currentMessage.includes(`[${productCode}]`)) {
         console.log(`Product ${productCode} already in message, skipping`);
         return;
       }
-      
+
       // Append product code to comment message on same line
       const updatedMessage = `${currentMessage} [${productCode}]`;
-      
+
       // Update comment in database
       const { error } = await (supabase as any)
-        .from('facebook_comments_archive')
-        .update({ 
-          comment_message: updatedMessage 
+        .from("facebook_comments_archive")
+        .update({
+          comment_message: updatedMessage,
         })
-        .eq('facebook_comment_id', comment.id)
-        .eq('facebook_post_id', selectedVideo?.objectId || '');
-      
+        .eq("facebook_comment_id", comment.id)
+        .eq("facebook_post_id", selectedVideo?.objectId || "");
+
       if (error) {
-        console.error('Error updating comment:', error);
+        console.error("Error updating comment:", error);
         toast({
           variant: "destructive",
           title: "❌ Lỗi",
@@ -1292,25 +1179,21 @@ export function FacebookCommentsManager({
         });
         return;
       }
-      
+
       // Update local comment state
       comment.message = updatedMessage;
-      
+
       // Invalidate queries to refresh UI (debounced to avoid too many refreshes)
       queryClient.invalidateQueries({
-        queryKey: getCommentsQueryKey(
-          pageId,
-          selectedVideo?.objectId,
-          selectedVideo?.statusLive === 1
-        ),
+        queryKey: getCommentsQueryKey(pageId, selectedVideo?.objectId, selectedVideo?.statusLive === 1),
       });
-      
+
       toast({
         title: "✅ Đã chọn sản phẩm",
         description: `${productCode} cho ${comment.from.name}`,
       });
     } catch (error) {
-      console.error('Error in handleProductSelect:', error);
+      console.error("Error in handleProductSelect:", error);
       toast({
         variant: "destructive",
         title: "❌ Lỗi",
@@ -1319,7 +1202,7 @@ export function FacebookCommentsManager({
     } finally {
       // Auto-collapse selector after all products are added
       setTimeout(() => {
-        setExpandedCommentIds(prev => {
+        setExpandedCommentIds((prev) => {
           const newSet = new Set(prev);
           newSet.delete(comment.id);
           return newSet;
@@ -1330,11 +1213,7 @@ export function FacebookCommentsManager({
 
   const handleRefreshFromTPOS = () => {
     queryClient.removeQueries({
-      queryKey: getCommentsQueryKey(
-        pageId, 
-        selectedVideo?.objectId, 
-        selectedVideo?.statusLive === 1
-      ),
+      queryKey: getCommentsQueryKey(pageId, selectedVideo?.objectId, selectedVideo?.statusLive === 1),
     });
     refetchComments();
     toast({
@@ -1352,10 +1231,7 @@ export function FacebookCommentsManager({
       totalVideos: videos.length,
       liveVideos: videos.filter((v) => v.statusLive === 1).length,
       totalComments: videos.reduce((sum, v) => sum + (v.countComment || 0), 0),
-      totalReactions: videos.reduce(
-        (sum, v) => sum + (v.countReaction || 0),
-        0,
-      ),
+      totalReactions: videos.reduce((sum, v) => sum + (v.countReaction || 0), 0),
     }),
     [videos],
   );
@@ -1389,9 +1265,7 @@ export function FacebookCommentsManager({
           {!selectedVideo && (
             <Card className="border-0 shadow-sm">
               <CardHeader className={isMobile ? "pb-2" : "pb-3"}>
-                <CardTitle className={isMobile ? "text-sm" : "text-base"}>
-                  Cấu hình và Videos
-                </CardTitle>
+                <CardTitle className={isMobile ? "text-sm" : "text-base"}>Cấu hình và Videos</CardTitle>
                 <CardDescription className={isMobile ? "text-xs" : "text-sm"}>
                   Chọn Facebook Page từ danh sách đã thêm ở trên
                 </CardDescription>
@@ -1399,19 +1273,13 @@ export function FacebookCommentsManager({
 
               <CardContent className={cn("space-y-4", isMobile && "space-y-3")}>
                 {selectedPage && selectedPage.crm_team_id && (
-                  <div
-                    className={cn(
-                      "p-3 bg-muted rounded-md space-y-1",
-                      isMobile ? "text-xs" : "text-sm",
-                    )}
-                  >
+                  <div className={cn("p-3 bg-muted rounded-md space-y-1", isMobile ? "text-xs" : "text-sm")}>
                     <div>
-                      <span className="font-medium">Page:</span>{" "}
-                      {selectedPage.page_name}
+                      <span className="font-medium">Page:</span> {selectedPage.page_name}
                     </div>
                     <div>
-                      <span className="font-medium">CRM Team:</span>{" "}
-                      {selectedPage.crm_team_name} ({selectedPage.crm_team_id})
+                      <span className="font-medium">CRM Team:</span> {selectedPage.crm_team_name} (
+                      {selectedPage.crm_team_id})
                     </div>
                   </div>
                 )}
@@ -1473,40 +1341,16 @@ export function FacebookCommentsManager({
                 </div>
 
                 {videos.length > 0 && (
-                  <div
-                    className={cn(
-                      "grid gap-4",
-                      isMobile
-                        ? "grid-cols-2 gap-2"
-                        : "grid-cols-2 md:grid-cols-4",
-                    )}
-                  >
+                  <div className={cn("grid gap-4", isMobile ? "grid-cols-2 gap-2" : "grid-cols-2 md:grid-cols-4")}>
                     <Card>
                       <CardContent className={isMobile ? "pt-4" : "pt-6"}>
                         <div className="text-center">
                           <Video
-                            className={cn(
-                              "mx-auto mb-2 text-primary",
-                              isMobile ? "h-6 w-6" : "h-8 w-8",
-                            )}
+                            className={cn("mx-auto mb-2 text-primary", isMobile ? "h-6 w-6" : "h-8 w-8")}
                             aria-hidden="true"
                           />
-                          <div
-                            className={cn(
-                              "font-bold",
-                              isMobile ? "text-lg" : "text-2xl",
-                            )}
-                          >
-                            {stats.totalVideos}
-                          </div>
-                          <div
-                            className={cn(
-                              "text-muted-foreground",
-                              isMobile ? "text-xs" : "text-sm",
-                            )}
-                          >
-                            Videos
-                          </div>
+                          <div className={cn("font-bold", isMobile ? "text-lg" : "text-2xl")}>{stats.totalVideos}</div>
+                          <div className={cn("text-muted-foreground", isMobile ? "text-xs" : "text-sm")}>Videos</div>
                         </div>
                       </CardContent>
                     </Card>
@@ -1514,28 +1358,11 @@ export function FacebookCommentsManager({
                     <Card>
                       <CardContent className={isMobile ? "pt-4" : "pt-6"}>
                         <div className="text-center">
-                          <Badge
-                            variant="destructive"
-                            className={cn("mb-2", isMobile && "text-xs")}
-                          >
+                          <Badge variant="destructive" className={cn("mb-2", isMobile && "text-xs")}>
                             LIVE
                           </Badge>
-                          <div
-                            className={cn(
-                              "font-bold",
-                              isMobile ? "text-lg" : "text-2xl",
-                            )}
-                          >
-                            {stats.liveVideos}
-                          </div>
-                          <div
-                            className={cn(
-                              "text-muted-foreground",
-                              isMobile ? "text-xs" : "text-sm",
-                            )}
-                          >
-                            Đang Live
-                          </div>
+                          <div className={cn("font-bold", isMobile ? "text-lg" : "text-2xl")}>{stats.liveVideos}</div>
+                          <div className={cn("text-muted-foreground", isMobile ? "text-xs" : "text-sm")}>Đang Live</div>
                         </div>
                       </CardContent>
                     </Card>
@@ -1544,28 +1371,13 @@ export function FacebookCommentsManager({
                       <CardContent className={isMobile ? "pt-4" : "pt-6"}>
                         <div className="text-center">
                           <MessageCircle
-                            className={cn(
-                              "mx-auto mb-2 text-blue-500",
-                              isMobile ? "h-6 w-6" : "h-8 w-8",
-                            )}
+                            className={cn("mx-auto mb-2 text-blue-500", isMobile ? "h-6 w-6" : "h-8 w-8")}
                             aria-hidden="true"
                           />
-                          <div
-                            className={cn(
-                              "font-bold",
-                              isMobile ? "text-lg" : "text-2xl",
-                            )}
-                          >
+                          <div className={cn("font-bold", isMobile ? "text-lg" : "text-2xl")}>
                             {stats.totalComments.toLocaleString()}
                           </div>
-                          <div
-                            className={cn(
-                              "text-muted-foreground",
-                              isMobile ? "text-xs" : "text-sm",
-                            )}
-                          >
-                            Comments
-                          </div>
+                          <div className={cn("text-muted-foreground", isMobile ? "text-xs" : "text-sm")}>Comments</div>
                         </div>
                       </CardContent>
                     </Card>
@@ -1574,28 +1386,13 @@ export function FacebookCommentsManager({
                       <CardContent className={isMobile ? "pt-4" : "pt-6"}>
                         <div className="text-center">
                           <Heart
-                            className={cn(
-                              "mx-auto mb-2 text-red-500",
-                              isMobile ? "h-6 w-6" : "h-8 w-8",
-                            )}
+                            className={cn("mx-auto mb-2 text-red-500", isMobile ? "h-6 w-6" : "h-8 w-8")}
                             aria-hidden="true"
                           />
-                          <div
-                            className={cn(
-                              "font-bold",
-                              isMobile ? "text-lg" : "text-2xl",
-                            )}
-                          >
+                          <div className={cn("font-bold", isMobile ? "text-lg" : "text-2xl")}>
                             {stats.totalReactions.toLocaleString()}
                           </div>
-                          <div
-                            className={cn(
-                              "text-muted-foreground",
-                              isMobile ? "text-xs" : "text-sm",
-                            )}
-                          >
-                            Reactions
-                          </div>
+                          <div className={cn("text-muted-foreground", isMobile ? "text-xs" : "text-sm")}>Reactions</div>
                         </div>
                       </CardContent>
                     </Card>
@@ -1614,8 +1411,7 @@ export function FacebookCommentsManager({
                     key={video.objectId}
                     className={cn(
                       "cursor-pointer hover:shadow-lg transition-all overflow-hidden",
-                      selectedVideo?.objectId === video.objectId &&
-                        "border-primary border-2",
+                      selectedVideo?.objectId === video.objectId && "border-primary border-2",
                     )}
                     onClick={() => handleVideoClick(video)}
                   >
@@ -1643,9 +1439,7 @@ export function FacebookCommentsManager({
 
                       {/* Info bên phải */}
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-sm line-clamp-2 mb-1">
-                          {video.title}
-                        </h3>
+                        <h3 className="font-semibold text-sm line-clamp-2 mb-1">{video.title}</h3>
                         <p className="text-xs text-muted-foreground mb-2">
                           {video.channelCreatedTime
                             ? format(new Date(video.channelCreatedTime), "dd/MM/yyyy HH:mm")
@@ -1674,37 +1468,23 @@ export function FacebookCommentsManager({
             <Card
               className={cn(
                 "border-0 shadow-sm transition-all duration-300",
-                isMobile &&
-                  isFullscreen &&
-                  "fixed inset-0 z-50 rounded-none m-0",
+                isMobile && isFullscreen && "fixed inset-0 z-50 rounded-none m-0",
               )}
             >
-              <CardHeader
-                className={cn("border-b", isMobile ? "py-2" : "py-3")}
-              >
+              <CardHeader className={cn("border-b", isMobile ? "py-2" : "py-3")}>
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <CardTitle
-                      className={cn(
-                        "line-clamp-1",
-                        isMobile ? "text-sm" : "text-base",
-                      )}
-                    >
+                    <CardTitle className={cn("line-clamp-1", isMobile ? "text-sm" : "text-base")}>
                       {selectedVideo.title}
                     </CardTitle>
-                    <CardDescription
-                      className={isMobile ? "text-xs" : "text-sm"}
-                    >
+                    <CardDescription className={isMobile ? "text-xs" : "text-sm"}>
                       Xem và theo dõi comments từ video
                     </CardDescription>
                   </div>
 
                   <div className="flex items-center gap-2">
                     {selectedVideo.statusLive === 1 && (
-                      <Badge
-                        variant="destructive"
-                        className={isMobile ? "text-xs" : ""}
-                      >
+                      <Badge variant="destructive" className={isMobile ? "text-xs" : ""}>
                         🔴 LIVE
                       </Badge>
                     )}
@@ -1717,11 +1497,7 @@ export function FacebookCommentsManager({
                         className="h-7 px-2"
                         aria-label={isFullscreen ? "Thu nhỏ" : "Toàn màn hình"}
                       >
-                        {isFullscreen ? (
-                          <Minimize className="h-3.5 w-3.5" />
-                        ) : (
-                          <Maximize className="h-3.5 w-3.5" />
-                        )}
+                        {isFullscreen ? <Minimize className="h-3.5 w-3.5" /> : <Maximize className="h-3.5 w-3.5" />}
                       </Button>
                     )}
 
@@ -1735,9 +1511,7 @@ export function FacebookCommentsManager({
                       className={isMobile ? "text-xs h-7 px-2" : ""}
                       aria-label="Chọn video khác"
                     >
-                      <Video
-                        className={cn(isMobile ? "h-3 w-3" : "h-4 w-4 mr-2")}
-                      />
+                      <Video className={cn(isMobile ? "h-3 w-3" : "h-4 w-4 mr-2")} />
                       {!isMobile && "Chọn video khác"}
                     </Button>
                   </div>
@@ -1750,11 +1524,7 @@ export function FacebookCommentsManager({
                     variant="outline"
                     size="sm"
                     onClick={() => setIsAutoRefresh(!isAutoRefresh)}
-                    aria-label={
-                      isAutoRefresh
-                        ? "Tạm dừng tự động làm mới"
-                        : "Tiếp tục tự động làm mới"
-                    }
+                    aria-label={isAutoRefresh ? "Tạm dừng tự động làm mới" : "Tiếp tục tự động làm mới"}
                   >
                     {isAutoRefresh ? (
                       <>
@@ -1769,22 +1539,12 @@ export function FacebookCommentsManager({
                     )}
                   </Button>
 
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleRefreshFromTPOS}
-                    aria-label="Làm mới từ TPOS"
-                  >
+                  <Button variant="outline" size="sm" onClick={handleRefreshFromTPOS} aria-label="Làm mới từ TPOS">
                     <RefreshCw className="mr-2 h-4 w-4" />
                     Làm mới từ TPOS
                   </Button>
 
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => refetchComments()}
-                    aria-label="Làm mới comments"
-                  >
+                  <Button variant="outline" size="sm" onClick={() => refetchComments()} aria-label="Làm mới comments">
                     <RefreshCw className="mr-2 h-4 w-4" />
                     Refresh
                   </Button>
@@ -1822,9 +1582,7 @@ export function FacebookCommentsManager({
                       <Checkbox
                         id="show-only-with-orders"
                         checked={showOnlyWithOrders}
-                        onCheckedChange={(checked) =>
-                          setShowOnlyWithOrders(checked as boolean)
-                        }
+                        onCheckedChange={(checked) => setShowOnlyWithOrders(checked as boolean)}
                         aria-label="Chỉ hiển thị comment có đơn"
                       />
                       <Label
@@ -1857,30 +1615,23 @@ export function FacebookCommentsManager({
                     </div>
 
                     <div className="text-sm text-muted-foreground ml-auto">
-                      Hiển thị {filteredComments.length} /{" "}
-                      {commentsWithStatus.length} comments
+                      Hiển thị {filteredComments.length} / {commentsWithStatus.length} comments
                     </div>
                   </div>
                 </div>
 
                 {/* Warning nhỏ khi có comment bị xóa */}
-                {selectedVideo &&
-                  commentsData?.pages[0]?.fromArchive && (
-                    <Alert className="border-blue-500/30 bg-blue-500/5 mb-4">
-                      <AlertCircle className="h-4 w-4 text-blue-600" />
-                      <AlertDescription className="text-sm text-blue-700">
-                        ℹ️ Đang hiển thị từ archive. Comments được đồng bộ từ Facebook.
-                      </AlertDescription>
-                    </Alert>
-                  )}
+                {selectedVideo && commentsData?.pages[0]?.fromArchive && (
+                  <Alert className="border-blue-500/30 bg-blue-500/5 mb-4">
+                    <AlertCircle className="h-4 w-4 text-blue-600" />
+                    <AlertDescription className="text-sm text-blue-700">
+                      ℹ️ Đang hiển thị từ archive. Comments được đồng bộ từ Facebook.
+                    </AlertDescription>
+                  </Alert>
+                )}
 
                 <ScrollArea
-                  className={cn(
-                    isMobile && isFullscreen
-                      ? "h-[calc(100vh-180px)]"
-                      : "h-[500px]",
-                    "pr-4",
-                  )}
+                  className={cn(isMobile && isFullscreen ? "h-[calc(100vh-180px)]" : "h-[500px]", "pr-4")}
                   ref={scrollRef}
                 >
                   <div className="space-y-4">
@@ -1890,9 +1641,7 @@ export function FacebookCommentsManager({
                       </div>
                     ) : filteredComments.length === 0 ? (
                       <div className="text-center text-muted-foreground py-8">
-                        {searchQuery
-                          ? "Không tìm thấy comment nào"
-                          : "Chưa có comment"}
+                        {searchQuery ? "Không tìm thấy comment nào" : "Chưa có comment"}
                       </div>
                     ) : (
                       filteredComments.map((comment) => {
@@ -1904,8 +1653,7 @@ export function FacebookCommentsManager({
                           <Card
                             key={comment.id}
                             className={cn(
-                              isNew &&
-                                "border-primary bg-primary/5 animate-in fade-in slide-in-from-bottom-2",
+                              isNew && "border-primary bg-primary/5 animate-in fade-in slide-in-from-bottom-2",
                               isDeleted && "border-red-300 bg-red-50/50 opacity-75",
                             )}
                           >
@@ -1928,26 +1676,20 @@ export function FacebookCommentsManager({
 
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 flex-wrap">
-                                    <Badge
-                                      variant="default"
-                                      className="text-xs font-semibold"
-                                    >
+                                    <Badge variant="default" className="text-xs font-semibold">
                                       {comment.from?.name}
                                     </Badge>
 
                                     {comment.partnerStatus &&
                                       comment.partnerStatus !== "Khách lạ" &&
                                       comment.partnerStatus !== "Cần thêm TT" &&
-                                      comment.partnerStatus !==
-                                        "Bình thường" && (
+                                      comment.partnerStatus !== "Bình thường" && (
                                         <Badge
                                           variant={
                                             comment.partnerStatus === "Cảnh báo"
                                               ? "secondary"
-                                              : comment.partnerStatus ===
-                                                    "Bom hàng" ||
-                                                  comment.partnerStatus ===
-                                                    "Nguy hiểm"
+                                              : comment.partnerStatus === "Bom hàng" ||
+                                                  comment.partnerStatus === "Nguy hiểm"
                                                 ? "destructive"
                                                 : "default"
                                           }
@@ -1957,46 +1699,28 @@ export function FacebookCommentsManager({
                                         </Badge>
                                       )}
 
-                                    {!isMobile &&
-                                    comment.orderInfo?.Telephone ? (
-                                      <Badge
-                                        variant="outline"
-                                        className="text-xs"
-                                      >
+                                    {!isMobile && comment.orderInfo?.Telephone ? (
+                                      <Badge variant="outline" className="text-xs">
                                         {comment.orderInfo.Telephone}
                                       </Badge>
-                                    ) : !comment.orderInfo?.Telephone &&
-                                      comment.partnerStatus ===
-                                        "Cần thêm TT" ? (
-                                      <Badge
-                                        variant="secondary"
-                                        className="text-xs bg-red-500/20 text-red-700"
-                                      >
+                                    ) : !comment.orderInfo?.Telephone && comment.partnerStatus === "Cần thêm TT" ? (
+                                      <Badge variant="secondary" className="text-xs bg-red-500/20 text-red-700">
                                         Cần thêm TT
                                       </Badge>
                                     ) : !comment.orderInfo?.Telephone ? (
-                                      <Badge
-                                        variant="secondary"
-                                        className="text-xs bg-orange-500/20 text-orange-700"
-                                      >
+                                      <Badge variant="secondary" className="text-xs bg-orange-500/20 text-orange-700">
                                         Chưa có TT
                                       </Badge>
                                     ) : null}
 
                                     {isNew && (
-                                      <Badge
-                                        variant="default"
-                                        className="text-xs"
-                                      >
+                                      <Badge variant="default" className="text-xs">
                                         ✨ MỚI
                                       </Badge>
                                     )}
 
                                     {isDeleted && (
-                                      <Badge
-                                        variant="destructive"
-                                        className="text-xs"
-                                      >
+                                      <Badge variant="destructive" className="text-xs">
                                         ❌ Đã xóa
                                       </Badge>
                                     )}
@@ -2005,18 +1729,18 @@ export function FacebookCommentsManager({
                                       {comment.created_time
                                         ? format(
                                             new Date(comment.created_time),
-                                            isMobile
-                                              ? "HH:mm"
-                                              : "dd/MM/yyyy HH:mm",
+                                            isMobile ? "HH:mm" : "dd/MM/yyyy HH:mm",
                                           )
                                         : "N/A"}
                                     </span>
                                   </div>
 
-                                  <p className={cn(
-                                    "text-sm font-semibold whitespace-pre-wrap break-words mt-1.5",
-                                    isDeleted && "text-muted-foreground line-through"
-                                  )}>
+                                  <p
+                                    className={cn(
+                                      "text-sm font-semibold whitespace-pre-wrap break-words mt-1.5",
+                                      isDeleted && "text-muted-foreground line-through",
+                                    )}
+                                  >
                                     {comment.message}
                                   </p>
 
@@ -2024,12 +1748,8 @@ export function FacebookCommentsManager({
                                     <Button
                                       size="sm"
                                       className="h-7 text-xs"
-                                      onClick={() =>
-                                        handleCreateOrderClick(comment)
-                                      }
-                                      disabled={pendingCommentIds.has(
-                                        comment.id,
-                                      ) || isDeleted}
+                                      onClick={() => handleCreateOrderClick(comment)}
+                                      disabled={pendingCommentIds.has(comment.id) || isDeleted}
                                       aria-label="Tạo đơn hàng"
                                     >
                                       {pendingCommentIds.has(comment.id) && (
@@ -2056,9 +1776,7 @@ export function FacebookCommentsManager({
                                       size="sm"
                                       variant="outline"
                                       className="h-7 text-xs"
-                                      onClick={() =>
-                                        handleShowInfo(comment.orderInfo)
-                                      }
+                                      onClick={() => handleShowInfo(comment.orderInfo)}
                                       aria-label="Xem thông tin đơn hàng"
                                     >
                                       Thông tin
@@ -2069,7 +1787,7 @@ export function FacebookCommentsManager({
                                       variant="outline"
                                       className={cn(
                                         "h-7 text-xs bg-purple-500 hover:bg-purple-600 text-white border-purple-500",
-                                        expandedCommentIds.has(comment.id) && "bg-purple-600"
+                                        expandedCommentIds.has(comment.id) && "bg-purple-600",
                                       )}
                                       onClick={() => toggleProductSelection(comment.id)}
                                       disabled={isDeleted}
@@ -2081,16 +1799,13 @@ export function FacebookCommentsManager({
 
                                     {comment.like_count > 0 && (
                                       <span className="flex items-center gap-1 text-xs text-muted-foreground ml-auto">
-                                        <Heart
-                                          className="h-3 w-3"
-                                          aria-hidden="true"
-                                        />
+                                        <Heart className="h-3 w-3" aria-hidden="true" />
                                         {comment.like_count}
                                       </span>
                                     )}
                                   </div>
 
-                                   {/* Inline Product Selector */}
+                                  {/* Inline Product Selector */}
                                   {expandedCommentIds.has(comment.id) && (
                                     <InlineProductSelector
                                       comment={comment}
@@ -2111,9 +1826,7 @@ export function FacebookCommentsManager({
                     )}
 
                     {allCommentsLoaded ? (
-                      <div className="text-center py-4 text-sm text-muted-foreground">
-                        Đã tải tất cả bình luận.
-                      </div>
+                      <div className="text-center py-4 text-sm text-muted-foreground">Đã tải tất cả bình luận.</div>
                     ) : (
                       hasNextPage && (
                         <div className="text-center py-4">
@@ -2123,9 +1836,7 @@ export function FacebookCommentsManager({
                             variant="outline"
                             aria-label="Tải thêm bình luận"
                           >
-                            {isFetchingNextPage && (
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            )}
+                            {isFetchingNextPage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Tải thêm bình luận
                           </Button>
                         </div>
@@ -2138,43 +1849,22 @@ export function FacebookCommentsManager({
                   {selectedVideo && selectedVideo.statusLive !== 1
                     ? `Hiển thị ${filteredComments.length} / ${commentsWithStatus.length} comments (Tổng: ${selectedVideo.countComment})`
                     : `Hiển thị ${filteredComments.length} / ${commentsWithStatus.length} comments (🔴 Live - Real-time)`}
-                  {isAutoRefresh &&
-                    selectedVideo.statusLive === 1 &&
-                    " • Auto-refresh mỗi 5s"}
-                  {commentsData?.pages[0]?.fromArchive &&
-                    " • 📦 From archive"}
+                  {isAutoRefresh && selectedVideo.statusLive === 1 && " • Auto-refresh mỗi 5s"}
+                  {commentsData?.pages[0]?.fromArchive && " • 📦 From archive"}
                 </div>
               </CardContent>
             </Card>
           ) : (
             <Card className="border-0 shadow-sm">
-              <CardContent
-                className={cn(
-                  "flex flex-col items-center justify-center",
-                  isMobile ? "py-8" : "py-12",
-                )}
-              >
+              <CardContent className={cn("flex flex-col items-center justify-center", isMobile ? "py-8" : "py-12")}>
                 <MessageCircle
-                  className={cn(
-                    "text-muted-foreground/30 mb-4",
-                    isMobile ? "h-12 w-12" : "h-16 w-16",
-                  )}
+                  className={cn("text-muted-foreground/30 mb-4", isMobile ? "h-12 w-12" : "h-16 w-16")}
                   aria-hidden="true"
                 />
-                <p
-                  className={cn(
-                    "font-medium text-muted-foreground",
-                    isMobile ? "text-base" : "text-lg",
-                  )}
-                >
+                <p className={cn("font-medium text-muted-foreground", isMobile ? "text-base" : "text-lg")}>
                   Chọn video để xem comments
                 </p>
-                <p
-                  className={cn(
-                    "text-muted-foreground/70 mt-2",
-                    isMobile ? "text-xs" : "text-sm",
-                  )}
-                >
+                <p className={cn("text-muted-foreground/70 mt-2", isMobile ? "text-xs" : "text-sm")}>
                   {videos.length > 0
                     ? `${videos.length} video có sẵn - Click để xem comment`
                     : "Tải videos từ Facebook page ở trên"}
@@ -2198,76 +1888,49 @@ export function FacebookCommentsManager({
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium">Mã đơn</label>
-                  <p className="text-sm text-muted-foreground">
-                    {selectedOrderInfo.Code}
-                  </p>
+                  <p className="text-sm text-muted-foreground">{selectedOrderInfo.Code}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium">Trạng thái</label>
-                  <p className="text-sm text-muted-foreground">
-                    {selectedOrderInfo.StatusText}
-                  </p>
+                  <p className="text-sm text-muted-foreground">{selectedOrderInfo.StatusText}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium">Khách hàng</label>
-                  <p className="text-sm text-muted-foreground">
-                    {selectedOrderInfo.Name}
-                  </p>
+                  <p className="text-sm text-muted-foreground">{selectedOrderInfo.Name}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium">Số điện thoại</label>
-                  <p className="text-sm text-muted-foreground">
-                    {selectedOrderInfo.Telephone}
-                  </p>
+                  <p className="text-sm text-muted-foreground">{selectedOrderInfo.Telephone}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium">Partner</label>
-                  <p className="text-sm text-muted-foreground">
-                    {selectedOrderInfo.PartnerName}
-                  </p>
+                  <p className="text-sm text-muted-foreground">{selectedOrderInfo.PartnerName}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium">Partner Status</label>
-                  <Badge
-                    variant={
-                      selectedOrderInfo.PartnerStatus === "Normal"
-                        ? "default"
-                        : "destructive"
-                    }
-                  >
-                    {selectedOrderInfo.PartnerStatusText ||
-                      selectedOrderInfo.PartnerStatus}
+                  <Badge variant={selectedOrderInfo.PartnerStatus === "Normal" ? "default" : "destructive"}>
+                    {selectedOrderInfo.PartnerStatusText || selectedOrderInfo.PartnerStatus}
                   </Badge>
                 </div>
                 <div>
                   <label className="text-sm font-medium">Tổng tiền</label>
                   <p className="text-sm text-muted-foreground">
-                    {(selectedOrderInfo.TotalAmount || 0).toLocaleString(
-                      "vi-VN",
-                    )}{" "}
-                    đ
+                    {(selectedOrderInfo.TotalAmount || 0).toLocaleString("vi-VN")} đ
                   </p>
                 </div>
                 <div>
                   <label className="text-sm font-medium">Số lượng</label>
-                  <p className="text-sm text-muted-foreground">
-                    {selectedOrderInfo.TotalQuantity}
-                  </p>
+                  <p className="text-sm text-muted-foreground">{selectedOrderInfo.TotalQuantity}</p>
                 </div>
                 <div className="col-span-2">
                   <label className="text-sm font-medium">Ghi chú</label>
-                  <p className="text-sm text-muted-foreground">
-                    {selectedOrderInfo.Note || "Không có"}
-                  </p>
+                  <p className="text-sm text-muted-foreground">{selectedOrderInfo.Note || "Không có"}</p>
                 </div>
                 <div className="col-span-2">
                   <label className="text-sm font-medium">Ngày tạo</label>
                   <p className="text-sm text-muted-foreground">
                     {selectedOrderInfo.DateCreated
-                      ? format(
-                          new Date(selectedOrderInfo.DateCreated),
-                          "dd/MM/yyyy HH:mm:ss",
-                        )
+                      ? format(new Date(selectedOrderInfo.DateCreated), "dd/MM/yyyy HH:mm:ss")
                       : "N/A"}
                   </p>
                 </div>
