@@ -70,7 +70,7 @@ export function EditUserDialog({ user, open, onOpenChange }: EditUserDialogProps
       form.reset({
         username: user.username || "",
         full_name: user.full_name || "",
-        is_active: user.is_active,
+        is_active: user.is_active ?? true,
         role: (user.role || "viewer") as any,
       });
       
