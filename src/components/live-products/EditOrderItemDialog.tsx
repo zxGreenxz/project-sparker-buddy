@@ -90,6 +90,20 @@ export function EditOrderItemDialog({
     enabled: !!orderItem?.facebook_comment_id,
   });
 
+  // Fetch phase data to get phase_date for invalidating facebook_pending_orders query
+  const { data: phaseData } = useQuery({
+    queryKey: ['live-phase', phaseId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('live_phases')
+        .select('phase_date')
+        .eq('id', phaseId)
+        .single();
+      
+      return data;
+    },
+  });
+
   useEffect(() => {
     if (orderItem) {
       form.reset({
@@ -113,6 +127,34 @@ export function EditOrderItemDialog({
       if (quantityDiff === 0 && !noteChanged) {
         onOpenChange(false);
         return;
+      }
+
+      // If quantity is 0, DELETE the order instead of updating
+      if (values.quantity === 0) {
+        // Delete the order
+        const { error: deleteError } = await supabase
+          .from('live_orders')
+          .delete()
+          .eq('id', orderItem.id);
+
+        if (deleteError) throw deleteError;
+
+        // Update sold_quantity in live_products (subtract the old quantity)
+        const { data: product } = await supabase
+          .from('live_products')
+          .select('sold_quantity')
+          .eq('id', orderItem.product_id)
+          .single();
+        
+        if (product) {
+          const newSoldQty = Math.max(0, product.sold_quantity - orderItem.quantity);
+          await supabase
+            .from('live_products')
+            .update({ sold_quantity: newSoldQty })
+            .eq('id', orderItem.product_id);
+        }
+
+        return { deleted: true };
       }
 
       // Update order quantity, note and reset upload status
@@ -146,12 +188,26 @@ export function EditOrderItemDialog({
             .eq('id', orderItem.product_id);
         }
       }
+
+      return { deleted: false };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["live-orders", phaseId] });
       queryClient.invalidateQueries({ queryKey: ["live-products", phaseId] });
       queryClient.invalidateQueries({ queryKey: ["orders-with-products", phaseId] });
-      toast.success("Đã cập nhật sản phẩm thành công");
+      
+      // Invalidate facebook_pending_orders to refresh Quick Add Order
+      if (phaseData?.phase_date) {
+        queryClient.invalidateQueries({ queryKey: ["facebook-pending-orders", phaseData.phase_date] });
+      }
+      
+      // Show appropriate message based on action
+      if (result?.deleted) {
+        toast.success("Đã xóa sản phẩm khỏi đơn hàng");
+      } else {
+        toast.success("Đã cập nhật sản phẩm thành công");
+      }
+      
       onOpenChange(false);
       form.reset();
     },
