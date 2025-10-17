@@ -3,7 +3,6 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, EyeOff } from 'lucide-react';
-import { toZonedTime } from 'date-fns-tz';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -59,7 +58,7 @@ export function QuickAddOrder({
     localStorage.setItem('quickAddOrder_hiddenComments', JSON.stringify([...hiddenCommentIds]));
   }, [hiddenCommentIds]);
 
-  // Fetch phase data to get the date and phase type
+  // Fetch phase data to get the date
   const {
     data: phaseData
   } = useQuery({
@@ -68,7 +67,7 @@ export function QuickAddOrder({
       const {
         data,
         error
-      } = await supabase.from('live_phases').select('phase_date, phase_type, start_time, end_time').eq('id', phaseId).single();
+      } = await supabase.from('live_phases').select('phase_date').eq('id', phaseId).single();
       if (error) throw error;
       return data;
     },
@@ -162,33 +161,12 @@ export function QuickAddOrder({
       remaining: number;
       total: number;
     }[] = [];
-    
     pendingOrders.forEach(order => {
       if (!order.session_index || !order.facebook_comment_id) return;
       const used = commentUsageCount.get(order.facebook_comment_id) || 0;
       const total = order.order_count || 1;
       const remaining = total - used;
       if (remaining <= 0) return; // skip consumed comments
-
-      // Filter by phase time (UTC+7)
-      if (phaseData?.phase_type) {
-        const commentTime = toZonedTime(new Date(order.created_time), 'Asia/Bangkok');
-        const hours = commentTime.getHours();
-        const minutes = commentTime.getMinutes();
-        const timeInMinutes = hours * 60 + minutes;
-        
-        if (phaseData.phase_type === 'morning') {
-          // Morning: 00:01 - 12:30
-          if (timeInMinutes < 1 || timeInMinutes > 12 * 60 + 30) {
-            return; // Skip this comment
-          }
-        } else if (phaseData.phase_type === 'evening') {
-          // Evening: 12:31 - 23:59
-          if (timeInMinutes < 12 * 60 + 31 || timeInMinutes > 23 * 60 + 59) {
-            return; // Skip this comment
-          }
-        }
-      }
 
       comments.push({
         id: order.id,
@@ -207,7 +185,7 @@ export function QuickAddOrder({
 
     // Filter out hidden comments (client-side only)
     return comments.filter(c => !hiddenCommentIds.has(c.facebook_comment_id));
-  }, [pendingOrders, commentUsageCount, hiddenCommentIds, phaseData]);
+  }, [pendingOrders, commentUsageCount, hiddenCommentIds]);
   const addOrderMutation = useMutation({
     mutationFn: async ({
       sessionIndex,

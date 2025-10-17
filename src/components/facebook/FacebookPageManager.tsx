@@ -4,8 +4,20 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { toast } from "sonner";
 import { Loader2, Plus, Save, RefreshCw } from "lucide-react";
 
@@ -44,9 +56,9 @@ interface FacebookPage {
 
 function flattenCRMTeams(data: { value?: CRMTeamParent[] }): CRMTeam[] {
   const flattenedTeams: CRMTeam[] = [];
-
+  
   if (!data.value) return flattenedTeams;
-
+  
   data.value.forEach((parentTeam) => {
     // Add child teams first (they're usually more specific)
     if (parentTeam.Childs && Array.isArray(parentTeam.Childs)) {
@@ -57,14 +69,14 @@ function flattenCRMTeams(data: { value?: CRMTeamParent[] }): CRMTeam[] {
         });
       });
     }
-
+    
     // Then add parent team
     flattenedTeams.push({
       Id: parentTeam.Id.toString(),
       Name: parentTeam.Name,
     });
   });
-
+  
   return flattenedTeams;
 }
 
@@ -72,28 +84,31 @@ function validatePageInputs(pageName: string, pageId: string): string | null {
   if (!pageName.trim()) {
     return "Vui lòng nhập tên page";
   }
-
+  
   if (!pageId.trim()) {
     return "Vui lòng nhập Page ID";
   }
-
+  
   // Validate Page ID format (should be numeric)
   if (!/^\d+$/.test(pageId.trim())) {
     return "Page ID phải là số";
   }
-
+  
   return null;
 }
 
-function validateCRMTeamInputs(crmTeamId: string, crmTeamName: string): string | null {
+function validateCRMTeamInputs(
+  crmTeamId: string, 
+  crmTeamName: string
+): string | null {
   if (!crmTeamId.trim()) {
     return "Vui lòng chọn hoặc nhập CRM Team ID";
   }
-
+  
   if (!crmTeamName.trim()) {
     return "Vui lòng nhập Team Name";
   }
-
+  
   return null;
 }
 
@@ -103,11 +118,11 @@ function validateCRMTeamInputs(crmTeamId: string, crmTeamName: string): string |
 
 export function FacebookPageManager() {
   const queryClient = useQueryClient();
-
+  
   // ============================================================================
   // STATE MANAGEMENT
   // ============================================================================
-
+  
   const [selectedPageId, setSelectedPageId] = useState<string>("");
   const [manualCrmTeamId, setManualCrmTeamId] = useState("");
   const [manualCrmTeamName, setManualCrmTeamName] = useState("");
@@ -126,25 +141,25 @@ export function FacebookPageManager() {
         .from("facebook_pages")
         .select("*")
         .order("created_at", { ascending: false });
-
+      
       if (error) throw error;
       return data;
     },
   });
 
   // Fetch CRM teams from TPOS
-  const {
-    data: crmTeams,
-    isLoading: isLoadingTeams,
+  const { 
+    data: crmTeams, 
+    isLoading: isLoadingTeams, 
     refetch: refetchTeams,
-    error: crmTeamsError,
+    error: crmTeamsError
   } = useQuery<CRMTeam[]>({
     queryKey: ["crm-teams"],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("fetch-crm-teams");
-
+      
       if (error) throw error;
-
+      
       return flattenCRMTeams(data);
     },
     retry: 2,
@@ -162,12 +177,14 @@ export function FacebookPageManager() {
       if (validationError) {
         throw new Error(validationError);
       }
-
-      const { error } = await supabase.from("facebook_pages").insert({
-        page_name: newPageName.trim(),
-        page_id: newPageId.trim(),
-      });
-
+      
+      const { error } = await supabase
+        .from("facebook_pages")
+        .insert({
+          page_name: newPageName.trim(),
+          page_id: newPageId.trim(),
+        });
+      
       if (error) throw error;
     },
     onSuccess: () => {
@@ -183,12 +200,12 @@ export function FacebookPageManager() {
 
   // Update CRM Team ID mutation
   const updateCrmTeamMutation = useMutation({
-    mutationFn: async ({
-      pageId,
-      crmTeamId,
-      crmTeamName,
-    }: {
-      pageId: string;
+    mutationFn: async ({ 
+      pageId, 
+      crmTeamId, 
+      crmTeamName 
+    }: { 
+      pageId: string; 
       crmTeamId: string;
       crmTeamName: string;
     }) => {
@@ -196,15 +213,15 @@ export function FacebookPageManager() {
       if (validationError) {
         throw new Error(validationError);
       }
-
+      
       const { error } = await supabase
         .from("facebook_pages")
-        .update({
+        .update({ 
           crm_team_id: crmTeamId.trim(),
           crm_team_name: crmTeamName.trim(),
         })
         .eq("id", pageId);
-
+      
       if (error) throw error;
     },
     onSuccess: () => {
@@ -227,7 +244,7 @@ export function FacebookPageManager() {
 
   const handleUpdateCrmTeam = () => {
     if (!selectedPageId) return;
-
+    
     updateCrmTeamMutation.mutate({
       pageId: selectedPageId,
       crmTeamId: manualCrmTeamId,
@@ -285,7 +302,9 @@ export function FacebookPageManager() {
       <Card>
         <CardHeader>
           <CardTitle>Thêm Facebook Page</CardTitle>
-          <CardDescription>Thêm page Facebook mới vào hệ thống</CardDescription>
+          <CardDescription>
+            Thêm page Facebook mới vào hệ thống
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -329,7 +348,9 @@ export function FacebookPageManager() {
       <Card>
         <CardHeader>
           <CardTitle>Danh sách Facebook Pages</CardTitle>
-          <CardDescription>Quản lý và cấu hình CRM Team ID cho các Facebook pages</CardDescription>
+          <CardDescription>
+            Quản lý và cấu hình CRM Team ID cho các Facebook pages
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {isPagesLoading ? (
@@ -343,8 +364,12 @@ export function FacebookPageManager() {
                   <CardContent className="pt-4">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 space-y-1">
-                        <div className="font-semibold text-base">{page.page_name}</div>
-                        <div className="text-sm text-muted-foreground">Page ID: {page.page_id}</div>
+                        <div className="font-semibold text-base">
+                          {page.page_name}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Page ID: {page.page_id}
+                        </div>
                         {page.crm_team_id ? (
                           <div className="text-sm">
                             <span className="text-muted-foreground">CRM Team:</span>{" "}
@@ -353,7 +378,9 @@ export function FacebookPageManager() {
                             </span>
                           </div>
                         ) : (
-                          <div className="text-sm text-orange-600">Chưa cấu hình CRM Team</div>
+                          <div className="text-sm text-orange-600">
+                            Chưa cấu hình CRM Team
+                          </div>
                         )}
                       </div>
                       <Button
@@ -383,7 +410,10 @@ export function FacebookPageManager() {
           <CardHeader>
             <CardTitle>Cấu hình CRM Team ID</CardTitle>
             <CardDescription>
-              Đang cấu hình cho: <span className="font-semibold text-foreground">{selectedPage?.page_name}</span>
+              Đang cấu hình cho:{" "}
+              <span className="font-semibold text-foreground">
+                {selectedPage?.page_name}
+              </span>
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -401,18 +431,37 @@ export function FacebookPageManager() {
                 )}
                 {crmTeams ? "Tải lại CRM Teams" : "Tải CRM Teams từ TPOS"}
               </Button>
-              {crmTeams && <span className="text-sm text-muted-foreground">{crmTeams.length} teams</span>}
+              {crmTeams && (
+                <span className="text-sm text-muted-foreground">
+                  {crmTeams.length} teams
+                </span>
+              )}
             </div>
 
-            {isLoadingTeams && <div className="text-sm text-muted-foreground">Đang tải danh sách CRM teams...</div>}
+            {isLoadingTeams && (
+              <div className="text-sm text-muted-foreground">
+                Đang tải danh sách CRM teams...
+              </div>
+            )}
 
-            {crmTeamsError && <div className="text-sm text-destructive">Lỗi khi tải CRM teams. Vui lòng thử lại.</div>}
+            {crmTeamsError && (
+              <div className="text-sm text-destructive">
+                Lỗi khi tải CRM teams. Vui lòng thử lại.
+              </div>
+            )}
 
             {crmTeams && crmTeams.length > 0 && (
               <div className="space-y-2">
                 <Label htmlFor="crm-team-select">Chọn CRM Team</Label>
-                <Select value={manualCrmTeamId} onValueChange={handleCRMTeamSelect}>
-                  <SelectTrigger id="crm-team-select" className="bg-background" aria-label="Chọn CRM Team">
+                <Select
+                  value={manualCrmTeamId}
+                  onValueChange={handleCRMTeamSelect}
+                >
+                  <SelectTrigger 
+                    id="crm-team-select" 
+                    className="bg-background"
+                    aria-label="Chọn CRM Team"
+                  >
                     <SelectValue placeholder="Chọn CRM Team" />
                   </SelectTrigger>
                   <SelectContent className="bg-background max-h-[300px]">
@@ -447,7 +496,11 @@ export function FacebookPageManager() {
             <div className="flex gap-2">
               <Button
                 onClick={handleUpdateCrmTeam}
-                disabled={!manualCrmTeamId || !manualCrmTeamName || updateCrmTeamMutation.isPending}
+                disabled={
+                  !manualCrmTeamId ||
+                  !manualCrmTeamName ||
+                  updateCrmTeamMutation.isPending
+                }
                 aria-label="Lưu CRM Team ID"
               >
                 {updateCrmTeamMutation.isPending ? (
@@ -457,7 +510,11 @@ export function FacebookPageManager() {
                 )}
                 Lưu CRM Team ID
               </Button>
-              <Button variant="outline" onClick={handleCancelEdit} aria-label="Hủy">
+              <Button
+                variant="outline"
+                onClick={handleCancelEdit}
+                aria-label="Hủy"
+              >
                 Hủy
               </Button>
             </div>
