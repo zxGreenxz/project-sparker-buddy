@@ -117,20 +117,13 @@ export function EditOrderItemDialog({
     mutationFn: async (values: z.infer<typeof formSchema>) => {
       if (!orderItem) return;
 
-      // Check if anything changed
-      const quantityDiff = values.quantity - orderItem.quantity;
-      const currentNote = orderItem.note || '';
-      const newNote = values.note || '';
-      const noteChanged = currentNote !== newNote;
+      console.log('[EditOrder] Starting mutation with values:', values);
+      console.log('[EditOrder] OrderItem:', orderItem);
 
-      // Return early if nothing changed
-      if (quantityDiff === 0 && !noteChanged) {
-        onOpenChange(false);
-        return;
-      }
-
-      // If quantity is 0, DELETE the order instead of updating
+      // If quantity is 0, DELETE the order immediately (regardless of what it was before)
       if (values.quantity === 0) {
+        console.log('[EditOrder] Quantity is 0, deleting order...');
+        
         // Delete the order
         const { error: deleteError } = await supabase
           .from('live_orders')
@@ -154,7 +147,23 @@ export function EditOrderItemDialog({
             .eq('id', orderItem.product_id);
         }
 
+        console.log('[EditOrder] Order deleted successfully');
         return { deleted: true };
+      }
+
+      // Check if anything changed (only for quantity > 0)
+      const quantityDiff = values.quantity - orderItem.quantity;
+      const currentNote = orderItem.note || '';
+      const newNote = values.note || '';
+      const noteChanged = currentNote !== newNote;
+
+      console.log('[EditOrder] quantityDiff:', quantityDiff, 'noteChanged:', noteChanged);
+
+      // Return early if nothing changed
+      if (quantityDiff === 0 && !noteChanged) {
+        console.log('[EditOrder] No changes detected, closing dialog');
+        onOpenChange(false);
+        return;
       }
 
       // Update order quantity, note and reset upload status
@@ -218,6 +227,7 @@ export function EditOrderItemDialog({
   });
 
   const onSubmit = (values: z.infer<typeof formSchema>) => {
+    console.log('[EditOrder] onSubmit called with:', values);
     updateOrderItemMutation.mutate(values);
   };
 
