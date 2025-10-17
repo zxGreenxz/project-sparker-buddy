@@ -78,9 +78,10 @@ export const extractBaseCode = (variantCode: string): string | null => {
   
   const trimmed = variantCode.trim();
   
-  // Pattern: ^([LN]\w*\d+)[A-Z]+\d*$
-  // Matches: L/N prefix + any chars + digits + capital letters at end (+ optional digits)
-  const match = trimmed.match(/^([LN]\w*\d+)[A-Z]+\d*$/);
+  // Pattern: ^([LN][A-Z]*\d+)[A-Z]{1,2}$
+  // Matches: L/N + letters (product name) + digits + 1-2 letters (size: S, M, L, XL)
+  // Example: LQU114L → LQU114, N152XL → N152
+  const match = trimmed.match(/^([LN][A-Z]*\d+)[A-Z]{1,2}$/);
   
   if (match && match[1]) {
     return match[1];
@@ -103,6 +104,8 @@ export const isVariantCode = (productCode: string): boolean => {
     return false;
   }
   
-  // Pattern: ^[LN]\w*\d+[A-Z]+\d*$
-  return /^[LN]\w*\d+[A-Z]+\d*$/.test(productCode.trim());
+  // Pattern: ^[LN][A-Z]*\d+[A-Z]{1,2}$
+  // Matches: L/N + letters (product name) + digits + 1-2 letters at end (size: S, M, L, XL, XXL)
+  // Example: LQU114L, N152M, LBR66D
+  return /^[LN][A-Z]*\d+[A-Z]{1,2}$/.test(productCode.trim());
 };

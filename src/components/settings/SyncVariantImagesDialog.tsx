@@ -49,8 +49,20 @@ export function SyncVariantImagesDialog(props: SyncVariantImagesDialogProps) {
 
       // Filter to get variants without images
       const variantsToSync = (allProducts || []).filter(product => {
+        const code = product.product_code;
+        
+        // Debug: Log all products starting with LQU114 to check detection
+        if (code.startsWith('LQU114')) {
+          console.log(`🔍 Kiểm tra ${code}:`, {
+            isVariant: isVariantCode(code),
+            baseCode: extractBaseCode(code),
+            tpos_image_url: product.tpos_image_url,
+            product_images: product.product_images
+          });
+        }
+        
         // Check if it's a variant code
-        if (!isVariantCode(product.product_code)) {
+        if (!isVariantCode(code)) {
           return false;
         }
 
@@ -61,7 +73,7 @@ export function SyncVariantImagesDialog(props: SyncVariantImagesDialogProps) {
         const hasNoImage = tposImageEmpty && productImagesEmpty;
         
         if (hasNoImage) {
-          console.log(`Variant cần đồng bộ: ${product.product_code}`);
+          console.log(`✨ Variant cần đồng bộ: ${code}`);
         }
         
         return hasNoImage;
@@ -106,6 +118,12 @@ export function SyncVariantImagesDialog(props: SyncVariantImagesDialogProps) {
           const productImage = baseProduct.product_images?.[0];
           const tposImage = baseProduct.tpos_image_url?.trim();
           const imageUrl = productImage || tposImage;
+
+          console.log(`📸 Base product ${baseCode}:`, {
+            productImage: productImage?.substring(0, 50),
+            tposImage: tposImage?.substring(0, 50),
+            finalImageUrl: imageUrl?.substring(0, 50)
+          });
 
           if (!imageUrl) {
             console.log(`❌ Base product ${baseCode} không có ảnh`);
