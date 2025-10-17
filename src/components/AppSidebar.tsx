@@ -9,6 +9,7 @@ import {
   History,
   Users,
   MessageSquare,
+  Shield,
   LogOut,
   PanelLeftClose,
   PanelLeft
@@ -80,6 +81,11 @@ const adminItems = [
     title: "Lịch sử chỉnh sửa",
     url: "/activity-log",
     icon: History,
+  },
+  {
+    title: "Quản lý thành viên",
+    url: "/user-management",
+    icon: Shield,
   },
   {
     title: "Cài đặt",
