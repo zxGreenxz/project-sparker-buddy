@@ -19,6 +19,7 @@ import Settings from "./pages/Settings";
 import ActivityLog from "./pages/ActivityLog";
 import Customers from "./pages/Customers";
 import FacebookComments from "./pages/FacebookComments";
+import Users from "./pages/Users";
 
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
@@ -117,6 +118,13 @@ const App = () => (
                 <ProtectedRoute>
                   <Layout>
                     <Customers />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+              <Route path="/users" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Users />
                   </Layout>
                 </ProtectedRoute>
               } />
