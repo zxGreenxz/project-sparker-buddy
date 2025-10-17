@@ -90,7 +90,8 @@ export function QuickAddOrder({
     enabled: !!phaseId
   });
 
-  // Fetch facebook_pending_orders for the phase date and time range (include order_count)
+  // Fetch facebook_pending_orders for the phase date (include order_count)
+  // Now works even if start_time/end_time are not available
   const {
     data: pendingOrders = []
   } = useQuery({
@@ -98,7 +99,7 @@ export function QuickAddOrder({
     queryFn: async () => {
       if (!phaseData?.phase_date) return [];
       
-      // Use start_time and end_time from phase
+      // Use start_time and end_time from phase, fallback to full day if not available
       const startTime = phaseData.start_time || '00:00:00';
       const endTime = phaseData.end_time || '23:59:59';
       
@@ -108,7 +109,8 @@ export function QuickAddOrder({
       console.log(`🔍 QuickAddOrder filtering comments:`, {
         phase_date: phaseData.phase_date,
         start: startDateTime,
-        end: endDateTime
+        end: endDateTime,
+        has_time_fields: !!phaseData.start_time
       });
       
       let query: any = supabase
@@ -121,12 +123,15 @@ export function QuickAddOrder({
       query = query.order('created_time', { ascending: false });
       
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Error fetching pending orders:', error);
+        throw error;
+      }
       
       console.log(`✅ Found ${data?.length || 0} pending orders for phase`);
       return (data || []) as PendingOrder[];
     },
-    enabled: !!phaseData?.phase_date && !!phaseData?.start_time && !!phaseData?.end_time,
+    enabled: !!phaseData?.phase_date, // Only require phase_date, not time fields
     refetchInterval: 5000
   });
 
