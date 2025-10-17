@@ -39,13 +39,17 @@ export function SyncVariantImagesDialog(props: SyncVariantImagesDialogProps) {
     };
 
     try {
-      // Query all products to filter variants
+      // Query ALL products without limit to check entire inventory
+      console.log('🔄 Bắt đầu query toàn bộ products...');
       const { data: allProducts, error: queryError } = await supabase
         .from('products')
         .select('id, product_code, product_name, tpos_image_url, product_images')
         .order('product_code');
 
-      if (queryError) throw queryError;
+      if (queryError) {
+        console.error('❌ Lỗi query products:', queryError);
+        throw queryError;
+      }
 
       // Filter to get variants without images
       console.log('📦 Tổng số products:', allProducts?.length);
@@ -83,11 +87,15 @@ export function SyncVariantImagesDialog(props: SyncVariantImagesDialogProps) {
 
       syncResult.total = variantsToSync.length;
 
+      console.log(`📊 Tổng cộng tìm thấy ${syncResult.total} biến thể cần đồng bộ`);
+
       if (syncResult.total === 0) {
         toast.info("Không tìm thấy biến thể nào cần đồng bộ ảnh");
         setIsSyncing(false);
         return;
       }
+
+      console.log('🚀 Bắt đầu đồng bộ...');
 
       // Process each variant
       for (let i = 0; i < variantsToSync.length; i++) {
@@ -101,43 +109,47 @@ export function SyncVariantImagesDialog(props: SyncVariantImagesDialogProps) {
 
         try {
           // Find base product
+          console.log(`🔍 [${i + 1}/${variantsToSync.length}] Tìm base product "${baseCode}" cho variant "${variant.product_code}"`);
+          
           const { data: baseProduct, error: baseError } = await supabase
             .from('products')
             .select('tpos_image_url, product_images, product_code')
             .eq('product_code', baseCode)
             .maybeSingle();
 
-          if (baseError) throw baseError;
+          if (baseError) {
+            console.error(`❌ Lỗi query base product ${baseCode}:`, baseError);
+            throw baseError;
+          }
 
           if (!baseProduct) {
             const errorMsg = `${variant.product_code}: Không tìm thấy base product "${baseCode}"`;
-            console.log(`❌ ${errorMsg}`);
+            console.log(`⚠️ ${errorMsg}`);
             syncResult.errors.push(errorMsg);
             syncResult.skipped++;
             continue;
           }
 
           // Get image URL (priority: product_images[0], fallback: tpos_image_url)
-          // Check both empty string and null
           const productImage = baseProduct.product_images?.[0];
           const tposImage = baseProduct.tpos_image_url?.trim();
           const imageUrl = productImage || tposImage;
 
-          console.log(`📸 Base product ${baseCode}:`, {
-            productImage: productImage?.substring(0, 50),
-            tposImage: tposImage?.substring(0, 50),
-            finalImageUrl: imageUrl?.substring(0, 50)
+          console.log(`   📸 Base "${baseCode}" images:`, {
+            has_product_images: !!productImage,
+            has_tpos_image: !!tposImage,
+            will_use: imageUrl ? 'product_images[0] or tpos_image_url' : 'NONE'
           });
 
           if (!imageUrl) {
-            const errorMsg = `${variant.product_code}: Base product "${baseCode}" không có ảnh (cần thêm ảnh cho sản phẩm gốc trước)`;
-            console.log(`❌ ${errorMsg}`);
+            const errorMsg = `${variant.product_code}: Base product "${baseCode}" không có ảnh`;
+            console.log(`   ⚠️ ${errorMsg}`);
             syncResult.errors.push(errorMsg);
             syncResult.skipped++;
             continue;
           }
 
-          console.log(`✅ Đồng bộ ${variant.product_code} ← ${baseCode}: ${imageUrl.substring(0, 50)}...`);
+          console.log(`   ✅ Đồng bộ "${variant.product_code}" ← "${baseCode}"`);
 
           // Update variant with image URL
           const { error: updateError } = await supabase
@@ -145,12 +157,18 @@ export function SyncVariantImagesDialog(props: SyncVariantImagesDialogProps) {
             .update({ tpos_image_url: imageUrl })
             .eq('id', variant.id);
 
-          if (updateError) throw updateError;
+          if (updateError) {
+            console.error(`   ❌ Lỗi update ${variant.product_code}:`, updateError);
+            throw updateError;
+          }
 
+          console.log(`   ✔️ Đã cập nhật thành công`);
           syncResult.synced++;
         } catch (error: any) {
-          console.error(`Error syncing ${variant.product_code}:`, error);
-          syncResult.errors.push(`${variant.product_code}: ${error.message}`);
+          const errorMsg = `${variant.product_code}: ${error.message}`;
+          console.error(`❌ Error syncing ${variant.product_code}:`, error);
+          syncResult.errors.push(errorMsg);
+          syncResult.skipped++;
         }
 
         // Update progress
