@@ -31,12 +31,8 @@ interface ScannedBarcode {
 // ============================================================================
 
 export function ScannedBarcodesPanel() {
-  const { 
-    scannedBarcodes, 
-    clearScannedBarcodes, 
-    removeScannedBarcode 
-  } = useBarcodeScanner();
-  
+  const { scannedBarcodes, clearScannedBarcodes, removeScannedBarcode } = useBarcodeScanner();
+
   const isMobile = useIsMobile();
   const [isExpanded, setIsExpanded] = useState(true);
   const [manualCode, setManualCode] = useState("");
@@ -70,26 +66,26 @@ export function ScannedBarcodesPanel() {
 
   const handleManualSubmit = async (code?: string) => {
     const trimmedCode = (code || manualCode).trim().toUpperCase();
-    
+
     if (!trimmedCode) return;
-    
+
     // Just dispatch a single event - the handler will fetch variants
     window.dispatchEvent(
-      new CustomEvent('barcode-scanned', { 
-        detail: { code: trimmedCode } 
-      })
+      new CustomEvent("barcode-scanned", {
+        detail: { code: trimmedCode },
+      }),
     );
-    
+
     setManualCode("");
     setShowSuggestions(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       e.preventDefault();
       handleManualSubmit();
     }
-    if (e.key === 'Escape') {
+    if (e.key === "Escape") {
       setShowSuggestions(false);
     }
   };
@@ -124,18 +120,11 @@ export function ScannedBarcodesPanel() {
       <Card className={cn("border-dashed", isMobile ? "mx-4" : "")}>
         <CardContent className="flex flex-col items-center justify-center py-8 space-y-4">
           <div className="text-center">
-            <Barcode 
-              className="h-12 w-12 text-muted-foreground mb-3 mx-auto" 
-              aria-hidden="true"
-            />
-            <p className="text-sm text-muted-foreground">
-              Chưa có barcode nào được quét
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Quét barcode hoặc nhập mã thủ công
-            </p>
+            <Barcode className="h-12 w-12 text-muted-foreground mb-3 mx-auto" aria-hidden="true" />
+            <p className="text-sm text-muted-foreground">Chưa có barcode nào được quét</p>
+            <p className="text-xs text-muted-foreground mt-1">Quét barcode hoặc nhập mã thủ công</p>
           </div>
-          
+
           <div className="w-full max-w-sm relative">
             <div className="flex gap-2">
               <div className="flex-1 relative">
@@ -166,7 +155,7 @@ export function ScannedBarcodesPanel() {
                 Xác nhận
               </Button>
             </div>
-            
+
             {/* Suggestions dropdown */}
             {showSuggestions && productSuggestions && productSuggestions.length > 0 && (
               <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md">
@@ -184,7 +173,7 @@ export function ScannedBarcodesPanel() {
                             alt={product.product_name}
                             className="w-8 h-8 rounded object-cover flex-shrink-0"
                             onError={(e) => {
-                              e.currentTarget.src = '/placeholder.svg';
+                              e.currentTarget.src = "/placeholder.svg";
                             }}
                           />
                         ) : (
@@ -242,7 +231,7 @@ export function ScannedBarcodesPanel() {
           </div>
         </div>
       </CardHeader>
-      
+
       {isExpanded && (
         <CardContent className="pt-0 space-y-4">
           <div className="relative">
@@ -275,7 +264,7 @@ export function ScannedBarcodesPanel() {
                 Xác nhận
               </Button>
             </div>
-            
+
             {/* Suggestions dropdown */}
             {showSuggestions && productSuggestions && productSuggestions.length > 0 && (
               <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md">
@@ -293,7 +282,7 @@ export function ScannedBarcodesPanel() {
                             alt={product.product_name}
                             className="w-8 h-8 rounded object-cover flex-shrink-0"
                             onError={(e) => {
-                              e.currentTarget.src = '/placeholder.svg';
+                              e.currentTarget.src = "/placeholder.svg";
                             }}
                           />
                         ) : (
@@ -312,7 +301,7 @@ export function ScannedBarcodesPanel() {
               </div>
             )}
           </div>
-          
+
           <ScrollArea className="h-[300px]">
             <div className="space-y-2">
               {scannedBarcodes.map((barcode: ScannedBarcode, index: number) => (
@@ -332,17 +321,13 @@ export function ScannedBarcodesPanel() {
                       <Package className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
                     </div>
                   )}
-                  
+
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
-                        <p className="font-mono text-sm font-medium truncate">
-                          {barcode.code}
-                        </p>
+                        <p className="font-mono text-sm font-medium truncate">{barcode.code}</p>
                         {barcode.productInfo ? (
-                          <p className="text-xs text-muted-foreground truncate">
-                            {barcode.productInfo.name}
-                          </p>
+                          <p className="text-xs text-muted-foreground truncate">{barcode.productInfo.name}</p>
                         ) : (
                           <Badge variant="secondary" className="text-xs mt-1">
                             Không tìm thấy sản phẩm
@@ -360,7 +345,7 @@ export function ScannedBarcodesPanel() {
                       </Button>
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {format(new Date(barcode.timestamp), 'HH:mm:ss')}
+                      {format(new Date(barcode.timestamp), "HH:mm:ss")}
                     </p>
                   </div>
                 </div>
