@@ -14,6 +14,180 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_logs: {
+        Row: {
+          action: string
+          created_at: string | null
+          details: Json | null
+          id: string
+          record_id: string | null
+          table_name: string | null
+          user_id: string | null
+          username: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          record_id?: string | null
+          table_name?: string | null
+          user_id?: string | null
+          username?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          record_id?: string | null
+          table_name?: string | null
+          user_id?: string | null
+          username?: string | null
+        }
+        Relationships: []
+      }
+      crm_teams: {
+        Row: {
+          created_at: string | null
+          id: string
+          team_id: string
+          team_name: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          team_id: string
+          team_name: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          team_id?: string
+          team_name?: string
+        }
+        Relationships: []
+      }
+      customers: {
+        Row: {
+          address: string | null
+          created_at: string | null
+          crm_team_id: string | null
+          customer_name: string
+          customer_status: string | null
+          email: string | null
+          facebook_id: string | null
+          id: string
+          idkh: string | null
+          info_status: string | null
+          notes: string | null
+          phone: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string | null
+          crm_team_id?: string | null
+          customer_name: string
+          customer_status?: string | null
+          email?: string | null
+          facebook_id?: string | null
+          id?: string
+          idkh?: string | null
+          info_status?: string | null
+          notes?: string | null
+          phone?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          address?: string | null
+          created_at?: string | null
+          crm_team_id?: string | null
+          customer_name?: string
+          customer_status?: string | null
+          email?: string | null
+          facebook_id?: string | null
+          id?: string
+          idkh?: string | null
+          info_status?: string | null
+          notes?: string | null
+          phone?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      facebook_comments: {
+        Row: {
+          comment_text: string | null
+          comment_type: string | null
+          created_at: string | null
+          created_time: string | null
+          customer_name: string | null
+          facebook_comment_id: string
+          facebook_post_id: string | null
+          facebook_user_id: string | null
+          id: string
+          processed: boolean | null
+        }
+        Insert: {
+          comment_text?: string | null
+          comment_type?: string | null
+          created_at?: string | null
+          created_time?: string | null
+          customer_name?: string | null
+          facebook_comment_id: string
+          facebook_post_id?: string | null
+          facebook_user_id?: string | null
+          id?: string
+          processed?: boolean | null
+        }
+        Update: {
+          comment_text?: string | null
+          comment_type?: string | null
+          created_at?: string | null
+          created_time?: string | null
+          customer_name?: string | null
+          facebook_comment_id?: string
+          facebook_post_id?: string | null
+          facebook_user_id?: string | null
+          id?: string
+          processed?: boolean | null
+        }
+        Relationships: []
+      }
+      facebook_pages: {
+        Row: {
+          access_token: string | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          page_access_token: string | null
+          page_id: string
+          page_name: string
+          updated_at: string | null
+        }
+        Insert: {
+          access_token?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          page_access_token?: string | null
+          page_id: string
+          page_name: string
+          updated_at?: string | null
+        }
+        Update: {
+          access_token?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          page_access_token?: string | null
+          page_id?: string
+          page_name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       facebook_pending_orders: {
         Row: {
           comment_text: string | null
@@ -55,6 +229,50 @@ export type Database = {
           session_index?: string | null
         }
         Relationships: []
+      }
+      goods_receiving: {
+        Row: {
+          created_at: string | null
+          id: string
+          notes: string | null
+          purchase_order_id: string | null
+          receiving_code: string
+          receiving_date: string
+          status: string | null
+          supplier_name: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          purchase_order_id?: string | null
+          receiving_code: string
+          receiving_date: string
+          status?: string | null
+          supplier_name?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          purchase_order_id?: string | null
+          receiving_code?: string
+          receiving_date?: string
+          status?: string | null
+          supplier_name?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "goods_receiving_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       live_orders: {
         Row: {
@@ -234,6 +452,98 @@ export type Database = {
         }
         Relationships: []
       }
+      livestream_reports: {
+        Row: {
+          created_at: string | null
+          id: string
+          live_session_id: string | null
+          notes: string | null
+          report_date: string
+          total_orders: number | null
+          total_revenue: number | null
+          total_viewers: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          live_session_id?: string | null
+          notes?: string | null
+          report_date: string
+          total_orders?: number | null
+          total_revenue?: number | null
+          total_viewers?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          live_session_id?: string | null
+          notes?: string | null
+          report_date?: string
+          total_orders?: number | null
+          total_revenue?: number | null
+          total_viewers?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "livestream_reports_live_session_id_fkey"
+            columns: ["live_session_id"]
+            isOneToOne: false
+            referencedRelation: "live_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      products: {
+        Row: {
+          created_at: string | null
+          id: string
+          product_code: string
+          product_images: string[] | null
+          product_name: string
+          purchase_price: number | null
+          selling_price: number | null
+          stock_quantity: number | null
+          supplier_name: string | null
+          tpos_image_url: string | null
+          tpos_product_id: string | null
+          unit: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          product_code: string
+          product_images?: string[] | null
+          product_name: string
+          purchase_price?: number | null
+          selling_price?: number | null
+          stock_quantity?: number | null
+          supplier_name?: string | null
+          tpos_image_url?: string | null
+          tpos_product_id?: string | null
+          unit?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          product_code?: string
+          product_images?: string[] | null
+          product_name?: string
+          purchase_price?: number | null
+          selling_price?: number | null
+          stock_quantity?: number | null
+          supplier_name?: string | null
+          tpos_image_url?: string | null
+          tpos_product_id?: string | null
+          unit?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -261,6 +571,171 @@ export type Database = {
           is_active?: boolean | null
           updated_at?: string | null
           username?: string | null
+        }
+        Relationships: []
+      }
+      purchase_order_items: {
+        Row: {
+          created_at: string | null
+          id: string
+          product_code: string | null
+          product_id: string | null
+          product_name: string | null
+          purchase_order_id: string | null
+          quantity: number
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          product_code?: string | null
+          product_id?: string | null
+          product_name?: string | null
+          purchase_order_id?: string | null
+          quantity: number
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          product_code?: string | null
+          product_id?: string | null
+          product_name?: string | null
+          purchase_order_id?: string | null
+          quantity?: number
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_items_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_orders: {
+        Row: {
+          created_at: string | null
+          id: string
+          notes: string | null
+          order_code: string
+          order_date: string
+          status: string | null
+          supplier_name: string | null
+          total_amount: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          order_code: string
+          order_date: string
+          status?: string | null
+          supplier_name?: string | null
+          total_amount?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          order_code?: string
+          order_date?: string
+          status?: string | null
+          supplier_name?: string | null
+          total_amount?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      suppliers: {
+        Row: {
+          address: string | null
+          contact_person: string | null
+          created_at: string | null
+          email: string | null
+          id: string
+          notes: string | null
+          phone: string | null
+          supplier_name: string
+          updated_at: string | null
+        }
+        Insert: {
+          address?: string | null
+          contact_person?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          notes?: string | null
+          phone?: string | null
+          supplier_name: string
+          updated_at?: string | null
+        }
+        Update: {
+          address?: string | null
+          contact_person?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          notes?: string | null
+          phone?: string | null
+          supplier_name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      tpos_credentials: {
+        Row: {
+          access_token: string | null
+          api_key: string | null
+          bearer_token: string | null
+          created_at: string | null
+          expires_at: string | null
+          id: string
+          is_active: boolean | null
+          refresh_token: string | null
+          store_name: string | null
+          token_type: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          access_token?: string | null
+          api_key?: string | null
+          bearer_token?: string | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          refresh_token?: string | null
+          store_name?: string | null
+          token_type?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          access_token?: string | null
+          api_key?: string | null
+          bearer_token?: string | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          refresh_token?: string | null
+          store_name?: string | null
+          token_type?: string | null
+          updated_at?: string | null
         }
         Relationships: []
       }
