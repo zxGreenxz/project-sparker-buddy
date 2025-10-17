@@ -10,6 +10,7 @@ import { extractBaseCode, isVariantCode } from "@/lib/variant-utils";
 interface SyncVariantImagesDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onSuccess?: () => void;
 }
 
 interface SyncResult {
@@ -19,7 +20,7 @@ interface SyncResult {
   errors: string[];
 }
 
-export function SyncVariantImagesDialog({ open, onOpenChange }: SyncVariantImagesDialogProps) {
+export function SyncVariantImagesDialog(props: SyncVariantImagesDialogProps) {
   const [isSyncing, setIsSyncing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<SyncResult | null>(null);
@@ -113,6 +114,11 @@ export function SyncVariantImagesDialog({ open, onOpenChange }: SyncVariantImage
         title: "Đồng bộ hoàn tất",
         description: `Đã đồng bộ ${syncResult.synced}/${syncResult.total} biến thể`,
       });
+      
+      // Call onSuccess if any variants were synced
+      if (syncResult.synced > 0 && props.onSuccess) {
+        props.onSuccess();
+      }
     } catch (error) {
       console.error("Error syncing variant images:", error);
       toast({
@@ -126,7 +132,7 @@ export function SyncVariantImagesDialog({ open, onOpenChange }: SyncVariantImage
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -190,7 +196,7 @@ export function SyncVariantImagesDialog({ open, onOpenChange }: SyncVariantImage
         <DialogFooter>
           <Button
             variant="outline"
-            onClick={() => onOpenChange(false)}
+            onClick={() => props.onOpenChange(false)}
             disabled={isSyncing}
           >
             {result ? "Đóng" : "Hủy"}
