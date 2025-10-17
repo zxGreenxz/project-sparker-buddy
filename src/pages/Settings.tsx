@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { RefreshCw, CheckCircle, AlertCircle, Copy, ChevronDown, ChevronUp, ShoppingCart, Key, Save, TestTube2, Code, Download, Upload, Facebook, Printer, MessageSquare } from "lucide-react";
+import { RefreshCw, CheckCircle, AlertCircle, Copy, ChevronDown, ChevronUp, ShoppingCart, Key, Save, TestTube2, Code, Download, Upload, Facebook, Printer, MessageSquare, Image } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -21,6 +21,7 @@ import { SimpleProductUploadDialog } from "@/components/settings/SimpleProductUp
 import { BarcodeProductTest } from "@/components/settings/BarcodeProductTest";
 import { BarcodeScannerSettings } from "@/components/settings/BarcodeScannerSettings";
 import { FetchTPOSProductsDialog } from "@/components/settings/FetchTPOSProductsDialog";
+import { SyncVariantImagesDialog } from "@/components/settings/SyncVariantImagesDialog";
 import { GetTPOSProductTool } from "@/components/settings/GetTPOSProductTool";
 import { FacebookPageManager } from "@/components/facebook/FacebookPageManager";
 import { UploadOrderLiveTool } from "@/components/settings/UploadOrderLiveTool";
@@ -90,6 +91,7 @@ const Settings = () => {
   const [isSingleResultOpen, setIsSingleResultOpen] = useState(false);
   const [isSimpleUploadOpen, setIsSimpleUploadOpen] = useState(false);
   const [isFetchTPOSDialogOpen, setIsFetchTPOSDialogOpen] = useState(false);
+  const [isSyncVariantImagesOpen, setIsSyncVariantImagesOpen] = useState(false);
   
   const { toast } = useToast();
   const { isCommentsOpen, setIsCommentsOpen } = useCommentsSidebar();
@@ -679,6 +681,14 @@ const Settings = () => {
                         Đồng bộ ảnh TPOS
                       </>
                     )}
+                  </Button>
+                  
+                  <Button
+                    onClick={() => setIsSyncVariantImagesOpen(true)}
+                    variant="outline"
+                  >
+                    <Image className="mr-2 h-4 w-4" />
+                    Đồng bộ ảnh biến thể
                   </Button>
                 </div>
 
@@ -1693,6 +1703,11 @@ const Settings = () => {
             description: "Đã đồng bộ sản phẩm từ TPOS",
           });
         }}
+      />
+      
+      <SyncVariantImagesDialog
+        open={isSyncVariantImagesOpen}
+        onOpenChange={setIsSyncVariantImagesOpen}
       />
     </div>
   );
