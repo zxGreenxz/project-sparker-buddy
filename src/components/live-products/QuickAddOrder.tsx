@@ -12,6 +12,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { getActivePrinter, printPDFToXC80 } from '@/lib/printer-utils';
 import { textToESCPOSBitmap } from '@/lib/text-to-bitmap';
+import { toZonedTime } from 'date-fns-tz';
+import { getHours, getMinutes } from 'date-fns';
 interface QuickAddOrderProps {
   productId: string;
   phaseId: string;
@@ -58,7 +60,7 @@ export function QuickAddOrder({
     localStorage.setItem('quickAddOrder_hiddenComments', JSON.stringify([...hiddenCommentIds]));
   }, [hiddenCommentIds]);
 
-  // Fetch phase data to get the date
+  // Fetch phase data to get the date and phase_type
   const {
     data: phaseData
   } = useQuery({
@@ -67,7 +69,7 @@ export function QuickAddOrder({
       const {
         data,
         error
-      } = await supabase.from('live_phases').select('phase_date').eq('id', phaseId).single();
+      } = await supabase.from('live_phases').select('phase_date, phase_type').eq('id', phaseId).single();
       if (error) throw error;
       return data;
     },
@@ -168,6 +170,22 @@ export function QuickAddOrder({
       const remaining = total - used;
       if (remaining <= 0) return; // skip consumed comments
 
+      // Filter by phase_type time range (UTC+7)
+      if (phaseData?.phase_type) {
+        const commentTime = toZonedTime(new Date(order.created_time), 'Asia/Bangkok');
+        const hours = getHours(commentTime);
+        const minutes = getMinutes(commentTime);
+        const totalMinutes = hours * 60 + minutes;
+
+        if (phaseData.phase_type === 'morning') {
+          // Morning: 0h01 - 12h30 (1 phút - 750 phút)
+          if (totalMinutes < 1 || totalMinutes > 750) return;
+        } else if (phaseData.phase_type === 'evening') {
+          // Evening: 12h31 - 23h59 (751 phút - 1439 phút)
+          if (totalMinutes < 751 || totalMinutes > 1439) return;
+        }
+      }
+
       comments.push({
         id: order.id,
         sessionIndex: order.session_index,
@@ -185,7 +203,7 @@ export function QuickAddOrder({
 
     // Filter out hidden comments (client-side only)
     return comments.filter(c => !hiddenCommentIds.has(c.facebook_comment_id));
-  }, [pendingOrders, commentUsageCount, hiddenCommentIds]);
+  }, [pendingOrders, commentUsageCount, hiddenCommentIds, phaseData?.phase_type]);
   const addOrderMutation = useMutation({
     mutationFn: async ({
       sessionIndex,
