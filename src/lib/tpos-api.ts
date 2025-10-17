@@ -72,6 +72,36 @@ export function clearTPOSCache() {
 // =====================================================
 
 /**
+ * Extract image URL từ TPOS product response
+ * Thử nhiều trường có thể có: ImageUrl, ImgUrl, Image, Images[0]
+ */
+function extractTPOSImageUrl(tposProduct: any): string | null {
+  // Priority 1: ImageUrl (field hiện tại)
+  if (tposProduct.ImageUrl && typeof tposProduct.ImageUrl === 'string' && tposProduct.ImageUrl.trim().length > 0) {
+    return tposProduct.ImageUrl.trim();
+  }
+  
+  // Priority 2: ImgUrl (alternative field)
+  if (tposProduct.ImgUrl && typeof tposProduct.ImgUrl === 'string' && tposProduct.ImgUrl.trim().length > 0) {
+    return tposProduct.ImgUrl.trim();
+  }
+  
+  // Priority 3: Image (alternative field)
+  if (tposProduct.Image && typeof tposProduct.Image === 'string' && tposProduct.Image.trim().length > 0) {
+    return tposProduct.Image.trim();
+  }
+  
+  // Priority 4: Images[0] (array field)
+  if (Array.isArray(tposProduct.Images) && tposProduct.Images.length > 0 && tposProduct.Images[0]) {
+    return tposProduct.Images[0].trim();
+  }
+  
+  // No valid image found
+  console.warn(`⚠️ No valid image URL found for product ${tposProduct.DefaultCode || tposProduct.Id}`);
+  return null;
+}
+
+/**
  * Tìm kiếm sản phẩm từ TPOS theo mã sản phẩm
  */
 export async function searchTPOSProduct(productCode: string): Promise<TPOSProductSearchResult | null> {
@@ -99,8 +129,20 @@ export async function searchTPOSProduct(productCode: string): Promise<TPOSProduc
     const data = await response.json();
     
     if (data.value && data.value.length > 0) {
-      console.log(`✅ Found product in TPOS:`, data.value[0]);
-      return data.value[0] as TPOSProductSearchResult;
+      const product = data.value[0];
+      
+      // Log chi tiết các trường ảnh
+      console.log(`✅ Found product in TPOS:`, {
+        Id: product.Id,
+        DefaultCode: product.DefaultCode,
+        Name: product.Name,
+        ImageUrl: product.ImageUrl,
+        ImgUrl: product.ImgUrl,
+        Image: product.Image,
+        Images: product.Images,
+      });
+      
+      return product as TPOSProductSearchResult;
     }
 
     console.log(`❌ Product not found in TPOS: ${productCode}`);
@@ -132,6 +174,11 @@ export async function importProductFromTPOS(tposProduct: TPOSProductSearchResult
 
     const supplierName = extractSupplier(tposProduct.Name);
     
+    // Extract image URL safely
+    const imageUrl = extractTPOSImageUrl(tposProduct);
+    
+    console.log(`📸 Extracted image URL:`, imageUrl);
+    
     // Check if product already exists
     const { data: existing, error: checkError } = await supabase
       .from('products')
@@ -152,8 +199,8 @@ export async function importProductFromTPOS(tposProduct: TPOSProductSearchResult
           purchase_price: tposProduct.StandardPrice || 0,
           unit: tposProduct.UOMName || 'Cái',
           tpos_product_id: tposProduct.Id,
-          tpos_image_url: tposProduct.ImageUrl || null,
-          product_images: tposProduct.ImageUrl ? [tposProduct.ImageUrl] : null,
+          tpos_image_url: imageUrl,
+          product_images: imageUrl ? [imageUrl] : null,
           supplier_name: supplierName,
           updated_at: new Date().toISOString(),
         })
@@ -179,8 +226,8 @@ export async function importProductFromTPOS(tposProduct: TPOSProductSearchResult
         stock_quantity: 0, // Không lấy số lượng từ TPOS
         unit: tposProduct.UOMName || 'Cái',
         tpos_product_id: tposProduct.Id,
-        tpos_image_url: tposProduct.ImageUrl || null,
-        product_images: tposProduct.ImageUrl ? [tposProduct.ImageUrl] : null,
+        tpos_image_url: imageUrl,
+        product_images: imageUrl ? [imageUrl] : null,
         supplier_name: supplierName,
       })
       .select()
@@ -215,7 +262,10 @@ interface TPOSProductSearchResult {
   Barcode: string;
   StandardPrice: number;
   ListPrice: number;
-  ImageUrl: string;
+  ImageUrl?: string;        // Optional vì có thể không có
+  Image?: string;           // Trường khác có thể có
+  ImgUrl?: string;          // Trường khác có thể có
+  Images?: string[];        // Array ảnh có thể có
   UOMName: string;
   QtyAvailable: number;
   Active: boolean;
