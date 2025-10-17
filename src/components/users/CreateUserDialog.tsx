@@ -79,25 +79,36 @@ export function CreateUserDialog({
         return;
       }
 
-      // Create auth user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      // Create auth user using admin API
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
         email: `${data.username}@internal.app`,
         password: data.password,
-        options: {
-          data: {
-            username: data.username,
-            display_name: data.displayName || null,
-          },
+        email_confirm: true,
+        user_metadata: {
+          username: data.username,
+          full_name: data.displayName || null,
         },
       });
 
       if (authError) throw authError;
       if (!authData.user) throw new Error("Không thể tạo user");
 
-      // Wait a bit for the trigger to create profile
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Wait for the trigger to create profile
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Update profile with avatar and is_active if needed
+      // Verify profile was created
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", authData.user.id)
+        .maybeSingle();
+
+      if (profileError || !profile) {
+        console.error("Profile not created:", profileError);
+        throw new Error("Profile không được tạo. Vui lòng thử lại.");
+      }
+
+      // Update profile with avatar if provided
       if (data.avatarUrl) {
         const { error: updateError } = await supabase
           .from("profiles")
@@ -105,9 +116,12 @@ export function CreateUserDialog({
             avatar_url: data.avatarUrl,
             is_active: true 
           } as any)
-          .eq("user_id", authData.user.id);
+          .eq("id", authData.user.id);
         
-        if (updateError) console.error("Error updating avatar:", updateError);
+        if (updateError) {
+          console.error("Error updating avatar:", updateError);
+          throw new Error("Không thể cập nhật avatar");
+        }
       }
 
       // Insert role
