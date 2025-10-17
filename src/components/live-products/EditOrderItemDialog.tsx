@@ -23,14 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
@@ -38,7 +31,6 @@ import { format } from "date-fns";
 
 const formSchema = z.object({
   quantity: z.coerce.number().min(0, "Số lượng không được âm"),
-  note: z.string().optional(),
 });
 
 interface EditOrderItemDialogProps {
@@ -49,18 +41,25 @@ interface EditOrderItemDialogProps {
     product_id: string;
     product_name: string;
     quantity: number;
-    note?: string | null;
-    facebook_comment_id?: string | null;
+    orders?: Array<{
+      id: string;
+      live_product_id: string;
+      product_name: string;
+      product_code: string;
+      quantity: number;
+      order_code: string;
+      created_at?: string;
+      order_date?: string;
+      live_session_id: string;
+      live_phase_id?: string;
+      sold_quantity?: number;
+      facebook_comment_id?: string;
+    }>;
   } | null;
   phaseId: string;
 }
 
-export function EditOrderItemDialog({
-  open,
-  onOpenChange,
-  orderItem,
-  phaseId,
-}: EditOrderItemDialogProps) {
+export function EditOrderItemDialog({ open, onOpenChange, orderItem, phaseId }: EditOrderItemDialogProps) {
   const queryClient = useQueryClient();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [pendingQuantity, setPendingQuantity] = useState<number | null>(null);
@@ -74,147 +73,122 @@ export function EditOrderItemDialog({
 
   // Fetch comment info from facebook_pending_orders
   const { data: pendingOrderInfo } = useQuery({
-    queryKey: ['facebook-pending-order-info', orderItem?.facebook_comment_id],
+    queryKey: ["facebook-pending-order-info", orderItem?.orders?.[0]?.facebook_comment_id],
     queryFn: async () => {
-      const commentId = orderItem?.facebook_comment_id;
+      const commentId = orderItem?.orders?.[0]?.facebook_comment_id;
       if (!commentId) return null;
-      
+
       const { data } = await supabase
-        .from('facebook_pending_orders')
-        .select('session_index, name, comment, created_time')
-        .eq('facebook_comment_id', commentId)
+        .from("facebook_pending_orders")
+        .select("session_index, name, comment, created_time")
+        .eq("facebook_comment_id", commentId)
         .maybeSingle();
-      
+
       return data || null;
     },
-    enabled: !!orderItem?.facebook_comment_id,
+    enabled: !!orderItem?.orders?.[0]?.facebook_comment_id,
   });
 
   useEffect(() => {
     if (orderItem) {
       form.reset({
         quantity: orderItem.quantity,
-        note: orderItem.note || '',
       });
     }
   }, [orderItem, form]);
 
   const updateOrderItemMutation = useMutation({
     mutationFn: async (values: z.infer<typeof formSchema>) => {
-      if (!orderItem) return { deleted: false };
+      if (!orderItem) return;
 
-      // CHECK IF QUANTITY IS 0 - DELETE ORDER
-      if (values.quantity === 0) {
-        const oldQuantity = orderItem.quantity;
-        const facebookCommentId = orderItem.facebook_comment_id;
+      // If we have multiple orders (aggregated), consolidate into single order
+      if (orderItem.orders && orderItem.orders.length > 0) {
+        const orders = orderItem.orders;
+        const currentTotalQty = orders.reduce((sum, o) => sum + o.quantity, 0);
+        const newTotalQty = values.quantity;
+        const diff = newTotalQty - currentTotalQty;
 
-        // Delete the order
-        const { error: deleteError } = await supabase
-          .from('live_orders')
-          .delete()
-          .eq('id', orderItem.id);
+        // Only return early if nothing changed
+        if (diff === 0) return;
 
-        if (deleteError) throw deleteError;
+        // Keep the first order and delete the rest
+        const firstOrder = orders[0];
+        const ordersToDelete = orders.slice(1).map((o) => o.id);
 
-        // Update sold_quantity in live_products (decrease by old quantity)
-        const { data: product } = await supabase
-          .from('live_products')
-          .select('sold_quantity')
-          .eq('id', orderItem.product_id)
+        // Update the first order with new total quantity
+        const { error: updateError } = await supabase
+          .from("live_orders")
+          .update({
+            quantity: newTotalQty,
+          })
+          .eq("id", firstOrder.id);
+
+        if (updateError) throw updateError;
+
+        // Delete other orders with same order_code
+        if (ordersToDelete.length > 0) {
+          const { error: deleteError } = await supabase.from("live_orders").delete().in("id", ordersToDelete);
+
+          if (deleteError) throw deleteError;
+        }
+
+        // Update product sold_quantity only if quantity changed
+        if (diff !== 0) {
+          const { data: product, error: productFetchError } = await supabase
+            .from("live_products")
+            .select("sold_quantity")
+            .eq("id", orderItem.product_id)
+            .single();
+
+          if (productFetchError) throw productFetchError;
+
+          const { error: productError } = await supabase
+            .from("live_products")
+            .update({
+              sold_quantity: Math.max(0, product.sold_quantity + diff),
+            })
+            .eq("id", orderItem.product_id);
+
+          if (productError) throw productError;
+        }
+      } else {
+        // Single order item - update quantity directly
+        const quantityDiff = values.quantity - orderItem.quantity;
+
+        // Update order quantity
+        const { error: orderError } = await supabase
+          .from("live_orders")
+          .update({
+            quantity: values.quantity,
+          })
+          .eq("id", orderItem.id);
+
+        if (orderError) throw orderError;
+
+        // Update product sold_quantity
+        const { data: product, error: productFetchError } = await supabase
+          .from("live_products")
+          .select("sold_quantity")
+          .eq("id", orderItem.product_id)
           .single();
-        
-        if (product) {
-          const newSoldQty = Math.max(0, product.sold_quantity - oldQuantity);
-          await supabase
-            .from('live_products')
-            .update({ sold_quantity: newSoldQty })
-            .eq('id', orderItem.product_id);
-        }
 
-        // If order has facebook_comment_id, check if we need to reset comment status
-        if (facebookCommentId) {
-          // Check if there are other orders using this facebook_comment_id
-          const { data: otherOrders } = await supabase
-            .from('live_orders')
-            .select('id')
-            .eq('facebook_comment_id', facebookCommentId);
+        if (productFetchError) throw productFetchError;
 
-          // If no other orders use this comment, reset it to unprocessed in pending_live_orders
-          if (!otherOrders || otherOrders.length === 0) {
-            await supabase
-              .from('pending_live_orders' as any)
-              .update({ 
-                processed: false,
-                processed_at: null,
-                error_message: null
-              })
-              .eq('facebook_comment_id', facebookCommentId);
-          }
-        }
+        const { error: productUpdateError } = await supabase
+          .from("live_products")
+          .update({
+            sold_quantity: Math.max(0, product.sold_quantity + quantityDiff),
+          })
+          .eq("id", orderItem.product_id);
 
-        return { deleted: true };
+        if (productUpdateError) throw productUpdateError;
       }
-
-      // EXISTING LOGIC FOR QUANTITY > 0
-      // Check if anything changed
-      const quantityDiff = values.quantity - orderItem.quantity;
-      const currentNote = orderItem.note || '';
-      const newNote = values.note || '';
-      const noteChanged = currentNote !== newNote;
-
-      // Return early if nothing changed
-      if (quantityDiff === 0 && !noteChanged) {
-        onOpenChange(false);
-        return { deleted: false };
-      }
-
-      // Update order quantity, note and reset upload status
-      const { error: orderError } = await supabase
-        .from('live_orders')
-        .update({ 
-          quantity: values.quantity,
-          note: values.note || null,
-          upload_status: null,
-          uploaded_at: null,
-          tpos_order_id: null,
-          code_tpos_order_id: null
-        })
-        .eq('id', orderItem.id);
-
-      if (orderError) throw orderError;
-
-      // Update sold_quantity in live_products if quantity changed
-      if (quantityDiff !== 0) {
-        const { data: product } = await supabase
-          .from('live_products')
-          .select('sold_quantity')
-          .eq('id', orderItem.product_id)
-          .single();
-        
-        if (product) {
-          const newSoldQty = Math.max(0, product.sold_quantity + quantityDiff);
-          await supabase
-            .from('live_products')
-            .update({ sold_quantity: newSoldQty })
-            .eq('id', orderItem.product_id);
-        }
-      }
-
-      return { deleted: false };
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["live-orders", phaseId] });
       queryClient.invalidateQueries({ queryKey: ["live-products", phaseId] });
       queryClient.invalidateQueries({ queryKey: ["orders-with-products", phaseId] });
-      queryClient.invalidateQueries({ queryKey: ["pending-live-orders"] });
-      queryClient.invalidateQueries({ queryKey: ["hang-le-comments"] });
-      
-      if (data?.deleted) {
-        toast.success("Đã xóa đơn hàng thành công");
-      } else {
-        toast.success("Đã cập nhật sản phẩm thành công");
-      }
-      
+      toast.success("Đã cập nhật số lượng sản phẩm");
       onOpenChange(false);
       form.reset();
     },
@@ -224,9 +198,125 @@ export function EditOrderItemDialog({
     },
   });
 
+  const deleteOrderItemMutation = useMutation({
+    mutationFn: async () => {
+      if (!orderItem || !orderItem.orders || orderItem.orders.length === 0) return;
+
+      const productId = orderItem.product_id;
+      const isSingleOrder = orderItem.orders.length === 1;
+
+      // Single order (clicked on specific badge)
+      if (isSingleOrder) {
+        const order = orderItem.orders[0];
+
+        // Delete this specific order
+        const { error: deleteError } = await supabase.from("live_orders").delete().eq("id", order.id);
+
+        if (deleteError) throw deleteError;
+
+        // Update sold_quantity for this product
+        const { data: product, error: productFetchError } = await supabase
+          .from("live_products")
+          .select("sold_quantity")
+          .eq("id", productId)
+          .single();
+
+        if (productFetchError) throw productFetchError;
+
+        const { error: productUpdateError } = await supabase
+          .from("live_products")
+          .update({
+            sold_quantity: Math.max(0, product.sold_quantity - order.quantity),
+          })
+          .eq("id", productId);
+
+        if (productUpdateError) throw productUpdateError;
+      }
+      // Aggregated orders (clicked edit in table)
+      else {
+        const orderCode = orderItem.orders[0].order_code;
+
+        // Get all orders for this specific product with this order_code
+        const { data: ordersToDelete, error: fetchError } = await supabase
+          .from("live_orders")
+          .select("id, quantity")
+          .eq("order_code", orderCode)
+          .eq("live_product_id", productId);
+
+        if (fetchError) throw fetchError;
+
+        if (!ordersToDelete || ordersToDelete.length === 0) return;
+
+        // Calculate total quantity to subtract for this product only
+        const totalQuantity = ordersToDelete.reduce((sum, order) => sum + order.quantity, 0);
+
+        // Update sold_quantity for this product only
+        const { data: product, error: productFetchError } = await supabase
+          .from("live_products")
+          .select("sold_quantity")
+          .eq("id", productId)
+          .single();
+
+        if (productFetchError) throw productFetchError;
+
+        const { error: productUpdateError } = await supabase
+          .from("live_products")
+          .update({
+            sold_quantity: Math.max(0, product.sold_quantity - totalQuantity),
+          })
+          .eq("id", productId);
+
+        if (productUpdateError) throw productUpdateError;
+
+        // Delete only orders for this specific product with this order_code
+        const { error: deleteError } = await supabase
+          .from("live_orders")
+          .delete()
+          .eq("order_code", orderCode)
+          .eq("live_product_id", productId);
+
+        if (deleteError) throw deleteError;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["live-orders", phaseId] });
+      queryClient.invalidateQueries({ queryKey: ["live-products", phaseId] });
+      queryClient.invalidateQueries({ queryKey: ["orders-with-products", phaseId] });
+      toast.success("Đã xóa sản phẩm khỏi đơn hàng thành công");
+      onOpenChange(false);
+      setShowDeleteConfirm(false);
+      form.reset();
+    },
+    onError: (error) => {
+      console.error("Error deleting order item:", error);
+      toast.error("Có lỗi xảy ra khi xóa sản phẩm");
+    },
+  });
+
   const onSubmit = (values: z.infer<typeof formSchema>) => {
-    updateOrderItemMutation.mutate(values);
+    if (values.quantity === 0) {
+      setPendingQuantity(values.quantity);
+      setShowDeleteConfirm(true);
+    } else {
+      updateOrderItemMutation.mutate(values);
+    }
   };
+
+  const handleDeleteConfirm = () => {
+    deleteOrderItemMutation.mutate();
+  };
+
+  const orderCode = useMemo(
+    () => (orderItem?.orders && orderItem.orders.length > 0 ? orderItem.orders[0].order_code : ""),
+    [orderItem],
+  );
+
+  const isSingleOrder = useMemo(() => orderItem?.orders && orderItem.orders.length === 1, [orderItem]);
+
+  const singleOrderQuantity = useMemo(
+    () => (isSingleOrder && orderItem?.orders ? orderItem.orders[0].quantity : 0),
+    [isSingleOrder, orderItem],
+  );
 
   return (
     <>
@@ -247,73 +337,42 @@ export function EditOrderItemDialog({
                   <FormItem>
                     <FormLabel>Số lượng</FormLabel>
                     <FormControl>
-                      <Input
-                        type="number"
-                        min="0"
-                        placeholder="Nhập số lượng"
-                        {...field}
-                      />
+                      <Input type="number" min="0" placeholder="Nhập số lượng" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="note"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Ghi chú</FormLabel>
-                    <FormControl>
-                      <Textarea 
-                        placeholder="Nhập ghi chú cho sản phẩm này (tùy chọn)" 
-                        {...field} 
-                        rows={3}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              {orderItem?.facebook_comment_id && pendingOrderInfo && (
-                <div className="space-y-2 p-3 bg-muted/50 rounded-md">
-                  <div className="text-sm font-medium">Thông tin từ Facebook:</div>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">Mã:</span>
-                      <span className="ml-2 font-mono">{pendingOrderInfo.session_index}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Tên:</span>
-                      <span className="ml-2">{pendingOrderInfo.name}</span>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-muted-foreground">Comment:</span>
-                      <p className="ml-2 text-xs">{pendingOrderInfo.comment}</p>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-muted-foreground">Thời gian:</span>
-                      <span className="ml-2 text-xs">
-                        {format(new Date(pendingOrderInfo.created_time), 'dd/MM/yyyy HH:mm')}
-                      </span>
-                    </div>
+              <FormItem>
+                <FormLabel>Comment được chọn</FormLabel>
+                <FormControl>
+                  <div className="space-y-2 rounded-md border bg-muted p-3 text-sm">
+                    {pendingOrderInfo ? (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="font-semibold">
+                            #{pendingOrderInfo.session_index} - {pendingOrderInfo.name}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {pendingOrderInfo.created_time
+                              ? format(new Date(pendingOrderInfo.created_time), "HH:mm:ss dd/MM")
+                              : ""}
+                          </span>
+                        </div>
+                        <p className="italic">"{pendingOrderInfo.comment || "Không có nội dung"}"</p>
+                      </>
+                    ) : (
+                      <p className="text-muted-foreground">Không có thông tin comment.</p>
+                    )}
                   </div>
-                </div>
-              )}
+                </FormControl>
+              </FormItem>
               <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => onOpenChange(false)}
-                >
+                <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                   Hủy
                 </Button>
-                <Button 
-                  type="submit" 
-                  disabled={updateOrderItemMutation.isPending}
-                >
+                <Button type="submit" disabled={updateOrderItemMutation.isPending}>
                   {updateOrderItemMutation.isPending ? "Đang lưu..." : "Lưu"}
                 </Button>
               </DialogFooter>
@@ -321,6 +380,38 @@ export function EditOrderItemDialog({
           </Form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xác nhận xóa sản phẩm</AlertDialogTitle>
+            <AlertDialogDescription>
+              {isSingleOrder ? (
+                <>
+                  Bạn có muốn xóa sản phẩm <strong>{orderItem?.product_name}</strong> với số lượng{" "}
+                  <strong>{singleOrderQuantity}</strong> khỏi đơn hàng <strong>{orderCode}</strong> không?
+                </>
+              ) : (
+                <>
+                  Bạn có muốn xóa tất cả sản phẩm <strong>{orderItem?.product_name}</strong> khỏi đơn hàng{" "}
+                  <strong>{orderCode}</strong> không?
+                </>
+              )}{" "}
+              Hành động này không thể hoàn tác.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowDeleteConfirm(false)}>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              disabled={deleteOrderItemMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteOrderItemMutation.isPending ? "Đang xóa..." : "Xóa sản phẩm"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
