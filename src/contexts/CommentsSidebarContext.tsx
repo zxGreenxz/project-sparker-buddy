@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, ReactNode } from "react";
 
 interface CommentsSidebarContextType {
   isCommentsOpen: boolean;
@@ -10,7 +10,7 @@ const CommentsSidebarContext = createContext<CommentsSidebarContextType | null>(
 export function useCommentsSidebar() {
   const context = useContext(CommentsSidebarContext);
   if (!context) {
-    throw new Error('useCommentsSidebar must be used within CommentsSidebarProvider');
+    throw new Error("useCommentsSidebar must be used within CommentsSidebarProvider");
   }
   return context;
 }
