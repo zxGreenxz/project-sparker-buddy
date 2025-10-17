@@ -30,7 +30,7 @@ import {
 interface User {
   id: string;
   username: string | null;
-  display_name: string | null;
+  full_name: string | null;
   avatar_url: string | null;
   is_active: boolean;
   created_at: string;
@@ -54,11 +54,11 @@ const Users = () => {
         .select(`
           id,
           username,
-          display_name,
+          full_name,
           avatar_url,
           is_active,
           created_at
-        `)
+        ` as any)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -217,7 +217,7 @@ const Users = () => {
                         <TableCell className="font-medium">
                           {user.username || "N/A"}
                         </TableCell>
-                        <TableCell>{user.display_name || "N/A"}</TableCell>
+                        <TableCell>{user.full_name || "N/A"}</TableCell>
                         <TableCell>
                           <Badge variant={getRoleBadgeVariant(user.role)}>
                             {user.role || "user"}
