@@ -343,32 +343,36 @@ export function FacebookCommentsManager({
   } = useQuery({
     queryKey: ["facebook-videos", pageId, limit],
     queryFn: async () => {
-      if (!pageId) return [];
-
-      console.log(`[Videos] 🎬 Fetching videos for pageId: ${pageId}, limit: ${limit}`);
+      const { queryWithAutoRefresh } = await import('@/lib/query-with-auto-refresh');
       
-      const url = `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/facebook-livevideo?pageId=${pageId}&limit=${limit}`;
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      return queryWithAutoRefresh(async () => {
+        if (!pageId) return [];
 
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${session?.access_token}`,
-          "Content-Type": "application/json",
-        },
-      });
+        console.log(`[Videos] 🎬 Fetching videos for pageId: ${pageId}, limit: ${limit}`);
+        
+        const url = `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/facebook-livevideo?pageId=${pageId}&limit=${limit}`;
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error(`[Videos] ❌ Error ${response.status}:`, errorData);
-        throw new Error(errorData.error || errorData.details || `Failed to fetch videos (${response.status})`);
-      }
+        const response = await fetch(url, {
+          headers: {
+            Authorization: `Bearer ${session?.access_token}`,
+            "Content-Type": "application/json",
+          },
+        });
 
-      const result = await response.json();
-      const videosArray = (Array.isArray(result) ? result : result.data || []) as FacebookVideo[];
-      console.log(`[Videos] ✅ Fetched ${videosArray.length} videos`);
-      return videosArray;
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error(`[Videos] ❌ Error ${response.status}:`, errorData);
+          throw new Error(errorData.error || errorData.details || `Failed to fetch videos (${response.status})`);
+        }
+
+        const result = await response.json();
+        const videosArray = (Array.isArray(result) ? result : result.data || []) as FacebookVideo[];
+        console.log(`[Videos] ✅ Fetched ${videosArray.length} videos`);
+        return videosArray;
+      }, 'facebook');
     },
     enabled: !!pageId,
     retry: 1,
@@ -389,70 +393,74 @@ export function FacebookCommentsManager({
       selectedVideo?.statusLive === 1
     ),
     queryFn: async ({ pageParam }) => {
-      const fetchId = Math.random().toString(36).substring(7);
-      if (!pageId || !selectedVideo?.objectId) return { data: [], paging: {} };
+      const { queryWithAutoRefresh } = await import('@/lib/query-with-auto-refresh');
+      
+      return queryWithAutoRefresh(async () => {
+        const fetchId = Math.random().toString(36).substring(7);
+        if (!pageId || !selectedVideo?.objectId) return { data: [], paging: {} };
 
-      console.log(`[QueryFn ${fetchId}] 🔍 Fetching comments`, {
-        videoId: selectedVideo.objectId,
-        pageId,
-        timestamp: new Date().toISOString()
-      });
-      const startTime = Date.now();
+        console.log(`[QueryFn ${fetchId}] 🔍 Fetching comments`, {
+          videoId: selectedVideo.objectId,
+          pageId,
+          timestamp: new Date().toISOString()
+        });
+        const startTime = Date.now();
 
-      // ========================================================================
-      // READ FROM facebook_comments_archive (NOT from TPOS directly)
-      // ========================================================================
+        // ========================================================================
+        // READ FROM facebook_comments_archive (NOT from TPOS directly)
+        // ========================================================================
 
-      const { data: archivedComments, error: dbError } = await supabase
-        .from('facebook_comments_archive' as any)
-        .select('*')
-        .eq('facebook_post_id', selectedVideo.objectId)
-        .order('comment_created_time', { ascending: false })
-        .limit(1000);
+        const { data: archivedComments, error: dbError } = await supabase
+          .from('facebook_comments_archive' as any)
+          .select('*')
+          .eq('facebook_post_id', selectedVideo.objectId)
+          .order('comment_created_time', { ascending: false })
+          .limit(1000);
 
-      if (dbError) {
-        console.error(`[QueryFn ${fetchId}] ❌ DB error:`, dbError);
-        return { data: [], paging: {} };
-      }
-
-      // 🔥 Deduplicate comments by ID to prevent duplicate display
-      console.log(`[QueryFn ${fetchId}] 🔄 Deduplicating ${archivedComments?.length || 0} comments`);
-      const seenIds = new Set<string>();
-      const formattedComments = archivedComments?.reduce((acc: any[], c: any) => {
-        if (!seenIds.has(c.facebook_comment_id)) {
-          seenIds.add(c.facebook_comment_id);
-          acc.push({
-            id: c.facebook_comment_id,
-            message: c.comment_message || '',
-            from: {
-              name: c.facebook_user_name || 'Unknown',
-              id: c.facebook_user_id || '',
-            },
-            created_time: c.comment_created_time,
-            like_count: c.like_count || 0,
-            is_deleted_by_tpos: c.is_deleted_by_tpos || false,
-            deleted_at: c.updated_at,
-          });
-        } else {
-          console.log(`[QueryFn ${fetchId}] ⚠️ Skipped duplicate: ${c.facebook_comment_id}`);
+        if (dbError) {
+          console.error(`[QueryFn ${fetchId}] ❌ DB error:`, dbError);
+          return { data: [], paging: {} };
         }
-        return acc;
-      }, []) || [];
 
-      const elapsed = Date.now() - startTime;
-      console.log(`[QueryFn ${fetchId}] ✅ Fetched`, {
-        uniqueCount: formattedComments.length,
-        totalCount: archivedComments?.length,
-        firstCommentId: formattedComments[0]?.id,
-        lastCommentId: formattedComments[formattedComments.length - 1]?.id,
-        elapsed: `${elapsed}ms`
-      });
+        // 🔥 Deduplicate comments by ID to prevent duplicate display
+        console.log(`[QueryFn ${fetchId}] 🔄 Deduplicating ${archivedComments?.length || 0} comments`);
+        const seenIds = new Set<string>();
+        const formattedComments = archivedComments?.reduce((acc: any[], c: any) => {
+          if (!seenIds.has(c.facebook_comment_id)) {
+            seenIds.add(c.facebook_comment_id);
+            acc.push({
+              id: c.facebook_comment_id,
+              message: c.comment_message || '',
+              from: {
+                name: c.facebook_user_name || 'Unknown',
+                id: c.facebook_user_id || '',
+              },
+              created_time: c.comment_created_time,
+              like_count: c.like_count || 0,
+              is_deleted_by_tpos: c.is_deleted_by_tpos || false,
+              deleted_at: c.updated_at,
+            });
+          } else {
+            console.log(`[QueryFn ${fetchId}] ⚠️ Skipped duplicate: ${c.facebook_comment_id}`);
+          }
+          return acc;
+        }, []) || [];
 
-      return { 
-        data: formattedComments, 
-        paging: {},
-        fromArchive: true 
-      };
+        const elapsed = Date.now() - startTime;
+        console.log(`[QueryFn ${fetchId}] ✅ Fetched`, {
+          uniqueCount: formattedComments.length,
+          totalCount: archivedComments?.length,
+          firstCommentId: formattedComments[0]?.id,
+          lastCommentId: formattedComments[formattedComments.length - 1]?.id,
+          elapsed: `${elapsed}ms`
+        });
+
+        return { 
+          data: formattedComments, 
+          paging: {},
+          fromArchive: true 
+        };
+      }, 'facebook');
     },
     getNextPageParam: () => undefined, // No pagination needed for archive
     initialPageParam: undefined,

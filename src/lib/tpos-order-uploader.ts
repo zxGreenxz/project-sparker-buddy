@@ -27,24 +27,28 @@ interface UploadResult {
 
 // Search for a product in TPOS
 async function searchTPOSProduct(productCode: string, bearerToken: string) {
-  const url = `https://tomato.tpos.vn/odata/Product/ODataService.GetView?$filter=DefaultCode eq '${productCode}'&$top=1`;
+  const { queryWithAutoRefresh } = await import('./query-with-auto-refresh');
   
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: getTPOSHeaders(bearerToken),
-  });
+  return queryWithAutoRefresh(async () => {
+    const url = `https://tomato.tpos.vn/odata/Product/ODataService.GetView?$filter=DefaultCode eq '${productCode}'&$top=1`;
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: getTPOSHeaders(bearerToken),
+    });
 
-  if (!response.ok) {
-    throw new Error(`Failed to search product ${productCode}: ${response.status}`);
-  }
+    if (!response.ok) {
+      throw new Error(`Failed to search product ${productCode}: ${response.status}`);
+    }
 
-  const contentType = response.headers.get('content-type');
-  if (!contentType?.includes('application/json')) {
-    throw new Error(`Invalid response from TPOS (not JSON)`);
-  }
+    const contentType = response.headers.get('content-type');
+    if (!contentType?.includes('application/json')) {
+      throw new Error(`Invalid response from TPOS (not JSON)`);
+    }
 
-  const data = await response.json();
-  return data.value?.[0] || null;
+    const data = await response.json();
+    return data.value?.[0] || null;
+  }, 'tpos');
 }
 
 // Fetch orders from TPOS by date range and session index
@@ -54,46 +58,54 @@ async function fetchTPOSOrders(
   sessionIndex: number,
   bearerToken: string
 ) {
-  const filterQuery = `DateCreated ge ${startDate} and DateCreated le ${endDate} and SessionIndex eq ${sessionIndex}`;
-  const url = `https://tomato.tpos.vn/odata/SaleOnline_Order/ODataService.GetView?$filter=${encodeURIComponent(filterQuery)}&$orderby=DateCreated desc&$top=50`;
+  const { queryWithAutoRefresh } = await import('./query-with-auto-refresh');
+  
+  return queryWithAutoRefresh(async () => {
+    const filterQuery = `DateCreated ge ${startDate} and DateCreated le ${endDate} and SessionIndex eq ${sessionIndex}`;
+    const url = `https://tomato.tpos.vn/odata/SaleOnline_Order/ODataService.GetView?$filter=${encodeURIComponent(filterQuery)}&$orderby=DateCreated desc&$top=50`;
 
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: getTPOSHeaders(bearerToken),
-  });
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: getTPOSHeaders(bearerToken),
+    });
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch TPOS orders: ${response.status}`);
-  }
+    if (!response.ok) {
+      throw new Error(`Failed to fetch TPOS orders: ${response.status}`);
+    }
 
-  const contentType = response.headers.get('content-type');
-  if (!contentType?.includes('application/json')) {
-    throw new Error(`Invalid response from TPOS (not JSON)`);
-  }
+    const contentType = response.headers.get('content-type');
+    if (!contentType?.includes('application/json')) {
+      throw new Error(`Invalid response from TPOS (not JSON)`);
+    }
 
-  const data = await response.json();
-  return data.value || [];
+    const data = await response.json();
+    return data.value || [];
+  }, 'tpos');
 }
 
 // Get order detail from TPOS
 async function getTPOSOrderDetail(orderId: number, bearerToken: string) {
-  const url = `https://tomato.tpos.vn/odata/SaleOnline_Order(${orderId})?$expand=Details,Partner,User,CRMTeam`;
+  const { queryWithAutoRefresh } = await import('./query-with-auto-refresh');
+  
+  return queryWithAutoRefresh(async () => {
+    const url = `https://tomato.tpos.vn/odata/SaleOnline_Order(${orderId})?$expand=Details,Partner,User,CRMTeam`;
 
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: getTPOSHeaders(bearerToken),
-  });
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: getTPOSHeaders(bearerToken),
+    });
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch order detail: ${response.status}`);
-  }
+    if (!response.ok) {
+      throw new Error(`Failed to fetch order detail: ${response.status}`);
+    }
 
-  const contentType = response.headers.get('content-type');
-  if (!contentType?.includes('application/json')) {
-    throw new Error(`Invalid response from TPOS (not JSON)`);
-  }
+    const contentType = response.headers.get('content-type');
+    if (!contentType?.includes('application/json')) {
+      throw new Error(`Invalid response from TPOS (not JSON)`);
+    }
 
-  return await response.json();
+    return await response.json();
+  }, 'tpos');
 }
 
 // Update TPOS order - OVERWRITE Quantity + Note for existing products
@@ -103,81 +115,85 @@ async function updateTPOSOrder(
   newProducts: any[],
   bearerToken: string
 ) {
-  const url = `https://tomato.tpos.vn/odata/SaleOnline_Order(${orderId})`;
+  const { queryWithAutoRefresh } = await import('./query-with-auto-refresh');
+  
+  return queryWithAutoRefresh(async () => {
+    const url = `https://tomato.tpos.vn/odata/SaleOnline_Order(${orderId})`;
 
-  const existingDetails = orderDetail.Details || [];
-  const existingProductsMap = new Map<string, { product: any; index: number }>();
+    const existingDetails = orderDetail.Details || [];
+    const existingProductsMap = new Map<string, { product: any; index: number }>();
 
-  existingDetails.forEach((product: any, index: number) => {
-    const code = product.ProductCode;
-    if (code) {
-      existingProductsMap.set(code, { product, index });
+    existingDetails.forEach((product: any, index: number) => {
+      const code = product.ProductCode;
+      if (code) {
+        existingProductsMap.set(code, { product, index });
+      }
+    });
+
+    const updatedDetails = [...existingDetails];
+    const addedProducts: any[] = [];
+
+    newProducts.forEach((newProduct) => {
+      const code = newProduct.ProductCode;
+
+      if (existingProductsMap.has(code)) {
+        const { index } = existingProductsMap.get(code)!;
+        const existingProduct = updatedDetails[index];
+
+        updatedDetails[index] = {
+          ...existingProduct,
+          Quantity: newProduct.Quantity,
+          Note: newProduct.Note || '',
+        };
+
+        console.log(
+          `Product ${code} exists in TPOS order ${orderId}, overwriting: Quantity ${existingProduct.Quantity} -> ${newProduct.Quantity}, Note updated`
+        );
+      } else {
+        addedProducts.push(newProduct);
+      }
+    });
+
+    const mergedProducts = [...updatedDetails, ...addedProducts];
+
+    const payload = {
+      ...orderDetail,
+      Details: mergedProducts,
+    };
+
+    console.log(
+      `Updating TPOS order ${orderId}: overwritten ${newProducts.length - addedProducts.length} products, added ${addedProducts.length} new products`
+    );
+
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: getTPOSHeaders(bearerToken),
+      body: JSON.stringify(payload),
+    });
+
+    console.log('Update response status:', response.status);
+    console.log('Update response content-type:', response.headers.get('content-type'));
+    console.log('Update response content-length:', response.headers.get('content-length'));
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to update order: ${response.status} - ${errorText}`);
     }
-  });
 
-  const updatedDetails = [...existingDetails];
-  const addedProducts: any[] = [];
-
-  newProducts.forEach((newProduct) => {
-    const code = newProduct.ProductCode;
-
-    if (existingProductsMap.has(code)) {
-      const { index } = existingProductsMap.get(code)!;
-      const existingProduct = updatedDetails[index];
-
-      updatedDetails[index] = {
-        ...existingProduct,
-        Quantity: newProduct.Quantity,
-        Note: newProduct.Note || '',
-      };
-
-      console.log(
-        `Product ${code} exists in TPOS order ${orderId}, overwriting: Quantity ${existingProduct.Quantity} -> ${newProduct.Quantity}, Note updated`
-      );
-    } else {
-      addedProducts.push(newProduct);
+    // Handle 204 No Content or empty responses
+    if (response.status === 204 || response.headers.get('content-length') === '0') {
+      console.log('Order updated successfully (204 No Content)');
+      return { success: true };
     }
-  });
 
-  const mergedProducts = [...updatedDetails, ...addedProducts];
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return await response.json();
+    }
 
-  const payload = {
-    ...orderDetail,
-    Details: mergedProducts,
-  };
-
-  console.log(
-    `Updating TPOS order ${orderId}: overwritten ${newProducts.length - addedProducts.length} products, added ${addedProducts.length} new products`
-  );
-
-  const response = await fetch(url, {
-    method: 'PUT',
-    headers: getTPOSHeaders(bearerToken),
-    body: JSON.stringify(payload),
-  });
-
-  console.log('Update response status:', response.status);
-  console.log('Update response content-type:', response.headers.get('content-type'));
-  console.log('Update response content-length:', response.headers.get('content-length'));
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to update order: ${response.status} - ${errorText}`);
-  }
-
-  // Handle 204 No Content or empty responses
-  if (response.status === 204 || response.headers.get('content-length') === '0') {
-    console.log('Order updated successfully (204 No Content)');
+    console.log('Order updated successfully (non-JSON response)');
     return { success: true };
-  }
-
-  const contentType = response.headers.get('content-type');
-  if (contentType && contentType.includes('application/json')) {
-    return await response.json();
-  }
-
-  console.log('Order updated successfully (non-JSON response)');
-  return { success: true };
+  }, 'tpos');
 }
 
 export async function uploadOrderToTPOS(

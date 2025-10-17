@@ -48,21 +48,27 @@ export function FetchTPOSProductsDialog({ open, onOpenChange, onSuccess }: Fetch
     setSelectedProducts(new Set());
 
     try {
-      const { data, error } = await supabase.functions.invoke('fetch-tpos-products', {
-        body: { top: parseInt(selectedCount), skip: 0 }
-      });
+      const { queryWithAutoRefresh } = await import('@/lib/query-with-auto-refresh');
+      
+      const result = await queryWithAutoRefresh(async () => {
+        const { data, error } = await supabase.functions.invoke('fetch-tpos-products', {
+          body: { top: parseInt(selectedCount), skip: 0 }
+        });
 
-      if (error) throw error;
+        if (error) throw error;
 
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to fetch products');
-      }
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to fetch products');
+        }
 
-      setTposProducts(data.products || []);
-      setRawResponse(data);
+        return data;
+      }, 'tpos');
+
+      setTposProducts(result.products || []);
+      setRawResponse(result);
       toast({
         title: "✅ Lấy sản phẩm thành công",
-        description: `Đã lấy ${data.products?.length || 0} sản phẩm từ TPOS`,
+        description: `Đã lấy ${result.products?.length || 0} sản phẩm từ TPOS`,
       });
     } catch (error: any) {
       console.error('Error fetching TPOS products:', error);

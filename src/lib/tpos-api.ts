@@ -75,7 +75,9 @@ export function clearTPOSCache() {
  * Tìm kiếm sản phẩm từ TPOS theo mã sản phẩm
  */
 export async function searchTPOSProduct(productCode: string): Promise<TPOSProductSearchResult | null> {
-  try {
+  const { queryWithAutoRefresh } = await import('./query-with-auto-refresh');
+  
+  return queryWithAutoRefresh(async () => {
     const token = await getActiveTPOSToken();
     if (!token) {
       throw new Error("TPOS Bearer Token not found. Please configure in Settings.");
@@ -103,10 +105,7 @@ export async function searchTPOSProduct(productCode: string): Promise<TPOSProduc
 
     console.log(`❌ Product not found in TPOS: ${productCode}`);
     return null;
-  } catch (error) {
-    console.error('Error searching TPOS:', error);
-    throw error;
-  }
+  }, 'tpos');
 }
 
 /**
@@ -237,25 +236,29 @@ interface SyncTPOSProductIdsResult {
  * Fetch TPOS Products with pagination
  */
 async function fetchTPOSProducts(skip: number = 0): Promise<TPOSProduct[]> {
-  const token = await getActiveTPOSToken();
-  if (!token) {
-    throw new Error("TPOS Bearer Token not found. Please configure in Settings.");
-  }
+  const { queryWithAutoRefresh } = await import('./query-with-auto-refresh');
   
-  const url = `https://tomato.tpos.vn/odata/Product/ODataService.GetViewV2?Active=true&$top=1000&$skip=${skip}&$orderby=DateCreated desc&$filter=Active eq true&$count=true`;
-  
-  console.log(`[TPOS Product Sync] Fetching from skip=${skip}`);
-  
-  const response = await fetch(url, {
-    headers: getTPOSHeaders(token)
-  });
-  
-  if (!response.ok) {
-    throw new Error(`Failed to fetch TPOS products at skip=${skip}`);
-  }
-  
-  const data = await response.json();
-  return data.value || [];
+  return queryWithAutoRefresh(async () => {
+    const token = await getActiveTPOSToken();
+    if (!token) {
+      throw new Error("TPOS Bearer Token not found. Please configure in Settings.");
+    }
+    
+    const url = `https://tomato.tpos.vn/odata/Product/ODataService.GetViewV2?Active=true&$top=1000&$skip=${skip}&$orderby=DateCreated desc&$filter=Active eq true&$count=true`;
+    
+    console.log(`[TPOS Product Sync] Fetching from skip=${skip}`);
+    
+    const response = await fetch(url, {
+      headers: getTPOSHeaders(token)
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch TPOS products at skip=${skip}`);
+    }
+    
+    const data = await response.json();
+    return data.value || [];
+  }, 'tpos');
 }
 
 /**
