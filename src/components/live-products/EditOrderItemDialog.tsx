@@ -200,9 +200,40 @@ export function EditOrderItemDialog({ open, onOpenChange, orderItem, phaseId }: 
 
   const deleteOrderItemMutation = useMutation({
     mutationFn: async () => {
-      if (!orderItem || !orderItem.orders || orderItem.orders.length === 0) return;
+      if (!orderItem) return;
 
       const productId = orderItem.product_id;
+
+      // Case 1: No orders array - delete by orderItem.id directly
+      if (!orderItem.orders || orderItem.orders.length === 0) {
+        // Delete the order
+        const { error: deleteError } = await supabase
+          .from("live_orders")
+          .delete()
+          .eq("id", orderItem.id);
+
+        if (deleteError) throw deleteError;
+
+        // Update sold_quantity
+        const { data: product, error: productFetchError } = await supabase
+          .from("live_products")
+          .select("sold_quantity")
+          .eq("id", productId)
+          .single();
+
+        if (productFetchError) throw productFetchError;
+
+        const { error: productUpdateError } = await supabase
+          .from("live_products")
+          .update({
+            sold_quantity: Math.max(0, product.sold_quantity - orderItem.quantity),
+          })
+          .eq("id", productId);
+
+        if (productUpdateError) throw productUpdateError;
+        return;
+      }
+
       const isSingleOrder = orderItem.orders.length === 1;
 
       // Single order (clicked on specific badge)
