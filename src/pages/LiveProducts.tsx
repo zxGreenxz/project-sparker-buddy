@@ -763,14 +763,13 @@ export default function LiveProducts() {
     data: hangLeComments = [],
     isLoading: isLoadingHangLeComments,
   } = useQuery({
-    queryKey: ["hang-le-comments", commentsVideoId],
+    queryKey: ["hang-le-comments"],
     queryFn: async () => {
-      if (!commentsVideoId) return [];
+      console.log("Fetching hang_le comments...");
       
       const { data, error } = await supabase
         .from("facebook_pending_orders" as any)
         .select("*")
-        .eq("facebook_post_id", commentsVideoId)
         .eq("comment_type", "hang_le")
         .order("created_time", { ascending: false });
       
@@ -779,9 +778,10 @@ export default function LiveProducts() {
         throw error;
       }
       
+      console.log("Fetched hang_le comments:", data?.length || 0, "records");
       return data || [];
     },
-    enabled: !!commentsVideoId,
+    enabled: true,
   });
 
   // State for managing product codes for hang le comments
@@ -815,7 +815,7 @@ export default function LiveProducts() {
     },
     onSuccess: (data) => {
       toast.success(`Đã gắn mã sản phẩm: ${data.product.product_code}`);
-      queryClient.invalidateQueries({ queryKey: ["hang-le-comments", commentsVideoId] });
+      queryClient.invalidateQueries({ queryKey: ["hang-le-comments"] });
       // Clear the input field
       setHangLeProductCodes(prev => ({
         ...prev,
@@ -1993,17 +1993,7 @@ export default function LiveProducts() {
 
             {/* Comment Hàng Lẻ Tab */}
             <TabsContent value="comment-hang-le" className="space-y-4">
-              {!commentsVideoId ? (
-                <Card>
-                  <CardContent className="flex flex-col items-center justify-center py-12">
-                    <MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">Chưa chọn video</h3>
-                    <p className="text-muted-foreground text-center">
-                      Vui lòng chọn video Facebook để xem comment hàng lẻ
-                    </p>
-                  </CardContent>
-                </Card>
-              ) : isLoadingHangLeComments ? (
+              {isLoadingHangLeComments ? (
                 <Card>
                   <CardContent className="flex items-center justify-center py-12">
                     <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
