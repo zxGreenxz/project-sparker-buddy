@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Package, Trash2, Store, Download } from "lucide-react";
+import { Package, Trash2, Store, Download, Image } from "lucide-react";
 import { searchTPOSProduct, importProductFromTPOS } from "@/lib/tpos-api";
 import { applyMultiKeywordSearch } from "@/lib/search-utils";
 import { Card } from "@/components/ui/card";
@@ -13,6 +13,7 @@ import { CreateProductDialog } from "@/components/products/CreateProductDialog";
 import { ImportProductsDialog } from "@/components/products/ImportProductsDialog";
 import { ImportTPOSIdsDialog } from "@/components/products/ImportTPOSIdsDialog";
 import { SupplierStats } from "@/components/products/SupplierStats";
+import { SyncVariantImagesDialog } from "@/components/settings/SyncVariantImagesDialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useIsAdmin } from "@/hooks/use-user-role";
@@ -31,6 +32,7 @@ export default function Products() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isImportTPOSIdsDialogOpen, setIsImportTPOSIdsDialogOpen] = useState(false);
+  const [isSyncVariantImagesOpen, setIsSyncVariantImagesOpen] = useState(false);
   const [isAlertDialogOpen, setIsAlertDialogOpen] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
   const [supplierFilter, setSupplierFilter] = useState<string | null>(null);
@@ -260,6 +262,15 @@ export default function Products() {
                       {updateSuppliersMutation.isPending ? "Đang cập nhật..." : "Cập nhật NCC"}
                     </Button>
                     <Button
+                      onClick={() => setIsSyncVariantImagesOpen(true)}
+                      variant="secondary"
+                      size={isMobile ? "sm" : "default"}
+                      className={isMobile ? "flex-1 text-xs" : ""}
+                    >
+                      <Image className="h-4 w-4 mr-2" />
+                      Đồng bộ ảnh biến thể
+                    </Button>
+                    <Button
                       onClick={() => setIsAlertDialogOpen(true)}
                       variant="destructive"
                       size={isMobile ? "sm" : "default"}
@@ -348,6 +359,15 @@ export default function Products() {
           open={isImportTPOSIdsDialogOpen}
           onOpenChange={setIsImportTPOSIdsDialogOpen}
           onSuccess={refetch}
+        />
+
+        <SyncVariantImagesDialog
+          open={isSyncVariantImagesOpen}
+          onOpenChange={setIsSyncVariantImagesOpen}
+          onSuccess={() => {
+            refetch();
+            queryClient.invalidateQueries({ queryKey: ["products-search"] });
+          }}
         />
 
         <AlertDialog open={isAlertDialogOpen} onOpenChange={setIsAlertDialogOpen}>

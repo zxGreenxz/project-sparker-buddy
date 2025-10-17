@@ -62,3 +62,47 @@ export const getVariantName = (variant: string | null | undefined): string => {
 export const getVariantCode = (variant: string | null | undefined): string => {
   return parseVariant(variant).code;
 };
+
+/**
+ * Extract base product code from a variant code
+ * Examples:
+ * - "LQU114L" → "LQU114"
+ * - "N152M" → "N152"
+ * - "L800XS" → "L800"
+ * Pattern: L/N + alphanumeric + numbers + letters at end
+ */
+export const extractBaseCode = (variantCode: string): string | null => {
+  if (!variantCode || variantCode.trim() === '') {
+    return null;
+  }
+  
+  const trimmed = variantCode.trim();
+  
+  // Pattern: ^([LN]\w*\d+)[A-Z]+\d*$
+  // Matches: L/N prefix + any chars + digits + capital letters at end (+ optional digits)
+  const match = trimmed.match(/^([LN]\w*\d+)[A-Z]+\d*$/);
+  
+  if (match && match[1]) {
+    return match[1];
+  }
+  
+  return null;
+};
+
+/**
+ * Check if a product code is a variant code
+ * Returns true if code ends with capital letters after numbers
+ * Examples:
+ * - "LQU114L" → true
+ * - "N152M" → true
+ * - "LQU114" → false
+ * - "N152" → false
+ */
+export const isVariantCode = (productCode: string): boolean => {
+  if (!productCode || productCode.trim() === '') {
+    return false;
+  }
+  
+  // Pattern: ^[LN]\w*\d+[A-Z]+\d*$
+  return /^[LN]\w*\d+[A-Z]+\d*$/.test(productCode.trim());
+};
