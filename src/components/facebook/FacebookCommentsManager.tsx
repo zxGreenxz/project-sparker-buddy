@@ -1158,6 +1158,13 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
         return;
       }
 
+      // Close selector immediately after selection
+      setExpandedCommentIds((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(comment.id);
+        return newSet;
+      });
+
       // Append product code to comment message on same line
       const updatedMessage = `${currentMessage} [${productCode}]`;
 
@@ -1199,15 +1206,6 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
         title: "❌ Lỗi",
         description: "Có lỗi xảy ra khi chọn sản phẩm",
       });
-    } finally {
-      // Auto-collapse selector after all products are added
-      setTimeout(() => {
-        setExpandedCommentIds((prev) => {
-          const newSet = new Set(prev);
-          newSet.delete(comment.id);
-          return newSet;
-        });
-      }, 100);
     }
   };
 
