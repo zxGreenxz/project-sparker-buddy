@@ -26,37 +26,39 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
 
     const checkForNewComments = async () => {
       if (isCheckingNewCommentsRef.current) return;
-      
+
       isCheckingNewCommentsRef.current = true;
-      
+
       try {
-        console.log('[Realtime Check] Fetching from TPOS API...');
-        
-        const { data: { session } } = await supabase.auth.getSession();
-        
+        console.log("[Realtime Check] Fetching from TPOS API...");
+
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
         // Fetch trực tiếp - Edge function sẽ xử lý merge, debounce và push vào archive
         await fetch(
           `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/facebook-comments?pageId=${pageId}&postId=${videoId}&sessionIndex=${videoId}&limit=500`,
           {
             headers: {
-              'Authorization': `Bearer ${session?.access_token}`,
+              Authorization: `Bearer ${session?.access_token}`,
             },
-          }
+          },
         );
-        
-        console.log('[Realtime Check] ✅ Fetch completed');
+
+        console.log("[Realtime Check] ✅ Fetch completed");
       } catch (error) {
-        console.error('[Realtime Check] Error:', error);
+        console.error("[Realtime Check] Error:", error);
       } finally {
         isCheckingNewCommentsRef.current = false;
       }
     };
-    
+
     checkForNewComments();
-    
+
     // Check every 5 seconds when live
     const interval = setInterval(checkForNewComments, 5000);
-    
+
     return () => clearInterval(interval);
   }, [videoId, selectedVideo, isAutoRefresh, pageId, queryClient]);
 
@@ -70,49 +72,50 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
     isLoading: commentsLoading,
     error: commentsError,
   } = useInfiniteQuery({
-    queryKey: ['facebook-comments', pageId, videoId],
+    queryKey: ["facebook-comments", pageId, videoId],
     queryFn: async ({ pageParam }) => {
       if (!pageId || !videoId) return { data: [], paging: {} };
-      
+
       console.log(`[useFacebookComments] Fetching comments from archive for video ${videoId}`);
       const startTime = Date.now();
-      
+
       // ========== ALWAYS READ FROM ARCHIVE TABLE ==========
       const { data: archivedComments, error: dbError } = await supabase
-        .from('facebook_comments_archive' as any)
-        .select('*')
-        .eq('facebook_post_id', videoId)
-        .order('comment_created_time', { ascending: false })
+        .from("facebook_comments_archive" as any)
+        .select("*")
+        .eq("facebook_post_id", videoId)
+        .order("comment_created_time", { ascending: false })
         .limit(1000);
-      
+
       if (dbError) {
-        console.error('[useFacebookComments] Archive DB error:', dbError);
+        console.error("[useFacebookComments] Archive DB error:", dbError);
         return { data: [], paging: {} };
       }
-      
-      const formattedComments = archivedComments?.map((c: any) => ({
-        id: c.facebook_comment_id,
-        message: c.comment_message || '',
-        from: {
-          name: c.facebook_user_name || 'Unknown',
-          id: c.facebook_user_id || '',
-        },
-        created_time: c.comment_created_time,
-        like_count: c.like_count || 0,
-        is_deleted_by_tpos: c.is_deleted_by_tpos || false,
-        deleted_at: c.updated_at,
-      })) || [];
-      
+
+      const formattedComments =
+        archivedComments?.map((c: any) => ({
+          id: c.facebook_comment_id,
+          message: c.comment_message || "",
+          from: {
+            name: c.facebook_user_name || "Unknown",
+            id: c.facebook_user_id || "",
+          },
+          created_time: c.comment_created_time,
+          like_count: c.like_count || 0,
+          is_deleted_by_tpos: c.is_deleted_by_tpos || false,
+          deleted_at: c.updated_at,
+        })) || [];
+
       const elapsed = Date.now() - startTime;
       console.log(`[useFacebookComments] Loaded ${formattedComments.length} comments from archive in ${elapsed}ms`);
-      
+
       setErrorCount(0);
       setHasError(false);
-      
-      return { 
-        data: formattedComments, 
+
+      return {
+        data: formattedComments,
         paging: {},
-        fromArchive: true 
+        fromArchive: true,
       };
     },
     getNextPageParam: (lastPage) => {
@@ -130,9 +133,9 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
   });
 
   const comments = useMemo(() => {
-    const allComments = commentsData?.pages.flatMap(page => page.data) || [];
+    const allComments = commentsData?.pages.flatMap((page) => page.data) || [];
     const uniqueComments = new Map<string, FacebookComment>();
-    allComments.forEach(comment => {
+    allComments.forEach((comment) => {
       uniqueComments.set(comment.id, comment);
     });
     return Array.from(uniqueComments.values());
@@ -144,24 +147,29 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
     queryFn: async () => {
       if (!videoId) return [];
 
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
       // Fetch from facebook_pending_orders table
       const { data: pendingOrders } = await supabase
-        .from('facebook_pending_orders')
-        .select('*')
-        .eq('facebook_post_id', videoId)
-        .order('created_at', { ascending: false });
+        .from("facebook_pending_orders")
+        .select("*")
+        .eq("facebook_post_id", videoId)
+        .order("created_at", { ascending: false });
 
       // Fetch from TPOS API
-      const ordersResponse = await fetch(`https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/fetch-facebook-orders`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
-          'Content-Type': 'application/json',
+      const ordersResponse = await fetch(
+        `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/fetch-facebook-orders`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session?.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ postId: videoId, top: 200 }),
         },
-        body: JSON.stringify({ postId: videoId, top: 200 }),
-      });
+      );
 
       const tposOrders = ordersResponse.ok ? (await ordersResponse.json()).value || [] : [];
 
@@ -181,24 +189,24 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
           // Convert pending order to TPOSOrder format
           const tposOrder: TPOSOrder = {
             Id: pending.tpos_order_id,
-            Code: pending.code || '',
+            Code: pending.code || "",
             SessionIndex: pending.session_index,
             Facebook_UserId: pending.facebook_user_id,
             Facebook_PostId: pending.facebook_post_id,
-            Facebook_ASUserId: '',
+            Facebook_ASUserId: "",
             Facebook_CommentId: pending.facebook_comment_id,
             Facebook_UserName: pending.name,
-            Telephone: pending.phone || '',
+            Telephone: pending.phone || "",
             Name: pending.name,
-            Note: pending.comment || '',
+            Note: pending.comment || "",
             PartnerId: 0,
-            PartnerName: '',
-            PartnerStatus: '',
+            PartnerName: "",
+            PartnerStatus: "",
             PartnerStatusText: null,
             TotalAmount: 0,
             TotalQuantity: 0,
             DateCreated: pending.created_time || pending.created_at,
-            StatusText: 'Đã tạo đơn',
+            StatusText: "Đã tạo đơn",
           };
           mergedOrdersMap.set(pending.facebook_comment_id, tposOrder);
         }
@@ -216,22 +224,22 @@ export function useFacebookComments({ pageId, videoId, isAutoRefresh = true }: U
 
     const channel = supabase
       .channel(`facebook-realtime-${videoId}`)
-      
+
       // Subscribe to pending orders changes
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: '*',
-          schema: 'public',
-          table: 'facebook_pending_orders',
+          event: "*",
+          schema: "public",
+          table: "facebook_pending_orders",
           filter: `facebook_post_id=eq.${videoId}`,
         },
         (payload) => {
-          console.log('[Realtime] facebook_pending_orders change:', payload);
-          queryClient.invalidateQueries({ queryKey: ['tpos-orders', videoId] });
-        }
+          console.log("[Realtime] facebook_pending_orders change:", payload);
+          queryClient.invalidateQueries({ queryKey: ["tpos-orders", videoId] });
+        },
       )
-      
+
       .subscribe();
 
     return () => {
