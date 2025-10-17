@@ -11,8 +11,7 @@ import {
   MessageSquare,
   LogOut,
   PanelLeftClose,
-  PanelLeft,
-  Shield
+  PanelLeft
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -81,11 +80,6 @@ const adminItems = [
     title: "Lịch sử chỉnh sửa",
     url: "/activity-log",
     icon: History,
-  },
-  {
-    title: "Quản lý Users",
-    url: "/users",
-    icon: Shield,
   },
   {
     title: "Cài đặt",
