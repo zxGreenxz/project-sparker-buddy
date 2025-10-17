@@ -58,7 +58,7 @@ export function QuickAddOrder({
     localStorage.setItem('quickAddOrder_hiddenComments', JSON.stringify([...hiddenCommentIds]));
   }, [hiddenCommentIds]);
 
-  // Fetch phase data to get the date and time range
+  // Fetch phase data to get the date
   const {
     data: phaseData
   } = useQuery({
@@ -67,7 +67,7 @@ export function QuickAddOrder({
       const {
         data,
         error
-      } = await supabase.from('live_phases').select('phase_date, start_time, end_time').eq('id', phaseId).single();
+      } = await supabase.from('live_phases').select('phase_date').eq('id', phaseId).single();
       if (error) throw error;
       return data;
     },
@@ -91,91 +91,51 @@ export function QuickAddOrder({
   });
 
   // Fetch facebook_pending_orders for the phase date (include order_count)
-  // Now works even if start_time/end_time are not available
   const {
     data: pendingOrders = []
   } = useQuery({
-    queryKey: ['facebook-pending-orders', phaseData?.phase_date, phaseData?.start_time, phaseData?.end_time],
+    queryKey: ['facebook-pending-orders', phaseData?.phase_date],
     queryFn: async () => {
       if (!phaseData?.phase_date) return [];
-      
-      // Use start_time and end_time from phase, fallback to full day if not available
-      const startTime = phaseData.start_time || '00:00:00';
-      const endTime = phaseData.end_time || '23:59:59';
-      
-      const startDateTime = `${phaseData.phase_date}T${startTime}`;
-      const endDateTime = `${phaseData.phase_date}T${endTime}`;
-      
-      console.log(`🔍 QuickAddOrder filtering comments:`, {
-        phase_date: phaseData.phase_date,
-        start: startDateTime,
-        end: endDateTime,
-        has_time_fields: !!phaseData.start_time
-      });
-      
       let query: any = supabase
         .from('facebook_pending_orders')
         .select('*, order_count');
       
       query = query.eq('comment_type', 'hang_dat');
-      query = query.gte('created_time', startDateTime);
-      query = query.lte('created_time', endDateTime);
+      query = query.gte('created_time', `${phaseData.phase_date}T00:00:00`);
+      query = query.lt('created_time', `${phaseData.phase_date}T23:59:59`);
       query = query.order('created_time', { ascending: false });
       
       const { data, error } = await query;
-      if (error) {
-        console.error('❌ Error fetching pending orders:', error);
-        throw error;
-      }
-      
-      console.log(`✅ Found ${data?.length || 0} pending orders for phase`);
+      if (error) throw error;
       return (data || []) as PendingOrder[];
     },
-    enabled: !!phaseData?.phase_date, // Only require phase_date, not time fields
+    enabled: !!phaseData?.phase_date,
     refetchInterval: 5000
   });
 
-  // Real-time subscription for instant updates with time range filtering
+  // Real-time subscription for instant updates
   useEffect(() => {
-    if (!phaseData?.phase_date || !phaseData?.start_time || !phaseData?.end_time) return;
-    
+    if (!phaseData?.phase_date) return;
     const channel = supabase.channel('facebook-pending-orders-realtime').on('postgres_changes', {
       event: '*',
       schema: 'public',
       table: 'facebook_pending_orders'
     }, payload => {
+      // Only refetch if the new order is for today's phase
       if (!payload.new || typeof payload.new !== 'object') return;
-      const newOrder = payload.new as any;
-      const createdTime = new Date(newOrder.created_time);
+      const createdTime = new Date((payload.new as any).created_time);
       const phaseDate = new Date(phaseData.phase_date);
-      
-      // Check if comment is within phase time range
-      const [startHour, startMin] = phaseData.start_time.split(':').map(Number);
-      const [endHour, endMin] = phaseData.end_time.split(':').map(Number);
-      
-      const isMatchingDate = createdTime.getDate() === phaseDate.getDate() && 
-                            createdTime.getMonth() === phaseDate.getMonth() && 
-                            createdTime.getFullYear() === phaseDate.getFullYear();
-      
-      const createdHour = createdTime.getHours();
-      const createdMin = createdTime.getMinutes();
-      const createdTimeInMin = createdHour * 60 + createdMin;
-      const startTimeInMin = startHour * 60 + startMin;
-      const endTimeInMin = endHour * 60 + endMin;
-      
-      const isWithinTimeRange = createdTimeInMin >= startTimeInMin && createdTimeInMin <= endTimeInMin;
-      
-      if (isMatchingDate && isWithinTimeRange) {
-        queryClient.invalidateQueries({ 
-          queryKey: ['facebook-pending-orders', phaseData.phase_date, phaseData.start_time, phaseData.end_time] 
+      if (createdTime.getDate() === phaseDate.getDate() && createdTime.getMonth() === phaseDate.getMonth() && createdTime.getFullYear() === phaseDate.getFullYear()) {
+        queryClient.invalidateQueries({
+          queryKey: ['facebook-pending-orders', phaseData.phase_date]
         });
       }
     }).subscribe();
-    
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [phaseData?.phase_date, phaseData?.start_time, phaseData?.end_time, queryClient]);
+  }, [phaseData?.phase_date, queryClient]);
 
   // Count how many times each comment has been used
   const commentUsageCount = React.useMemo(() => {
@@ -307,9 +267,9 @@ export function QuickAddOrder({
       queryClient.invalidateQueries({
         queryKey: ['orders-with-products', phaseId]
       });
-        queryClient.invalidateQueries({
-          queryKey: ['facebook-pending-orders', phaseData?.phase_date, phaseData?.start_time, phaseData?.end_time]
-        });
+      queryClient.invalidateQueries({
+        queryKey: ['facebook-pending-orders', phaseData?.phase_date]
+      });
 
       // Also refetch queries to ensure UI updates immediately
       queryClient.refetchQueries({
@@ -322,7 +282,7 @@ export function QuickAddOrder({
         queryKey: ['orders-with-products', phaseId]
       });
       queryClient.refetchQueries({
-        queryKey: ['facebook-pending-orders', phaseData?.phase_date, phaseData?.start_time, phaseData?.end_time]
+        queryKey: ['facebook-pending-orders', phaseData?.phase_date]
       });
 
       // Auto-print bill using PDF template
