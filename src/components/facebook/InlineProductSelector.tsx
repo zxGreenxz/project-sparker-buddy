@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Package, ChevronUp, Loader2, Search, X, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { FacebookComment } from "@/types/facebook";
@@ -181,7 +180,6 @@ export function InlineProductSelector({
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [sortedProducts, setSortedProducts] = useState<ScannedBarcode[]>([]);
-  const [selectedInventoryIds, setSelectedInventoryIds] = useState<Set<string>>(new Set());
 
   // Configure sensors for drag and drop
   const sensors = useSensors(
@@ -294,40 +292,6 @@ export function InlineProductSelector({
     }
   };
 
-  const handleAddSelectedInventory = async () => {
-    if (!onAddToScannedList || !inventoryProducts) return;
-
-    const selectedProds = inventoryProducts.filter((p) => selectedInventoryIds.has(p.id));
-    
-    for (const product of selectedProds) {
-      const scannedProduct: ScannedBarcode = {
-        code: product.product_code,
-        timestamp: new Date().toISOString(),
-        productInfo: {
-          id: product.id,
-          name: product.product_name,
-          image_url: product.tpos_image_url || (product.product_images && product.product_images[0]),
-          product_code: product.product_code,
-        },
-      };
-      await onAddToScannedList(scannedProduct);
-    }
-
-    setSelectedInventoryIds(new Set());
-  };
-
-  const toggleInventorySelection = (productId: string) => {
-    setSelectedInventoryIds((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(productId)) {
-        newSet.delete(productId);
-      } else {
-        newSet.add(productId);
-      }
-      return newSet;
-    });
-  };
-
   const hasScannedProducts = scannedBarcodes.some((b) => b.productInfo);
   const showInventoryResults =
     debouncedSearchQuery.length >= 2 &&
@@ -391,64 +355,60 @@ export function InlineProductSelector({
           {/* Inventory Products Section */}
           {showInventoryResults && (
             <>
-              {inventoryProducts.map((product) => {
-                const isSelected = selectedInventoryIds.has(product.id);
-                return (
-                  <div
-                    key={product.id}
+              {inventoryProducts.map((product) => (
+                <div
+                  key={product.id}
+                  className="flex items-center gap-2 p-2 bg-white dark:bg-slate-900 rounded border border-blue-200 dark:border-blue-800 hover:border-blue-300 dark:hover:border-blue-700 transition-colors"
+                >
+                  {/* Inventory badge */}
+                  <Badge
                     className={cn(
-                      "flex items-center gap-2 p-2 bg-white dark:bg-slate-900 rounded border transition-colors cursor-pointer",
-                      isSelected
-                        ? "border-blue-500 dark:border-blue-500 bg-blue-50 dark:bg-blue-950/30"
-                        : "border-blue-200 dark:border-blue-800 hover:border-blue-300 dark:hover:border-blue-700",
+                      "bg-blue-500 text-white px-1.5 py-0 flex-shrink-0",
+                      isMobile ? "text-[9px]" : "text-xs",
                     )}
-                    onClick={() => toggleInventorySelection(product.id)}
                   >
-                    {/* Checkbox */}
-                    <Checkbox
-                      checked={isSelected}
-                      onCheckedChange={() => toggleInventorySelection(product.id)}
-                      className="flex-shrink-0"
+                    Kho
+                  </Badge>
+
+                  {/* Product thumbnail */}
+                  {product.tpos_image_url || (product.product_images && product.product_images[0]) ? (
+                    <img
+                      src={product.tpos_image_url || product.product_images[0]}
+                      alt={product.product_name}
+                      className="w-10 h-10 object-cover rounded flex-shrink-0"
+                      onError={(e) => {
+                        e.currentTarget.src = "/placeholder.svg";
+                      }}
                     />
-
-                    {/* Inventory badge */}
-                    <Badge
-                      className={cn(
-                        "bg-blue-500 text-white px-1.5 py-0 flex-shrink-0",
-                        isMobile ? "text-[9px]" : "text-xs",
-                      )}
-                    >
-                      Kho
-                    </Badge>
-
-                    {/* Product thumbnail */}
-                    {product.tpos_image_url || (product.product_images && product.product_images[0]) ? (
-                      <img
-                        src={product.tpos_image_url || product.product_images[0]}
-                        alt={product.product_name}
-                        className="w-10 h-10 object-cover rounded flex-shrink-0"
-                        onError={(e) => {
-                          e.currentTarget.src = "/placeholder.svg";
-                        }}
-                      />
-                    ) : (
-                      <div className="w-10 h-10 bg-muted rounded flex items-center justify-center flex-shrink-0">
-                        <Package className="h-5 w-5 text-muted-foreground" />
-                      </div>
-                    )}
-
-                    {/* Product info */}
-                    <div className="flex-1 min-w-0">
-                      <p className={cn("font-semibold truncate text-foreground", isMobile ? "text-xs" : "text-sm")}>
-                        {product.product_name}
-                      </p>
-                      <p className={cn("text-muted-foreground truncate", isMobile ? "text-[10px]" : "text-xs")}>
-                        {product.product_code}
-                      </p>
+                  ) : (
+                    <div className="w-10 h-10 bg-muted rounded flex items-center justify-center flex-shrink-0">
+                      <Package className="h-5 w-5 text-muted-foreground" />
                     </div>
+                  )}
+
+                  {/* Product info */}
+                  <div className="flex-1 min-w-0">
+                    <p className={cn("font-semibold truncate text-foreground", isMobile ? "text-xs" : "text-sm")}>
+                      {product.product_name}
+                    </p>
+                    <p className={cn("text-muted-foreground truncate", isMobile ? "text-[10px]" : "text-xs")}>
+                      {product.product_code}
+                    </p>
                   </div>
-                );
-              })}
+
+                  {/* Action button */}
+                  <Button
+                    size="sm"
+                    className={cn(
+                      "flex-shrink-0 bg-blue-600 hover:bg-blue-700 text-white",
+                      isMobile ? "h-7 text-xs px-2" : "h-8 text-xs px-3",
+                    )}
+                    onClick={() => handleSelectInventoryProduct(product)}
+                  >
+                    Chọn
+                  </Button>
+                </div>
+              ))}
             </>
           )}
 
@@ -476,31 +436,6 @@ export function InlineProductSelector({
           )}
         </div>
       </ScrollArea>
-
-      {/* Sticky Footer for Multi-Selection */}
-      {selectedInventoryIds.size > 0 && (
-        <div className="flex items-center gap-2 p-2 bg-blue-100 dark:bg-blue-900/50 rounded border border-blue-300 dark:border-blue-700 animate-in slide-in-from-bottom-2 duration-200">
-          <Badge className="bg-blue-600 text-white">{selectedInventoryIds.size}</Badge>
-          <span className={cn("flex-1 font-medium text-blue-900 dark:text-blue-100", isMobile ? "text-xs" : "text-sm")}>
-            sản phẩm đã chọn
-          </span>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => setSelectedInventoryIds(new Set())}
-            className={cn("text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800", isMobile ? "h-7 text-xs px-2" : "h-8 text-xs px-3")}
-          >
-            Bỏ chọn
-          </Button>
-          <Button
-            size="sm"
-            onClick={handleAddSelectedInventory}
-            className={cn("bg-blue-600 hover:bg-blue-700 text-white", isMobile ? "h-7 text-xs px-2" : "h-8 text-xs px-3")}
-          >
-            Thêm tất cả
-          </Button>
-        </div>
-      )}
     </div>
   );
 }
