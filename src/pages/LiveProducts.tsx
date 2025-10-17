@@ -763,22 +763,60 @@ export default function LiveProducts() {
     data: hangLeComments = [],
     isLoading: isLoadingHangLeComments,
   } = useQuery({
-    queryKey: ["hang-le-comments"],
+    queryKey: ["hang-le-comments", selectedPhase],
     queryFn: async () => {
-      console.log("Fetching hang_le comments...");
+      console.log("Fetching hang_le comments for phase:", selectedPhase);
+      
+      if (!selectedPhase || selectedPhase === "all") {
+        // If no phase selected or "all" selected, fetch all comments
+        const { data, error } = await supabase
+          .from("facebook_pending_orders" as any)
+          .select("*")
+          .eq("comment_type", "hang_le")
+          .order("created_time", { ascending: false });
+        
+        if (error) {
+          console.error("Error fetching hang_le comments:", error);
+          throw error;
+        }
+        
+        console.log("Fetched all hang_le comments:", data?.length || 0, "records");
+        return data || [];
+      }
+
+      // Get the selected phase details
+      const selectedPhaseData = livePhases.find(p => p.id === selectedPhase);
+      if (!selectedPhaseData) {
+        console.log("Phase not found");
+        return [];
+      }
+
+      const phaseDate = new Date(selectedPhaseData.phase_date);
+      const isMorning = selectedPhaseData.phase_type === 'morning';
+      
+      // Set start and end times based on phase type
+      const startDateTime = new Date(phaseDate);
+      startDateTime.setHours(isMorning ? 0 : 12, 0, 0, 0);
+      
+      const endDateTime = new Date(phaseDate);
+      endDateTime.setHours(isMorning ? 11 : 23, isMorning ? 59 : 59, 59, 999);
+      
+      console.log("Filtering comments between:", startDateTime.toISOString(), "and", endDateTime.toISOString());
       
       const { data, error } = await supabase
         .from("facebook_pending_orders" as any)
         .select("*")
         .eq("comment_type", "hang_le")
+        .gte("created_time", startDateTime.toISOString())
+        .lte("created_time", endDateTime.toISOString())
         .order("created_time", { ascending: false });
       
       if (error) {
-        console.error("Error fetching hang le comments:", error);
+        console.error("Error fetching hang_le comments:", error);
         throw error;
       }
       
-      console.log("Fetched hang_le comments:", data?.length || 0, "records");
+      console.log("Fetched hang_le comments:", data?.length || 0, "records for selected phase");
       return data || [];
     },
     enabled: true,
@@ -815,7 +853,7 @@ export default function LiveProducts() {
     },
     onSuccess: (data) => {
       toast.success(`Đã gắn mã sản phẩm: ${data.product.product_code}`);
-      queryClient.invalidateQueries({ queryKey: ["hang-le-comments"] });
+      queryClient.invalidateQueries({ queryKey: ["hang-le-comments", selectedPhase] });
       // Clear the input field
       setHangLeProductCodes(prev => ({
         ...prev,
