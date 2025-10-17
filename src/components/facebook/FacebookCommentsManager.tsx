@@ -347,29 +347,26 @@ export function FacebookCommentsManager({
 
       console.log(`[Videos] 🎬 Fetching videos for pageId: ${pageId}, limit: ${limit}`);
       
-      // Get session first
+      const url = `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/facebook-livevideo?pageId=${pageId}&limit=${limit}`;
       const {
         data: { session },
       } = await supabase.auth.getSession();
 
-      if (!session?.access_token) {
-        console.error('[Videos] ❌ No valid session found');
-        throw new Error('Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.');
-      }
-
-      console.log('[Videos] ✅ Session valid, calling edge function...');
-
-      // Use supabase.functions.invoke instead of direct fetch
-      const { data, error } = await supabase.functions.invoke('facebook-livevideo', {
-        body: { pageId, limit },
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+          "Content-Type": "application/json",
+        },
       });
 
-      if (error) {
-        console.error(`[Videos] ❌ Edge function error:`, error);
-        throw new Error(error.message || 'Failed to fetch videos');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error(`[Videos] ❌ Error ${response.status}:`, errorData);
+        throw new Error(errorData.error || errorData.details || `Failed to fetch videos (${response.status})`);
       }
 
-      const videosArray = (Array.isArray(data) ? data : data?.data || []) as FacebookVideo[];
+      const result = await response.json();
+      const videosArray = (Array.isArray(result) ? result : result.data || []) as FacebookVideo[];
       console.log(`[Videos] ✅ Fetched ${videosArray.length} videos`);
       return videosArray;
     },
