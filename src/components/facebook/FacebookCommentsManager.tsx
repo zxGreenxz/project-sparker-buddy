@@ -54,6 +54,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { useBarcodeScanner } from "@/contexts/BarcodeScannerContext";
 import { InlineProductSelector } from "./InlineProductSelector";
+import { ProductTagList } from "./ProductTagList";
 import { Package } from "lucide-react";
 
 // ============================================================================
@@ -1209,6 +1210,69 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
     }
   };
 
+  const handleRemoveProductFromComment = async (comment: CommentWithStatus, productCode: string) => {
+    try {
+      // Get current message
+      const { data: currentComment } = await (supabase as any)
+        .from("facebook_comments_archive")
+        .select("comment_message")
+        .eq("facebook_comment_id", comment.id)
+        .eq("facebook_post_id", selectedVideo?.objectId || "")
+        .maybeSingle();
+
+      const currentMessage = currentComment?.comment_message || comment.message || "";
+
+      // Check if product exists in message
+      if (!currentMessage.includes(`[${productCode}]`)) {
+        console.log(`Product ${productCode} not found in message`);
+        return;
+      }
+
+      // Remove product code from message
+      const updatedMessage = currentMessage
+        .replace(`[${productCode}]`, '')
+        .replace(/\s+/g, ' ') // Collapse multiple spaces
+        .trim();
+
+      // Update database
+      const { error } = await (supabase as any)
+        .from("facebook_comments_archive")
+        .update({ comment_message: updatedMessage })
+        .eq("facebook_comment_id", comment.id)
+        .eq("facebook_post_id", selectedVideo?.objectId || "");
+
+      if (error) {
+        console.error("Error removing product from comment:", error);
+        toast({
+          variant: "destructive",
+          title: "❌ Lỗi",
+          description: "Không thể xóa sản phẩm khỏi comment",
+        });
+        return;
+      }
+
+      // Update local state
+      comment.message = updatedMessage;
+
+      // Refresh UI
+      queryClient.invalidateQueries({
+        queryKey: getCommentsQueryKey(pageId, selectedVideo?.objectId, selectedVideo?.statusLive === 1),
+      });
+
+      toast({
+        title: "✅ Đã xóa sản phẩm",
+        description: `${productCode} đã được xóa khỏi comment`,
+      });
+    } catch (error) {
+      console.error("Error in handleRemoveProductFromComment:", error);
+      toast({
+        variant: "destructive",
+        title: "❌ Lỗi",
+        description: "Có lỗi xảy ra khi xóa sản phẩm",
+      });
+    }
+  };
+
   const handleRefreshFromTPOS = () => {
     queryClient.removeQueries({
       queryKey: getCommentsQueryKey(pageId, selectedVideo?.objectId, selectedVideo?.statusLive === 1),
@@ -1733,14 +1797,13 @@ export function FacebookCommentsManager({ onVideoSelected }: FacebookCommentsMan
                                     </span>
                                   </div>
 
-                                  <p
-                                    className={cn(
-                                      "text-sm font-semibold whitespace-pre-wrap break-words mt-1.5",
-                                      isDeleted && "text-muted-foreground line-through",
-                                    )}
-                                  >
-                                    {comment.message}
-                                  </p>
+                <div className={cn(isDeleted && "text-muted-foreground line-through")}>
+                  <ProductTagList
+                    message={comment.message}
+                    onRemoveProduct={(productCode) => handleRemoveProductFromComment(comment, productCode)}
+                    disabled={isDeleted}
+                  />
+                </div>
 
                                   <div className="flex items-center gap-2 mt-3 flex-wrap">
                                     <Button
