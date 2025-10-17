@@ -337,12 +337,16 @@ export function FacebookCommentsManager({
   const {
     data: videos = [],
     isLoading: videosLoading,
+    isError: videosError,
+    error: videosErrorMessage,
     refetch: refetchVideos,
   } = useQuery({
     queryKey: ["facebook-videos", pageId, limit],
     queryFn: async () => {
       if (!pageId) return [];
 
+      console.log(`[Videos] 🎬 Fetching videos for pageId: ${pageId}, limit: ${limit}`);
+      
       const url = `https://xneoovjmwhzzphwlwojc.supabase.co/functions/v1/facebook-livevideo?pageId=${pageId}&limit=${limit}`;
       const {
         data: { session },
@@ -356,16 +360,18 @@ export function FacebookCommentsManager({
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to fetch videos");
+        const errorData = await response.json().catch(() => ({}));
+        console.error(`[Videos] ❌ Error ${response.status}:`, errorData);
+        throw new Error(errorData.error || errorData.details || `Failed to fetch videos (${response.status})`);
       }
 
       const result = await response.json();
-      return (
-        Array.isArray(result) ? result : result.data || []
-      ) as FacebookVideo[];
+      const videosArray = (Array.isArray(result) ? result : result.data || []) as FacebookVideo[];
+      console.log(`[Videos] ✅ Fetched ${videosArray.length} videos`);
+      return videosArray;
     },
     enabled: !!pageId,
+    retry: 1,
   });
 
   // Fetch comments with infinite scroll
@@ -1240,6 +1246,45 @@ export function FacebookCommentsManager({
               </CardHeader>
 
               <CardContent className={cn("space-y-4", isMobile && "space-y-3")}>
+                {/* Empty State: No Pages */}
+                {(!facebookPages || facebookPages.length === 0) && (
+                  <Alert className="border-orange-500/30 bg-orange-500/5">
+                    <AlertCircle className="h-4 w-4 text-orange-600" />
+                    <AlertDescription className="text-sm text-orange-700">
+                      <div className="space-y-2">
+                        <p className="font-medium">Chưa có Facebook Page nào</p>
+                        <p>Vui lòng thêm Facebook Page ở tab "Facebook Page" ở trên để bắt đầu.</p>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {/* Error State: Videos failed to load */}
+                {videosError && (
+                  <Alert className="border-destructive/30 bg-destructive/5">
+                    <AlertCircle className="h-4 w-4 text-destructive" />
+                    <AlertDescription className="text-sm text-destructive">
+                      <div className="space-y-2">
+                        <p className="font-medium">Không thể tải videos</p>
+                        <p>{videosErrorMessage?.message || "Lỗi không xác định"}</p>
+                        <p className="text-xs">
+                          Có thể do: Facebook Bearer Token không tồn tại hoặc đã hết hạn. 
+                          Vui lòng kiểm tra cài đặt TPOS credentials.
+                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => refetchVideos()}
+                          className="mt-2"
+                        >
+                          <RefreshCw className="mr-2 h-4 w-4" />
+                          Thử lại
+                        </Button>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 {selectedPage && selectedPage.crm_team_id && (
                   <div
                     className={cn(
@@ -1313,6 +1358,20 @@ export function FacebookCommentsManager({
                     )}
                   </Button>
                 </div>
+
+                {/* Empty State: No videos found */}
+                {!videosLoading && !videosError && videos.length === 0 && pageId && (
+                  <Alert className="border-blue-500/30 bg-blue-500/5">
+                    <AlertCircle className="h-4 w-4 text-blue-600" />
+                    <AlertDescription className="text-sm text-blue-700">
+                      <div className="space-y-2">
+                        <p className="font-medium">Không tìm thấy video nào</p>
+                        <p>Page này chưa có video nào hoặc không có video trong {limit} video gần nhất.</p>
+                        <p className="text-xs">Thử tăng limit hoặc kiểm tra lại page.</p>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                )}
 
                 {videos.length > 0 && (
                   <div

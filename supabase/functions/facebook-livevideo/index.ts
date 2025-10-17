@@ -34,6 +34,7 @@ serve(async (req) => {
     );
 
     // Fetch Facebook token from tpos_credentials
+    console.log('🔍 Fetching Facebook Bearer Token from tpos_credentials...');
     const { data: tokenData, error: tokenError } = await supabase
       .from('tpos_credentials')
       .select('bearer_token')
@@ -43,34 +44,64 @@ serve(async (req) => {
       .limit(1)
       .maybeSingle();
     
-    if (tokenError || !tokenData?.bearer_token) {
-      console.error('❌ Facebook token not found:', tokenError);
+    if (tokenError) {
+      console.error('❌ Database error fetching token:', tokenError);
       return new Response(
-        JSON.stringify({ error: 'Facebook Bearer Token not found' }),
+        JSON.stringify({ 
+          error: 'Database error', 
+          details: 'Không thể truy xuất Facebook Bearer Token từ database. Vui lòng kiểm tra kết nối Supabase.' 
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    if (!tokenData?.bearer_token) {
+      console.error('❌ Facebook Bearer Token not found in tpos_credentials table');
+      return new Response(
+        JSON.stringify({ 
+          error: 'Facebook Bearer Token not found',
+          details: 'Không tìm thấy Facebook Bearer Token trong bảng tpos_credentials. Vui lòng thêm token với token_type="facebook" trong Settings → TPOS Credentials.'
+        }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    
+    console.log('✅ Facebook Bearer Token found');
 
     const bearerToken = tokenData.bearer_token;
 
-    console.log(`Fetching Facebook live videos for pageId: ${pageId}, limit: ${limit}, facebook_Type: ${facebook_Type}`);
+    console.log(`📡 Fetching Facebook live videos - pageId: ${pageId}, limit: ${limit}, facebook_Type: ${facebook_Type}`);
 
-    const response = await fetch(
-      `https://tomato.tpos.vn/api/facebook-graph/livevideo?pageid=${pageId}&limit=${limit}&facebook_Type=${facebook_Type}`,
-      {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${bearerToken}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    const tposUrl = `https://tomato.tpos.vn/api/facebook-graph/livevideo?pageid=${pageId}&limit=${limit}&facebook_Type=${facebook_Type}`;
+    console.log(`🌐 TPOS API URL: ${tposUrl}`);
+
+    const response = await fetch(tposUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${bearerToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('TPOS API error:', response.status, errorText);
+      console.error(`❌ TPOS API error (${response.status}):`, errorText);
+      
+      let errorDetails = errorText;
+      if (response.status === 401) {
+        errorDetails = 'Facebook Bearer Token không hợp lệ hoặc đã hết hạn. Vui lòng cập nhật token mới trong Settings → TPOS Credentials.';
+      } else if (response.status === 404) {
+        errorDetails = 'Không tìm thấy page hoặc endpoint. Kiểm tra lại pageId.';
+      } else if (response.status >= 500) {
+        errorDetails = 'TPOS API đang gặp sự cố. Vui lòng thử lại sau.';
+      }
+      
       return new Response(
-        JSON.stringify({ error: `TPOS API error: ${response.status}`, details: errorText }),
+        JSON.stringify({ 
+          error: `TPOS API error: ${response.status}`, 
+          details: errorDetails,
+          raw_error: errorText 
+        }),
         { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
